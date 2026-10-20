@@ -49,3 +49,38 @@ test('sortie d\'erreur : adresse hors limites avec EM', () => {
   assert.equal(m.cpu.stopped, true);
   assert.equal((m.cm[0o200] >> 48n) & 7n, 1n);
 });
+
+test('disque 6603 : écriture puis lecture d\'un secteur par un PP', async () => {
+  const { assemble } = await import('../src/asm/compass.js');
+  const { loadPP } = await import('../src/loader/loader.js');
+  const r = assemble(`
+          IDENT  DSK,100B
+          PERIPH
+ CH       EQU    13B
+          ORG    100B
+ START    FNC    1405B,CH    PISTE 5
+          FNC    1602B,CH    TETE 2
+          FNC    1207B,CH    ECRIRE LE SECTEUR 7
+          ACN    CH
+          LDN    3
+          OAM    DATA,CH
+          DCN    CH
+          FNC    1007B,CH    LIRE LE SECTEUR 7
+          ACN    CH
+          LDN    3
+          IAM    BUF,CH
+          DCN    CH
+          UJN    *
+ DATA     CON    1111B,2222B,3333B
+ BUF      BSS    3
+          END`);
+  assert.ok(r.ok, JSON.stringify(r.errors));
+  const m = new Machine({ ecsWords: 0 });
+  for (let n = 1; n < 10; n++) m.stopPP(n);
+  loadPP(m, r.programs[0], 0);
+  m.startPP(0, 0o100);
+  m.run(200);
+  const buf = r.symbols.find((s) => s.name === 'BUF').value;
+  assert.deepEqual([...m.pps[0].mem.slice(buf, buf + 3)], [0o1111, 0o2222, 0o3333]);
+  assert.equal(m.disk.sectors.get(m.disk.key(5, 2, 7))[2], 0o3333);
+});

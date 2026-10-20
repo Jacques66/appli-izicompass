@@ -1,0 +1,30 @@
+          IDENT  COPY
+          ENTRY  COPY
+*         RECOPIE LES CARTES DE INPUT SUR OUTPUT ET COMPTE LES LIGNES.
+ COPY     SX6    0
+          SA6    COUNT
+ COPY1    READC  INPUT,CARD,9
+          NZ     X1,COPY2    FIN DES DONNEES
+          SA1    COUNT
+          SX6    X1+1
+          SA6    A1
+          WRITEC OUTPUT,LINE
+          EQ     COPY1
+ COPY2    SA1    COUNT
+          CDD
+          SA6    NUM
+          WRITEC OUTPUT,TOTAL
+          WRITER OUTPUT
+          MESSAGE DONE
+          ENDRUN
+ COUNT    DATA   0
+ LINE     DATA   1H
+ CARD     BSS    9
+ TOTAL    DIS    1, CARTES :
+ NUM      DATA   0,0
+ DONE     DIS    ,*COPIE TERMINEE.*
+ INPUT    FILEC  IBUF,101B
+ OUTPUT   FILEC  OBUF,101B
+ IBUF     BSS    101B
+ OBUF     BSS    101B
+          END    COPY

@@ -180,6 +180,8 @@ export class CrtConsole {
         for (const e of list) {
           if (e.s !== sc.id) continue;
           if (e.c < 0 || e.sz === 3) { dots.push(e); continue; }
+          // le 6612 ne trace rien pour le code 00 ni pour les codes 60B-77B
+          if (e.c === 0 || e.c >= 0o60) continue;
           const inc = INCREMENT[e.sz] * k;
           const gw = inc * 0.62, gh = inc * 0.82;
           const sx = gw / 4, sy = gh / 6;

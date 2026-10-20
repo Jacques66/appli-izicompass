@@ -1,5 +1,20 @@
 [
   {
+    "file": "sys-bonjour.cmp",
+    "title": "Bonjour (mini-système)",
+    "kind": "program",
+    "mode": "SYS",
+    "description": "Travail relogeable : MESSAGE au journal, WRITEC sur l’imprimante, CDD, ENDRUN."
+  },
+  {
+    "file": "sys-copie.cmp",
+    "title": "Copie de cartes (mini-système)",
+    "kind": "program",
+    "mode": "SYS",
+    "description": "READC sur INPUT (lecteur 405), WRITEC sur OUTPUT (imprimante) ; le paquet est fourni.",
+    "cards": "PREMIERE CARTE\nDEUXIEME CARTE AVEC DES CHIFFRES 0123456789\n  TROISIEME (+-*/=,.$)\n7/8/9\n"
+  },
+  {
     "file": "cpu-somme.cmp",
     "title": "Somme et factorielle",
     "kind": "program",

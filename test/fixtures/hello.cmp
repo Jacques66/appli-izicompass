@@ -1,0 +1,20 @@
+          IDENT  HELLO
+          ENTRY  HELLO
+*         ECRIT DEUX LIGNES SUR OUTPUT ET UN MESSAGE AU JOURNAL.
+ HELLO    MESSAGE MSG
+          WRITEC OUTPUT,LINE1
+          SX1    12345
+          CDD
+          SA6    NUM
+          WRITEC OUTPUT,LINE2
+          WRITER OUTPUT
+          ENDRUN
+ MSG      DIS    ,*BONJOUR DU 6600*
+ LINE1    DIS    ,* PREMIERE LIGNE*
+ LINE2    DIS    1,  NOMBRE =
+ NUM      DATA   0
+          DATA   0
+ OUTPUT   FILEC  BUF,BUFL
+ BUFL     EQU    101B
+ BUF      BSS    BUFL
+          END    HELLO

@@ -23,7 +23,7 @@ export class MemoryPanel {
     });
     this.goto = tinput({ placeholder: 'adresse (octal)', width: 120, onenter: (v) => this.gotoText(v) });
     this.modeSel = segmented([['abs', 'Absolu'], ['rel', 'Relatif à RA']], 'abs', (v) => { this.relative = v === 'rel'; this.resize(); });
-    this.interpSel = segmented([['text', 'Display'], ['int', 'Entier'], ['float', 'Flottant']], this.interp, (v) => { this.interp = v; this.vlist.refresh(); });
+    this.interpSel = segmented([['text', 'Display'], ['auto', 'Nombre'], ['int', 'Entier'], ['float', 'Flottant']], this.interp, (v) => { this.interp = v; this.vlist.refresh(); });
     this.info = h('span', { class: 'ptool-dim' });
     this.el = h('div', { class: 'panel panel-memory' },
       toolbar(this.goto,
@@ -63,7 +63,7 @@ export class MemoryPanel {
     if (this.last.size > 4000) this.last.clear();
     const inField = a >= cpu.RA && a < cpu.RA + cpu.FL;
     const cls = `${a === pAbs && this.ctx.runner.kind === 'cpu' ? 'is-p' : ''} ${watch ? 'watch' : ''} ${changed ? 'chg' : ''} ${i === this.selected ? 'sel' : ''} ${w === 0n ? 'zero' : ''} ${inField ? '' : 'out'}`;
-    const t = this.interp === 'text' ? wordToDisplay(w) : interpret(w, this.interp);
+    const t = w === 0n ? '' : this.interp === 'text' ? wordToDisplay(w) : interpret(w, this.interp);
     const sym = this.ctx.runner.kind === 'cpu' ? this.ctx.symbolMap().get(a - cpu.RA) : null;
     return `<div class="m-row ${cls}"><span class="m-w" data-tip="${watch ? 'Surveillé' : 'Cliquer pour surveiller'}"></span>`
       + `<span class="m-a">${o(this.relative ? i : a, 6)}${sym ? `<em>${esc(sym)}</em>` : ''}</span>`

@@ -8,7 +8,7 @@ import { Cpu, MODELS } from './cpu/cpu.js';
 import { Pp } from './pp/pp.js';
 import { Channel } from './io/channel.js';
 import {
-  DeadstartPanel, Console6612, CardReader405, LinePrinter1612, TapeDrive607, Tape, RealTimeClock,
+  DeadstartPanel, Console6612, CardReader405, LinePrinter1612, TapeDrive607, Tape, RealTimeClock, Disk6603,
 } from './io/devices.js';
 
 export const DEFAULT_CONFIG = {
@@ -19,7 +19,7 @@ export const DEFAULT_CONFIG = {
   channels: 0o20,
   consoleChannel: 0o10,
   unitRecordChannel: 0o12, // lecteur 405 + imprimante 1612
-  tapeChannel: 0o13,
+  tapeChannel: 0o13,      // bandes 607 et disque 6603
   clockChannel: 0o14,
   tapeUnits: 4,
 };
@@ -57,6 +57,8 @@ export class Machine {
     this.tapes = new TapeDrive607();
     this.channels[c.tapeChannel].attach(this.tapes);
     for (let u = 0; u < c.tapeUnits; u++) this.tapes.mount(u, new Tape());
+    this.disk = new Disk6603();
+    this.channels[c.tapeChannel].attach(this.disk);
     this.clock = new RealTimeClock(this);
     if (c.clockChannel < c.channels) this.clock.attachTo(this.channels[c.clockChannel]);
   }

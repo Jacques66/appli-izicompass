@@ -1,6 +1,7 @@
 // Point d'entrée de l'assembleur COMPASS (voir docs/API.md).
 
 import { Assembler } from './assembler.js';
+import { SYSTEM_TEXTS } from '../os/systext.js';
 
 const systemCache = new Map();
 
@@ -27,6 +28,9 @@ export function systemDefinitions(name, text) {
  * @param options { fileName, texts, systemText, list, date, debug }
  */
 export function assemble(source, options = {}) {
+  options = { ...options, texts: { ...SYSTEM_TEXTS, ...(options.texts || {}) } };
+  // texte système par défaut : SYSTEXT (comme le S=SYSTEXT de NOS) ; null pour aucun
+  if (options.systemText === undefined) options.systemText = 'SYSTEXT';
   let systemDefs = null;
   if (options.systemText) {
     const names = Array.isArray(options.systemText) ? options.systemText : [options.systemText];

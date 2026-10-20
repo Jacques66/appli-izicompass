@@ -83,6 +83,11 @@ export class Pp {
       if (this.m.cpu.pendingExchange && this.m.cpu.pendingExchange.pp === this) return 1;
       this.exchanging = false;
     }
+    if (this.busy && this.F === 0o71) {
+      // attente d'entrée sur un canal actif, vide et sans équipement : rien à faire
+      const ch = this.m.channels[this.d & 0o37];
+      if (ch && ch.active && !ch.full && !ch.ioDevice && !ch.alwaysActive && this.A !== 0) return 1;
+    }
     if (!this.busy) {
       this.lastP = this.P;
       this.K = this.mem[this.P];

@@ -148,7 +148,7 @@ export class Assembler {
       const f = this.frames[this.frames.length - 1];
       const st = f.next();
       if (st) {
-        st.level = this.frames.length - 1;
+        st.level = st.forceLevel ?? this.frames.length - 1;
         return st;
       }
       this.frames.pop();
@@ -1268,8 +1268,31 @@ export class Assembler {
           words = words.slice(origin - start);
           start = origin;
         } else if (!words.length) start = origin;
-        prog.overlays.push({ name: hs[0] || this.progName, origin: start, entry: entryAddr,
-          levels: [lev(3, gi ? 1 : 0), lev(4, 0)], words, length: words.length });
+        // découpage par SEGMENT : chaque segment commence à son origine et finit à la
+        // valeur du compteur origine du segment suivant (ou à la fin du groupe)
+        const segs = g.segments.map((sg) => ({ sg, end: sg.block.final + sg.at }));
+        const cut = (from, to) => {
+          const out = [];
+          for (let a = from; a < to; a++) out.push(a >= start && a - start < words.length ? words[a - start] : (this.wordBits === 60 ? 0n : 0));
+          return out;
+        };
+        if (!segs.length) {
+          prog.overlays.push({ name: hs[0] || this.progName, origin: start, entry: entryAddr,
+            levels: [lev(3, gi ? 1 : 0), lev(4, 0)], words, length: words.length });
+        } else {
+          const hi = start + words.length;
+          prog.overlays.push({ name: hs[0] || this.progName, origin: start, entry: entryAddr,
+            levels: [lev(3, gi ? 1 : 0), lev(4, 0)], words: cut(start, segs[0].end), length: segs[0].end - start });
+          segs.forEach(({ sg }, k) => {
+            const o = this.evalLate(sg.subs[0], sg.entry) ?? segs[k].end;
+            const e = this.evalLate(sg.subs[1], sg.entry) ?? o;
+            const to = k + 1 < segs.length ? segs[k + 1].end : hi;
+            const lvl = (t, d) => { if (!t) return d; const v = this.evalLate(t, sg.entry); return v === null ? d : v & 0o77; };
+            const ws = cut(o, Math.max(o, to));
+            prog.overlays.push({ name: sg.name, origin: o, entry: this.type === 'pp' ? o : e,
+              levels: [lvl(sg.subs[2], 1), lvl(sg.subs[3], 0)], words: ws, length: ws.length, segment: true });
+          });
+        }
       }
       const main = prog.overlays[0];
       prog.image = { start: main.origin, words: main.words };

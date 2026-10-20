@@ -57,3 +57,30 @@ test('décalages, masques, population', () => {
   assert.equal(mask60(6), 0o77n << 54n);
   assert.equal(popcount60(M60), 60);
 });
+
+test('propriétés : add/mul/div à moins d\'un ulp sur 20 000 tirages', () => {
+  let seed = 12345;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const val = () => (rnd() < 0.5 ? -1 : 1) * Math.exp((rnd() - 0.5) * 80);
+  const ulp = (x) => Math.abs(x) * 2 ** -46;
+  for (let k = 0; k < 20000; k++) {
+    const a = val(), b = val();
+    const fa = f(a), fb = f(b), ra = n(fa), rb = n(fb);
+    const s = n(normalize(floatAdd(fa, fb)).value);
+    const exact = ra + rb;
+    if (Math.abs(exact) > 1e-300) assert.ok(Math.abs(s - exact) <= ulp(Math.max(Math.abs(ra), Math.abs(rb))) * 2, `add ${ra} ${rb} -> ${s}`);
+    const p = n(floatMultiply(fa, fb));
+    assert.ok(Math.abs(p - ra * rb) <= ulp(ra * rb) * 2, `mul ${ra} ${rb} -> ${p}`);
+    const q = n(floatDivide(fa, fb));
+    assert.ok(Math.abs(q - ra / rb) <= ulp(ra / rb) * 2, `div ${ra} ${rb} -> ${q}`);
+    const rq = n(floatDivide(fa, fb, true));
+    assert.ok(Math.abs(rq - ra / rb) <= ulp(ra / rb) * 2, `rdiv ${ra} ${rb} -> ${rq}`);
+  }
+});
+
+test('double précision : FX + DX donnent la somme exacte sur 96 bits', () => {
+  const a = f(1), b = f(2 ** -60);
+  const hi = floatAdd(a, b), lo = floatAdd(a, b, false, true);
+  assert.equal(n(hi), 1);
+  assert.equal(n(lo), 2 ** -60);
+});

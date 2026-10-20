@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "ide", "runtimeExecutable": "node", "runtimeArgs": ["tools/serve.js"], "port": 6600 }
+  ]
+}

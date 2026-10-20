@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import { buildHtml } from '../tools/build.js';
+
+test('paquet autonome : l\'IDE s\'évalue hors navigateur et fait tourner un exemple', async () => {
+  const { html, order } = buildHtml();
+  assert.ok(order.includes('ide/app.js') && order.includes('src/machine.js') && order.includes('src/asm/compass.js'));
+  assert.ok(!/<script type="module"/.test(html));
+  const scripts = [...html.matchAll(/<script>\n([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.equal(scripts.length, 2);
+  const ctx = vm.createContext({ console, setTimeout, clearTimeout, performance, URL, TextEncoder, TextDecoder });
+  ctx.globalThis = ctx;
+  for (const s of scripts) vm.runInContext(s, ctx);
+  const mods = ctx.__CDC_MODULES__;
+  const ex = ctx.__CDC_EMBEDDED__.examples;
+  assert.ok(ex.index.length >= 8);
+  const { assemble } = mods['src/asm/compass.js'];
+  const { Machine } = mods['src/machine.js'];
+  const { Runner } = mods['src/runtime/runner.js'];
+  const r = assemble(ex.files['cpu-somme.cmp'], { fileName: 'CPUSOMME' });
+  assert.equal(r.errors.length, 0);
+  const m = new Machine({ ecsWords: 0 });
+  const run = new Runner(m, { em: 0 });
+  const res = await run.load(r);
+  assert.equal(res.ok, true);
+  const stop = m.run(10000, { stopOnCpuStop: true });
+  assert.equal(stop.reason, 'cpustop');
+  const somme = r.symbols.find((s) => s.name === 'SOMME').value;
+  assert.equal(m.cm[somme], 55n);
+  assert.equal(typeof mods['ide/app.js'].start, 'function');
+});

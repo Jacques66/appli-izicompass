@@ -131,17 +131,28 @@ export class Listing {
       else for (let k = 0; k < ctl.space; k++) this.emit('');
     }
     if (!this.visible(e)) {
+      this.carryToCall(e);
+      // les références d'une ligne non listée sont rattachées à la dernière ligne listée
+      if (e.level > 0 && this.lastPos) e.listPos = this.lastPos;
       this.mapLine(e, null);
       return;
     }
     const lines = this.format(e);
+    // option A : ligne éditée listée après la ligne lue
+    if (this.opts.has('A') && e.edited && e.img !== e.rawImg && lines.length) {
+      const ed = { ...e, rawImg: e.img, code: [], flags: new Set(), listValue: '' };
+      lines.splice(1, 0, ...this.format(ed));
+    }
     let first = null;
     for (const l of lines) {
       const pos = this.emit(l);
       if (!first) first = pos;
     }
+    if (e.kind === 'maccall') this.lastCall = { idx: this.out.length - lines.length, e, chunks: [], word: null, level: e.level };
+    else if (e.level <= (this.lastCall ? this.lastCall.level : -1)) this.lastCall = null;
     if (first) {
       e.listPos = first;
+      this.lastPos = first;
       for (const f of e.flags) {
         const pages = this.errorPages.get(f) || new Set();
         pages.add(first.page);
@@ -151,6 +162,24 @@ export class Listing {
     this.mapLine(e, first);
   }
 
+  /** Le code d'une expansion non listée apparaît sur la ligne d'appel (premier mot). */
+  carryToCall(e) {
+    const lc = this.lastCall;
+    if (!lc || !e.code || !e.code.length || e.level <= lc.level) return;
+    let changed = false;
+    for (const c of e.code) {
+      const key = c.block.key + ':' + c.word;
+      if (lc.word === null) lc.word = key;
+      if (key !== lc.word) { this.lastCall = null; break; }
+      lc.chunks.push(c);
+      changed = true;
+    }
+    if (changed) {
+      const f = this.format({ ...lc.e, code: lc.chunks, f: { ...lc.e.f, loc: 'X' } });
+      this.out[lc.idx] = f[0].replace(/\s+$/, '');
+    }
+  }
+
   /** Correspondance ligne source -> adresse pour l'IDE. */
   mapLine(e, pos) {
     if (!e.site) return;
@@ -158,6 +187,7 @@ export class Listing {
     const prev = this.lineMap.find((m) => m.line === e.site.line && m.file === e.site.file);
     if (prev) {
       if (prev.address === null && c) Object.assign(prev, this.codeInfo(c));
+      if (e.code && e.code.length && e.level > 0) prev.octal = prev.octal.concat(octalWords(e, this.asm.wordBits));
       for (const f of e.flags) if (!prev.flags.includes(f)) prev.flags += f;
       return;
     }

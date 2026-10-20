@@ -456,3 +456,86 @@ export class RealTimeClock extends Device {
 }
 
 export { DISPLAY, displayToExtBcd };
+
+// ------------------------------------------------------- disque 6603
+
+export const FC6603 = { READ: 0o1000, WRITE: 0o1200, TRACK: 0o1400, HEAD: 0o1600, STATUS: 0o1700 };
+
+/**
+ * Disque 6603 : 128 pistes, 8 têtes, 128 secteurs (pistes externes) ou 100
+ * (pistes internes) de 322 mots de 12 bits. Fonctions : 1000B+s lecture du
+ * secteur s, 1200B+s écriture, 1400B+t sélection de piste, 1600B+h sélection
+ * de tête, 1700B état (secteur passant sous la tête).
+ */
+export class Disk6603 extends Device {
+  constructor() {
+    super('disque 6603');
+    this.sectors = new Map();
+    this.track = 0;
+    this.head = 0;
+    this.sector = 0;
+    this.pos = 0;
+    this.buf = null;
+  }
+  static SECTOR_WORDS = 322;
+  sectorsOnTrack(t) {
+    return t < 0o100 ? 128 : 100;
+  }
+  key(t, h, s) {
+    return (t << 10) | (h << 7) | s;
+  }
+  func(code) {
+    const op = code & 0o7600;
+    switch (op) {
+      case FC6603.READ:
+      case FC6603.WRITE: {
+        const s = code & 0o177;
+        if (s >= this.sectorsOnTrack(this.track)) return FC_DECLINED;
+        this.sector = s;
+        const k = this.key(this.track, this.head, s);
+        if (!this.sectors.has(k)) this.sectors.set(k, new Uint16Array(Disk6603.SECTOR_WORDS));
+        this.buf = this.sectors.get(k);
+        this.pos = 0;
+        this.fcode = op;
+        return FC_ACCEPTED;
+      }
+      case FC6603.TRACK:
+        this.track = code & 0o177;
+        return FC_PROCESSED;
+      case FC6603.HEAD:
+        if (code === FC6603.STATUS) {
+          this.fcode = FC6603.STATUS;
+          this.status = this.sector;
+          this.sector = (this.sector + 1) % this.sectorsOnTrack(this.track);
+          return FC_ACCEPTED;
+        }
+        this.head = code & 7;
+        return FC_PROCESSED;
+      default:
+        return FC_DECLINED;
+    }
+  }
+  io() {
+    const ch = this.channel;
+    switch (this.fcode) {
+      case FC6603.READ:
+        if (ch.full) break;
+        if (this.pos >= this.buf.length) { ch.active = false; break; }
+        ch.data = this.buf[this.pos++];
+        ch.full = true;
+        break;
+      case FC6603.WRITE:
+        if (ch.full) {
+          if (this.pos < this.buf.length) this.buf[this.pos++] = ch.data & M12;
+          ch.full = false;
+        }
+        break;
+      case FC6603.STATUS:
+        if (!ch.full) { ch.data = this.status & 0o177; ch.full = true; this.fcode = 0; }
+        break;
+    }
+  }
+  disconnect() {
+    this.fcode = 0;
+  }
+}

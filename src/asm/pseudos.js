@@ -121,7 +121,7 @@ H.END = (asm, entry, pass) => {
     // assembler d'abord le code distant, puis rejouer END
     asm.entries.pop();
     asm.groupEntries.pop();
-    asm.pushFrame({ kind: 'endreplay', done: false, next() { if (this.done) return null; this.done = true; return { ...entry.st, remoteDone: true }; } });
+    asm.pushFrame({ kind: 'endreplay', done: false, next() { if (this.done) return null; this.done = true; return { ...entry.st, remoteDone: true, forceLevel: entry.level }; } });
     assembleRemote(asm, entry, null);
     entry.deferred = true;
     return;
@@ -1177,7 +1177,7 @@ H.XTEXT = (asm, entry, pass) => {
   if (text === undefined) { asm.flag(entry, 'F', `texte externe introuvable : ${file}${rname ? '/' + rname : ''}`); return; }
   const src = new LineSource(rname || file, text, { xtext: true });
   // une première ligne portant le nom du texte en colonne 1 est sautée
-  if (rname && src.raw.length && src.raw[0].startsWith(rname)) src.idx = 1;
+  if (rname && src.raw.length && src.raw[0].split(/\s+/)[0] === rname) src.idx = 1;
   if (src.raw.length && /^\*COMDECK/.test(src.raw[0])) src.idx = 1;
   asm.pushFrame(new SourceFrame(src, entry.site, entry.level + 1));
 };
@@ -1349,7 +1349,7 @@ H.CPOP = (asm, entry, pass) => {
   try {
     const ctl = asm.evalAbsolute(entry, s[0], { allowEmpty: false });
     const val = asm.evalAbsolute(entry, s[1], { allowEmpty: false, base: entry.ctx.base === 'M' ? 'O' : entry.ctx.base });
-    const reg = (s[2] || '0').padStart(3, '0');
+    const reg = (s[2] || '0').replace(/B$/, '').padStart(3, '0');
     if (ctl < 0 || ctl > 7 || !/^[0-3]{3}$/.test(reg)) throw new AsmError('A', 'CPOP : paramètre incorrect');
     const def = { kind: 'cpop', key: sx, len: ctl & 1 ? 30 : 15, val: val & 0o777, reg,
       before: ctl === 2 || ctl === 3 || ctl === 6 || ctl === 7, after: ctl >= 4, jk: !(ctl & 1) && sx.endsWith('Q') };

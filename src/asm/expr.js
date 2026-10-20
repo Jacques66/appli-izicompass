@@ -150,10 +150,10 @@ function parseNumeric(cur, ctx, preradix, allowDouble) {
   let base;
   if (radix === 'B' || radix === 'O') base = 8n;
   else if (radix === 'D') base = 10n;
-  else base = ctx.base === 'O' ? 8n : 10n;
+  else base = ctx.base === 'O' || ctx.base === 'M' ? 8n : 10n;
   const digits = intPart + fracPart;
   if (base === 8n && /[89]/.test(digits)) {
-    if (!radix && ctx.base === 'O') throw new AsmError('A', '8 ou 9 dans une donnée octale');
+    if (!radix && (ctx.base === 'O' || ctx.base === 'M')) throw new AsmError('A', '8 ou 9 dans une donnée octale');
     if (radix === 'B' || radix === 'O') throw new AsmError('A', '8 ou 9 dans une donnée octale');
   }
   // Valeur rationnelle num/den.
@@ -375,6 +375,10 @@ export function parseDataItem(cur, ctx, { literal = false } = {}) {
       words = r.words;
       kind = r.kind;
     }
+  } else if (c === '.' && isDigit(cur.peek(1))) {
+    const r = parseNumeric(cur, ctx, null, wb === 60);
+    words = r.words;
+    kind = r.kind;
   } else if (c === '#') {
     cur.next();
     words = [parseHex(cur) & M60];

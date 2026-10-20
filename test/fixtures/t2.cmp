@@ -1,5 +1,5 @@
           IDENT  TEST2
-          LIST   M,E
+
           ABS
           ORG    100B
 *         MACROS, MICROS, CONDITIONS, DUPLICATION.

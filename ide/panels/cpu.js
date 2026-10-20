@@ -14,6 +14,11 @@ const M18 = 0o777777;
 /** Interprétation d'un mot de 60 bits. */
 export function interpret(w, mode) {
   w = BigInt.asUintN(60, w);
+  if (mode === 'auto') {
+    // Exposant 0000 ou 7777 : entier (ou flottant non normalisé) ; sinon flottant.
+    const e = Number(w >> 48n);
+    mode = e === 0 || e === 0o7777 ? 'int' : 'float';
+  }
   if (mode === 'int') return signed60(w).toString();
   if (mode === 'float') {
     const e = Number(w >> 48n);
@@ -47,7 +52,7 @@ export function parseWord(text) {
 export class CpuPanel {
   constructor(ctx) {
     this.ctx = ctx;
-    this.interp = 'float';
+    this.interp = 'auto';
     this.prev = null;
     this.follow = true;
     this.disasmBase = 0;
@@ -55,7 +60,7 @@ export class CpuPanel {
     this.xpAddr = 0;
 
     this.regs = h('div', { class: 'regs' });
-    this.interpSel = segmented([['none', 'Octal'], ['int', 'Entier'], ['float', 'Flottant'], ['text', 'Display']], this.interp, (v) => { this.interp = v; this.update(true); });
+    this.interpSel = segmented([['auto', 'Auto', 'Entier si l’exposant est nul, sinon flottant'], ['int', 'Entier'], ['float', 'Flottant'], ['text', 'Display']], this.interp, (v) => { this.interp = v; this.update(true); });
     this.secRegs = section('Registres', this.regs, { key: 'cpu-regs', actions: [this.interpSel] });
 
     this.dis = h('div', { class: 'disasm mono' });
@@ -222,10 +227,16 @@ export class CpuPanel {
       const w = m.cm[abs] ?? 0n;
       const parcels = wordParcels(w);
       const oob = rel >= cpu.FL;
-      const ins = disasmWord(w, { symbol, cmu: cpu.features.cmu });
-      const bp = runner.hasCpuBreakpoint(abs);
       const label = syms.get(rel);
       if (label) html += `<div class="d-label">${esc(label)}</div>`;
+      if (w === 0n && rel !== P) {
+        const bp0 = runner.hasCpuBreakpoint(abs);
+        html += `<div class="d-row w0 zero ${oob ? 'oob' : ''}" data-abs="${abs}"><span class="d-bp ${bp0 ? 'on' : ''}"></span>`
+          + `<span class="d-addr">${o(rel, 6)}</span><span class="d-par"></span><span class="d-oct">00000 00000 …</span><span class="d-txt dim">mot nul</span><span class="d-src"></span></div>`;
+        continue;
+      }
+      const ins = disasmWord(w, { symbol, cmu: cpu.features.cmu });
+      const bp = runner.hasCpuBreakpoint(abs);
       ins.forEach((d, k) => {
         const cur = rel === P && d.parcel <= curParcel && (k === ins.length - 1 || ins[k + 1].parcel > curParcel);
         const isLast = last && last.P === rel && last.parcel === d.parcel && !cur;

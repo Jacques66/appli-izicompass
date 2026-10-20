@@ -6,6 +6,7 @@ import { segmented, select, toast } from '../ui.js';
 import { CrtConsole, PHOSPHOR_NAMES } from '../console-canvas.js';
 import { disasmPP } from '../../src/pp/disasm.js';
 import { DEMO_DEADSTART } from '../../src/runtime/runner.js';
+import { DEADSTART_PANEL } from '../../src/os/dsl.js';
 
 export class ConsolePanel {
   constructor(ctx) {
@@ -105,6 +106,7 @@ export class DeadstartPanel {
       toolbar(
         tbtn('Deadstart', () => ctx.deadstart(this.words.slice()), { icon: 'play', cls: 'primary', tip: 'Charge le panneau dans PP0 (à partir de 1) et lance la machine' }),
         tbtn('Programme de démonstration', () => { this.words = DEMO_DEADSTART.slice(); while (this.words.length < 16) this.words.push(0); this.changed(); }, { icon: 'monitor', tip: 'Affiche « CDC 6600 » sur l\'écran gauche' }),
+        tbtn('Panneau du système', () => { this.words = DEADSTART_PANEL.slice(); while (this.words.length < 16) this.words.push(0); this.changed(); }, { icon: 'tape', tip: 'Chargeur de la bande système : DCN 13B ; FNC 2000B,13B ; FNC 2020B,13B ; ACN 13B ; LDC 1000B ; IAM 7000B,13B ; LJM 7000B\nUtilisé par le mode « Système (deadstart sur bande) » avec la bande de l’unité 0' }),
         tbtn('Tout à zéro', () => { this.words.fill(0); this.changed(); }, { icon: 'trash' })),
       h('div', { class: 'note' }, 'Au deadstart, chaque PP exécute IAM 10000B sur son canal. Les mots du panneau arrivent par le canal 0 et sont rangés dans PP0 à partir de l\'adresse 1, puis PP0 démarre en 1. Les interrupteurs sont groupés par chiffre octal.'),
       h('div', { class: 'ds-head mono' }, h('span', null, 'Adr.'), h('span', { class: 'ds-head-sw' }, ...[11, 8, 5, 2].map((b) => h('span', null, `${b}…${b - 2}`))), h('span', null, 'Octal'), h('span', null, 'Instruction PP')),

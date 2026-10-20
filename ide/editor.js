@@ -77,6 +77,7 @@ export class Editor {
     const ta = this.ta;
     ta.addEventListener('input', () => this.onInput());
     ta.addEventListener('keydown', (e) => this.onKeyDown(e));
+    ta.addEventListener('beforeinput', (e) => this.onBeforeInput(e));
     ta.addEventListener('keyup', () => this.cursorMoved(true));
     ta.addEventListener('mouseup', () => this.cursorMoved(false));
     ta.addEventListener('focus', () => { this.el.classList.add('focused'); this.cursorMoved(false); });
@@ -210,6 +211,7 @@ export class Editor {
 
   updateMacros() {
     const m = collectMacros(this.ta.value);
+    if (this.opts.extraMacros) for (const x of this.opts.extraMacros) m.add(x);
     const same = m.size === this.macros.size && [...m].every((x) => this.macros.has(x));
     if (!same) {
       this.macros = m;
@@ -522,17 +524,24 @@ export class Editor {
       else this.findStep(e.shiftKey ? -1 : 1);
       return;
     }
-    if (this.autoUpper && !ctrl && !e.altKey && e.key.length === 1 && e.key >= 'a' && e.key <= 'z') {
-      const off = ta.selectionStart;
-      const li = this.lineOf(off);
-      const col = off - this.lineStarts[li];
-      const line = this.lines[li];
-      let f = fieldAt(line, col, this.ctx);
-      if (f !== 'var' && f !== 'com' && col >= COMMENT_COL - 1) f = 'com';
-      if (f !== 'com' && f !== 'seq') {
-        e.preventDefault();
-        this.insertText(e.key.toUpperCase());
-      }
+  }
+
+  /** Majuscules automatiques : hors commentaire, le texte saisi passe en majuscules. */
+  onBeforeInput(e) {
+    if (!this.autoUpper || e.inputType !== 'insertText' || !e.data || !/[a-zà-ÿ]/.test(e.data) || this.upperBusy) return;
+    const off = this.ta.selectionStart;
+    const li = this.lineOf(off);
+    const col = off - this.lineStarts[li];
+    const line = this.lines[li];
+    let f = fieldAt(line, col, this.ctx);
+    if (f !== 'var' && f !== 'com' && col >= COMMENT_COL - 1) f = 'com';
+    if (f === 'com' || f === 'seq') return;
+    e.preventDefault();
+    this.upperBusy = true;
+    try {
+      this.insertText(e.data.toUpperCase());
+    } finally {
+      this.upperBusy = false;
     }
   }
 

@@ -6,7 +6,12 @@
 //   - « pp »        : un programme PP (mots de 12 bits) est chargé dans le PP n et
 //                     démarré à son point d'entrée ; les autres PP restent au repos.
 //   - « deadstart » : séquence de deadstart avec les mots du panneau (16 au plus).
-// Le mode « auto » choisit « pp » ou « cpu » selon le type du programme assemblé.
+//   - « system »    : travail sous le mini-système (src/os/system.js) : programme CPU
+//                     en RA=2000B, moniteur MTR dans PP0, console DSD dans PP1.
+//   - « systape »   : même travail, mais amorcé par un vrai deadstart : bande système
+//                     sur l'unité 0 (chargeur DSL, mémoire centrale, DSD, MTR).
+// Le mode « auto » choisit « pp » pour un programme PP, « system » pour un
+// programme CPU relogeable (travail à la NOS) et « cpu » pour un programme absolu.
 //
 // RunController enchaîne les tranches d'exécution (marche, pause, pas à pas,
 // vitesse) et traduit les raisons d'arrêt de la machine en messages.
@@ -16,6 +21,8 @@ const M12 = 0o7777;
 
 export const RUN_MODES = {
   auto: 'Automatique',
+  system: 'Système',
+  systape: 'Système (deadstart sur bande)',
   cpu: 'CPU nu',
   pp: 'PP',
   deadstart: 'Deadstart',
@@ -50,6 +57,17 @@ export function loadOptionalLoader() {
   return loaderPromise;
 }
 
+/** Chargement facultatif du mini-système. */
+let systemPromise = null;
+export function loadOptionalSystem() {
+  if (!systemPromise) {
+    systemPromise = import('../os/system.js')
+      .then((mod) => (mod && typeof mod.startJob === 'function' ? mod : null))
+      .catch(() => null);
+  }
+  return systemPromise;
+}
+
 const oct = (n, w = 0) => (n >>> 0).toString(8).padStart(w, '0');
 
 /** Formate une raison d'arrêt de la machine en texte français. */
@@ -68,6 +86,7 @@ export function describeStop(stop, runner = null) {
     case 'halt': return 'Machine arrêtée';
     case 'user': return 'Arrêt demandé';
     case 'idle': return 'CPU arrêté : rien à exécuter';
+    case 'jobend': return stop.status === 'abort' ? 'Travail abandonné (voir le journal)' : 'Fin normale du travail';
     case 'error': return `Erreur interne : ${stop.message}`;
     default: return stop.message || String(stop.reason);
   }
@@ -113,9 +132,10 @@ export class Runner {
 
   /** Mode effectif pour un résultat d'assemblage. */
   resolveMode(result, mode = this.options.mode) {
-    if (mode === 'deadstart' || mode === 'cpu' || mode === 'pp') return mode;
+    if (mode === 'deadstart' || mode === 'cpu' || mode === 'pp' || mode === 'system' || mode === 'systape') return mode;
     const progs = (result && result.programs) || [];
     if (progs.some((p) => p.type === 'pp') && !progs.some((p) => p.type !== 'pp')) return 'pp';
+    if (progs.some((p) => p.type === 'reloc')) return 'system';
     return 'cpu';
   }
 
@@ -165,7 +185,14 @@ export class Runner {
    */
   async load(result, opts = {}) {
     const o = { ...this.options, ...opts };
-    const mode = this.resolveMode(result, o.mode);
+    let mode = this.resolveMode(result, o.mode);
+    // Mode imposé incompatible avec le programme (PP en mode CPU, ou l'inverse) : mode automatique.
+    const progs0 = (result && result.programs) || [];
+    if (mode !== 'deadstart' && progs0.length) {
+      const hasPP = progs0.some((p) => p.type === 'pp');
+      const hasCPU = progs0.some((p) => p.type !== 'pp');
+      if ((mode === 'pp' && !hasPP) || (mode !== 'pp' && !hasCPU)) mode = this.resolveMode(result, 'auto');
+    }
     this.unload();
     this.fileName = opts.fileName || (result && result.fileName) || null;
     if (mode === 'deadstart') return this.loadDeadstart(o.deadstart);
@@ -181,54 +208,93 @@ export class Runner {
     }
     const progs = result.programs.filter((p) => p.type === 'abs' || p.type === 'reloc');
     if (!progs.length) return { ok: false, mode, message: 'Aucun programme CPU (ABS ou relogeable) dans le résultat d\'assemblage.' };
+    if (mode === 'system' || mode === 'systape') return this.loadSystemJob(progs, o, mode === 'systape');
     return this.loadCPUPrograms(progs, o);
   }
 
-  /** Mode CPU nu. */
+  /** Mode Système : le programme devient un travail du mini-système. */
+  async loadSystemJob(progs, o, fromTape = false) {
+    const mode = fromTape ? 'systape' : 'system';
+    const sys = await loadOptionalSystem();
+    if (!sys || (fromTape && typeof sys.deadstartJob !== 'function')) return { ok: false, mode, message: 'Le mini-système (src/os/system.js) est indisponible.' };
+    const m = this.machine;
+    const main = progs[0];
+    const opts = { name: main.name || 'JOB', em: o.em ?? 0o070000 };
+    const st = fromTape ? sys.deadstartJob(m, progs, opts) : sys.startJob(m, progs, opts);
+    if (!st.ok) return { ok: false, mode, message: `Travail refusé : ${(st.errors || []).join(' ; ')}` };
+    this.tape = st.tape || null;
+    this.system = sys;
+    this.kind = 'system';
+    this.program = main;
+    this.ra = st.ra;
+    this.fl = st.fl;
+    this.ppNumber = 0;
+    this.loaderMap = normalizeMap(st.map, progs, st.ra);
+    const first = this.loaderMap.find((e) => e.name === main.name && e.type === 'reloc');
+    this.base = main.type === 'reloc' ? (first ? first.address - st.ra : 0o100) : 0;
+    this.buildLineMaps();
+    this.applyBreakpoints();
+    const where = fromTape
+      ? `bande système montée sur l'unité 0 (${st.tape ? st.tape.records.length : '?'} enregistrements), deadstart en cours`
+      : 'MTR dans PP00, DSD dans PP01';
+    return {
+      ok: true, mode, entry: st.entry,
+      message: `Travail ${main.name || ''} soumis au mini-système : RA=${oct(st.ra, 6)}B, FL=${oct(st.fl, 6)}B, entrée P=${oct(st.entry, 6)}B ; ${where}.`,
+    };
+  }
+
+  /** État du travail en mode Système : 'run' | 'end' | 'abort' | 'none' (null hors de ce mode). */
+  jobStatus() {
+    return this.kind === 'system' && this.system ? this.system.jobStatus(this.machine) : null;
+  }
+
+  /** Journal (dayfile) du mini-système. */
+  dayfile() {
+    return this.kind === 'system' && this.system ? this.system.dayfile(this.machine) : [];
+  }
+
+  /** Mode CPU nu : édition de liens et chargement par src/loader/loader.js s'il existe. */
   async loadCPUPrograms(progs, o) {
     const m = this.machine;
     const ra = (o.ra >>> 0) % m.cmSize;
-    let fl = o.fl ? Math.min(o.fl >>> 0, m.cmSize - ra) : m.cmSize - ra;
+    const fl = o.fl ? Math.min(o.fl >>> 0, m.cmSize - ra) : m.cmSize - ra;
     const main = progs[0];
     let entry = 0;
+    let warnings = [];
     this.kind = 'cpu';
     this.program = main;
     this.ra = ra;
-    if (main.type === 'abs') {
-      for (const p of progs.filter((q) => q.type === 'abs')) {
-        writeImage(m, ra, p.image);
-        for (const ov of p.overlays || []) writeImage(m, ra, ov);
+    this.base = 0;
+    const loader = o.useLoader === false ? null : await loadOptionalLoader();
+    if (loader) {
+      const r = loader.linkAndLoad(m, progs, { ra, base: 0o100, fl });
+      entry = r.entry ?? 0o100;
+      warnings = r.errors || [];
+      this.loaderMap = normalizeMap(r.map, progs, ra);
+      if (main.type === 'reloc') {
+        const first = this.loaderMap.find((e) => e.name === main.name && e.type === 'reloc');
+        this.base = first ? first.address - ra : 0o100;
       }
+    } else if (main.type === 'abs') {
+      for (const p of progs.filter((q) => q.type === 'abs')) writeImage(m, ra, p.image);
       entry = typeof main.entry === 'number' ? main.entry : main.origin || 0;
-      this.base = 0;
-      this.loaderMap = progs.map((p) => ({
-        name: p.name, type: p.type, address: ra + (p.image ? p.image.start : p.origin || 0),
+      this.loaderMap = progs.filter((q) => q.type === 'abs').map((p) => ({
+        name: p.name, type: 'abs', address: ra + (p.image ? p.image.start : p.origin || 0),
         length: p.length ?? (p.image ? p.image.words.length : 0), origin: p.origin || 0,
       }));
     } else {
-      const loader = o.useLoader === false ? null : await loadOptionalLoader();
-      const relocs = progs.filter((q) => q.type === 'reloc');
-      if (loader) {
-        const r = loader.linkAndLoad(m, relocs, { ra, libraries: [] });
-        entry = r.entry ?? 0o100;
-        if (r.fl && !o.fl) fl = Math.min(Math.max(r.fl, fl), m.cmSize - ra);
-        this.loaderMap = normalizeMap(r.map, relocs, ra);
-        const first = this.loaderMap.find((e) => e.name === main.name);
-        this.base = first ? first.address - ra : 0o100;
-      } else {
-        // Sans chargeur : les sous-programmes sont placés à la suite à partir de RA+100B.
-        let at = 0o100;
-        this.loaderMap = [];
-        for (const p of relocs) {
-          const words = p.image ? p.image.words : [];
-          const start = p.image ? p.image.start || 0 : 0;
-          for (let i = 0; i < words.length; i++) m.cm[(ra + at + start + i) % m.cmSize] = BigInt.asUintN(60, BigInt(words[i]));
-          this.loaderMap.push({ name: p.name, type: p.type, address: ra + at, length: p.length ?? words.length, origin: at });
-          if (p === main) this.base = at;
-          at += Math.max(p.length ?? 0, start + words.length);
-        }
-        entry = this.base + resolveEntry(main);
+      // Sans chargeur : les sous-programmes relogeables sont placés à la suite à partir de RA+100B.
+      let at = 0o100;
+      this.loaderMap = [];
+      for (const p of progs.filter((q) => q.type === 'reloc')) {
+        const words = p.image ? p.image.words : [];
+        const start = p.image ? p.image.start || 0 : 0;
+        for (let i = 0; i < words.length; i++) m.cm[(ra + at + start + i) % m.cmSize] = BigInt.asUintN(60, BigInt(words[i]));
+        this.loaderMap.push({ name: p.name, type: 'reloc', address: ra + at, length: p.length ?? words.length, origin: at });
+        if (p === main) this.base = at;
+        at += Math.max(p.length ?? 0, start + words.length);
       }
+      entry = this.base + resolveEntry(main);
     }
     this.fl = fl;
     const monitor = !!m.cpu.features.cejMej;
@@ -237,7 +303,7 @@ export class Runner {
     this.buildLineMaps();
     this.applyBreakpoints();
     return {
-      ok: true, mode: 'cpu', entry,
+      ok: true, mode: 'cpu', entry, warnings,
       message: `Programme ${main.name || ''} chargé en RA=${oct(ra, 6)}B, FL=${oct(fl, 6)}B, entrée P=${oct(entry, 6)}B.`,
     };
   }
@@ -248,7 +314,6 @@ export class Runner {
     const n = Math.max(0, Math.min(m.pps.length - 1, ppNumber | 0));
     const image = prog.image || { start: prog.origin || 0, words: [] };
     m.loadPP(n, image.words.map((w) => Number(w) & M12), image.start || 0);
-    for (const ov of prog.overlays || []) m.loadPP(n, ov.words.map((w) => Number(w) & M12), ov.start || 0);
     const entry = (typeof prog.entry === 'number' ? prog.entry : prog.origin || image.start || 0) & M12;
     this.idleOtherPPs(n);
     m.startPP(n, entry);
@@ -317,7 +382,7 @@ export class Runner {
   /** Emplacement courant d'exécution : { kind, address, parcel, line }. */
   currentLocation() {
     const m = this.machine;
-    if (this.kind === 'cpu') {
+    if (this.kind === 'cpu' || this.kind === 'system') {
       const cpu = m.cpu;
       const parcel = cpu.wordValid ? cpu.parcel : 0;
       const rel = (cpu.P - this.base) & M18;
@@ -334,7 +399,7 @@ export class Runner {
   /** Emplacement de la dernière instruction CPU exécutée (utile après une sortie d'erreur). */
   lastCpuLocation() {
     const li = this.machine.cpu.lastInstr;
-    if (!li || this.kind !== 'cpu') return null;
+    if (!li || (this.kind !== 'cpu' && this.kind !== 'system')) return null;
     return { address: li.P, parcel: li.parcel, line: this.lineOfAddress((li.P - this.base) & M18, li.parcel) };
   }
 
@@ -344,6 +409,7 @@ export class Runner {
     const syms = (this.result && this.result.symbols) || [];
     for (const s of syms) {
       if (s.kind === 'ext' || typeof s.value !== 'number') continue;
+      if (s.program && this.program && s.program !== this.program.name) continue;
       const v = s.kind === 'rel' ? s.value + this.base : s.value;
       if (!map.has(v)) map.set(v, s.name);
     }
@@ -367,12 +433,12 @@ export class Runner {
     m.ppBreakpoints.clear();
     for (const a of this.addressBreakpoints) m.cpuBreakpoints.add(a);
     for (const [n, addrs] of this.ppAddressBreakpoints) if (addrs.size) m.ppBreakpoints.set(n, new Set(addrs));
-    if (this.kind !== 'cpu' && this.kind !== 'pp') return { set, unresolved: [...this.sourceBreakpoints] };
+    if (this.kind !== 'cpu' && this.kind !== 'pp' && this.kind !== 'system') return { set, unresolved: [...this.sourceBreakpoints] };
     const ppSet = m.ppBreakpoints.get(this.ppNumber) || new Set();
     for (const line of this.sourceBreakpoints) {
       const a = this.addressOfLine(line);
       if (a === null) { unresolved.push(line); continue; }
-      if (this.kind === 'cpu') {
+      if (this.kind === 'cpu' || this.kind === 'system') {
         const abs = (this.ra + this.base + a) % m.cmSize;
         m.cpuBreakpoints.add(abs);
         set.push({ line, address: a, absolute: abs });
@@ -437,9 +503,11 @@ function resolveEntry(p) {
 function normalizeMap(map, progs, ra) {
   const list = Array.isArray(map) ? map : map && typeof map === 'object' ? Object.entries(map).map(([name, v]) => ({ name, ...(typeof v === 'object' ? v : { address: v }) })) : [];
   return list.map((e) => {
-    const address = e.address ?? e.origin ?? e.base ?? e.start ?? e.fwa ?? 0;
+    const address = e.addr ?? e.address ?? e.origin ?? e.base ?? 0;
     const p = progs.find((q) => q.name === e.name);
-    return { name: e.name, type: e.type || (p ? p.type : 'reloc'), address: address >= ra ? address : ra + address, length: e.length ?? (p ? p.length : 0), origin: address };
+    const kind = String(e.kind || '').toUpperCase();
+    const type = kind === 'ABS' ? 'abs' : kind === 'REL' ? 'reloc' : kind === 'COMMON' ? 'common' : (p ? p.type : 'reloc');
+    return { name: e.name, type, address: ra + address, length: e.length ?? (p ? p.length : 0), origin: address };
   });
 }
 
@@ -465,6 +533,8 @@ export class RunController {
     this.usPerFrame = 2000;    // µs simulées par image
     this.maxSpeed = false;     // « vitesse max » : autant que possible en ~12 ms
     this.budgetMs = 12;
+    this.keepRunningAfterJob = !!hooks.keepRunningAfterJob; // mode Système : la machine continue après la fin du travail
+    this.jobNotified = false;
     this.state = 'idle';       // idle | ready | running | paused | stopped
     this.timer = null;
     this.lastStop = null;
@@ -487,6 +557,7 @@ export class RunController {
   ready() {
     this.halt();
     this.lastStop = null;
+    this.jobNotified = false;
     this.setState('ready');
   }
 
@@ -542,11 +613,37 @@ export class RunController {
 
   /** Exécute une tranche ; retourne la raison d'arrêt ou null. */
   frame() {
+    const r = this.frameRun();
+    if (r) return r;
+    const js = this.runner.jobStatus();
+    if ((js === 'end' || js === 'abort') && !this.jobNotified) {
+      this.jobNotified = true;
+      const stop = { reason: 'jobend', status: js };
+      if (!this.keepRunningAfterJob) return stop;
+      // La machine continue : la console DSD affiche l'état final du travail.
+      this.lastStop = stop;
+      this.onStop(stop, describeStop(stop, this.runner));
+    }
+    return null;
+  }
+
+  frameRun() {
     const m = this.machine;
     const opts = this.runOptions();
     try {
-      if (!this.maxSpeed) return m.run(this.usPerFrame, opts);
       const t0 = this.now();
+      if (!this.maxSpeed) {
+        // Au plus usPerFrame µs simulées, sans dépasser le budget de temps réel de l'image.
+        let left = this.usPerFrame;
+        while (left > 0) {
+          const n = Math.min(left, 2000);
+          const r = m.run(n, opts);
+          if (r) return r;
+          left -= n;
+          if (this.now() - t0 >= this.budgetMs) break;
+        }
+        return null;
+      }
       let chunk = 2000;
       do {
         const r = m.run(chunk, opts);
@@ -563,7 +660,7 @@ export class RunController {
   finish(stop) {
     this.halt();
     this.lastStop = stop;
-    const done = stop.reason === 'cpustop' || stop.reason === 'idle' || stop.reason === 'error' || stop.reason === 'halt';
+    const done = stop.reason === 'cpustop' || stop.reason === 'idle' || stop.reason === 'error' || stop.reason === 'halt' || stop.reason === 'jobend';
     this.setState(done ? 'stopped' : 'paused');
     this.onStop(stop, describeStop(stop, this.runner));
     this.onFrame(this.info());
