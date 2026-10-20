@@ -1,0 +1,72 @@
+[
+  {
+    "file": "cpu-somme.cmp",
+    "title": "Somme et factorielle",
+    "kind": "program",
+    "mode": "CPU",
+    "description": "Boucle sur un registre B, arithmétique entière 60 bits, rangement des résultats."
+  },
+  {
+    "file": "cpu-flottant.cmp",
+    "title": "Calcul flottant",
+    "kind": "program",
+    "mode": "CPU",
+    "description": "Racine carrée de 2 par Newton et série 1/k² : instructions FX, RX, NX, PX."
+  },
+  {
+    "file": "cpu-texte.cmp",
+    "title": "Texte en code display",
+    "kind": "program",
+    "mode": "CPU",
+    "description": "DIS, rotations LX et masques MX pour compter les lettres d’un message."
+  },
+  {
+    "file": "cpu-tri.cmp",
+    "title": "Tri par insertion",
+    "kind": "program",
+    "mode": "CPU",
+    "description": "Table CON, indexation par B, comparaisons par soustraction entière."
+  },
+  {
+    "file": "macros.cmp",
+    "title": "Macros, micros, IF, DUP, ECHO",
+    "kind": "program",
+    "mode": "CPU",
+    "description": "Démonstration du macro-assembleur : MACRO/LOCAL, MICRO, IFGE/ELSE, DUP, ECHO."
+  },
+  {
+    "file": "pp-console.cmp",
+    "title": "Console 6612 et clavier",
+    "kind": "program",
+    "mode": "PP",
+    "description": "Boucle de rafraîchissement des deux écrans (FNC/ACN/OAM/DCN) et lecture du clavier (IAN)."
+  },
+  {
+    "file": "pp-imprimante.cmp",
+    "title": "Imprimante 1612",
+    "kind": "program",
+    "mode": "PP",
+    "description": "Conversion display → BCD externe par table, sous-programmes RJM, impression ligne à ligne."
+  },
+  {
+    "file": "pp-cartes.cmp",
+    "title": "Lecteur de cartes 405",
+    "kind": "program",
+    "mode": "PP",
+    "description": "Lecture IAM de cartes Hollerith, conversion en code display, affichage sur la console."
+  },
+  {
+    "file": "pp-horloge.cmp",
+    "title": "Horloge temps réel",
+    "kind": "program",
+    "mode": "PP",
+    "description": "Canal 14B de l’horloge, cumul sur 24 bits, affichage octal ; utilise XTEXT DEFS6612."
+  },
+  {
+    "file": "defs6612.txt",
+    "title": "Texte DEFS6612",
+    "kind": "text",
+    "mode": "XTEXT",
+    "description": "Définitions de la console 6612 et macro AFFICHE, appelées par XTEXT."
+  }
+]

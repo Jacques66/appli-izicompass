@@ -1,0 +1,17 @@
+          IDENT  RELOC
+          ENTRY  MAIN,DATA1
+          EXT    SUBR
+ MAIN     SA1    DATA1
+          RJ     SUBR
+          SA2    =XOTHER+3
+          SX6    =SDEF
+          USE    /COM/
+ C1       BSS    10
+          USE    *
+          SA3    C1+2
+          USE    TABLE
+ DATA1    DATA   5
+          USE    *
+          SB7    DATA1
+          EQ     MAIN
+          END    MAIN

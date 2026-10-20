@@ -1,0 +1,49 @@
+          IDENT  TEST2
+          LIST   M,E
+          ABS
+          ORG    100B
+*         MACROS, MICROS, CONDITIONS, DUPLICATION.
+ SUM      MACRO  A,B,C
+          SA1    A
+          SA2    B
+          IX6    X1+X2
+          SA6    C
+          ENDM
+          MACRO  STORE,LOC,VAL
+ LOC      SX6    VAL
+          SA6    LOC
+          ENDM
+ M1       MICRO  1,5,*HELLOWORLD*
+ START    SUM    X,Y,Z
+ HERE     STORE  77B
+          DATA   0L"M1"
+ N        SET    3
+          IFEQ   N,3,1
+          SX7    1
+          IFNE   N,3
+          SX7    2
+          ELSE
+          SX7    3
+          ENDIF
+          DUP    3
+          NO
+          ENDD
+          ECHO   ,R=(1,2,3)
+          SX_R   B0+R
+          ENDD
+ GEN      MACRO  P
+          LOCAL  LAB
+ LAB      SB1    B1+P
+          NZ     B1,LAB
+          ENDM
+          GEN    5
+          GEN    6
+ X        CON    1
+ Y        CON    2
+ Z        BSS    1
+          B1=1
+          R=     X6,1
+          R=     X5,2
+          R=     X4,0
+          R=     X3,5
+          END    START

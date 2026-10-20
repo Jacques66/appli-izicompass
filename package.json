@@ -1,0 +1,19 @@
+{
+  "name": "cdc6600",
+  "version": "1.0.0",
+  "description": "Émulateur CDC 6600 (CPU, 10 PP, canaux, périphériques) + assembleur COMPASS 3 + IDE intégré",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "compass": "cli/compass.js",
+    "cdc6600": "cli/cdc6600.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "serve": "node tools/serve.js",
+    "build": "node tools/build.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

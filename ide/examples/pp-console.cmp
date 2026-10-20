@@ -1,0 +1,129 @@
+          IDENT  CON,100B
+          PERIPH
+          ORG    100B
+*         PROGRAMME PP : AFFICHAGE SUR LA CONSOLE 6612 ET CLAVIER.
+*
+*         LA CONSOLE N A PAS DE MEMOIRE D IMAGE : LE PP REDESSINE LES
+*         ECRANS EN PERMANENCE. POUR CHAQUE ECRAN : FNC (CHOIX DE
+*         L ECRAN ET DE LA TAILLE), ACN, OAM DES MOTS A AFFICHER, DCN.
+*         MOTS 60XX/61XX = COORDONNEE X, 70XX/71XX = COORDONNEE Y,
+*         AUTRES MOTS = DEUX CARACTERES EN CODE DISPLAY.
+*         LE CLAVIER SE LIT PAR FNC 7020B PUIS IAN (0 = AUCUNE TOUCHE).
+*
+*         EXECUTION : MODE AUTO OU PP, PUIS CLIQUEZ SUR LA CONSOLE ET
+*         TAPEZ DU TEXTE. ENTREE EFFACE, RETOUR ARRIERE CORRIGE.
+*
+CH        EQU    10B         CANAL DE LA CONSOLE
+ECRG      EQU    7000B       ECRAN GAUCHE, PETITS CARACTERES
+ECRGM     EQU    7001B       ECRAN GAUCHE, CARACTERES MOYENS
+ECRDM     EQU    7101B       ECRAN DROIT, CARACTERES MOYENS
+CLAV      EQU    7020B       LECTURE DU CLAVIER
+TCR       EQU    60B         CODE DE LA TOUCHE CR
+TBKSP     EQU    61B         CODE DE LA TOUCHE BKSP
+MAXW      EQU    16D         CAPACITE DU TAMPON (MOTS)
+*
+*         CELLULES DIRECTES (EMPLACEMENTS 1 A 77B DU PP)
+*
+T1        EQU    20B         TOUCHE LUE
+NCAR      EQU    21B         NOMBRE DE CARACTERES SAISIS
+NW        EQU    22B         NOMBRE DE MOTS DU TAMPON
+*
+DEBUT     LDN    0           INITIALISATION
+          STD    NCAR
+          STD    NW
+*
+*         BOUCLE DE RAFRAICHISSEMENT DES ECRANS
+*
+AFF       FNC    ECRGM,CH    ECRAN GAUCHE, CARACTERES MOYENS
+          ACN    CH
+          LDN    TITREL      NOMBRE DE MOTS
+          OAM    TITRE,CH
+          DCN    CH
+          FNC    ECRG,CH     PETITS CARACTERES
+          ACN    CH
+          LDC    AIDEL
+          OAM    AIDE,CH
+          DCN    CH
+          FNC    ECRDM,CH    ECRAN DROIT : TEXTE SAISI
+          ACN    CH
+          LDD    NW
+          ADN    SAISIE-ENTETE+2 ENTETE ET COORDONNEES EN PLUS
+          OAM    ENTETE,CH
+          DCN    CH
+*
+*         LECTURE DU CLAVIER
+*
+          FNC    CLAV,CH
+          ACN    CH
+          IAN    CH          A = CODE DISPLAY DE LA TOUCHE
+          DCN    CH
+          NJN    TOUCHE      UNE TOUCHE A ETE FRAPPEE
+          LJM    AFF
+*
+TOUCHE    STD    T1
+          LMN    TCR
+          ZJN    EFFACE      CR : EFFACE LA SAISIE
+          LDD    T1
+          LMN    TBKSP
+          ZJN    RECUL       BKSP : EFFACE UN CARACTERE
+          LDD    NCAR
+          SBN    MAXW*2
+          MJN    PLACE       IL RESTE DE LA PLACE
+          LJM    AFF         TAMPON PLEIN : TOUCHE IGNOREE
+*
+EFFACE    LDN    0
+          STD    NCAR
+          STD    NW
+          LJM    AFF
+*
+RECUL     LDD    NCAR
+          NJN    RECUL1
+          LJM    AFF         RIEN A EFFACER
+RECUL1    SOD    NCAR        A = NOUVEAU NOMBRE
+          LPN    1
+          NJN    MOITIE      IL RESTE UN CARACTERE DANS LE MOT
+          SOD    NW          LE DERNIER MOT DEVIENT VIDE
+          LJM    AFF
+MOITIE    LDM    SAISIE+1,NW
+          SCN    77B
+          ADN    55B         REMPLACE LE CARACTERE PAR UN BLANC
+          STM    SAISIE+1,NW
+          LJM    AFF
+*
+PLACE     LDD    NCAR
+          LPN    1           PARITE DU NOMBRE DE CARACTERES
+          NJN    IMPAIR      DEUXIEME CARACTERE DU MOT
+          LDD    T1          PREMIER CARACTERE : NOUVEAU MOT
+          SHN    6
+          ADN    55B         COMPLETE PAR UN BLANC
+          STM    SAISIE+2,NW
+          AOD    NW
+          UJN    COMPTE
+IMPAIR    LDM    SAISIE+1,NW DERNIER MOT DU TAMPON
+          SCN    77B         EFFACE LE BLANC
+          LMD    T1          PLACE LE CARACTERE
+          STM    SAISIE+1,NW
+COMPTE    AOD    NCAR
+          LJM    AFF
+*
+*         TEXTES AFFICHES
+*
+TITRE     CON    6000B+100B,7000B+720B X = 100B, Y = 720B
+          DIS    12,CDC 6600 - CONSOLE 6612
+TITREL    EQU    *-TITRE
+AIDE      CON    6000B+40B,7000B+640B
+          DIS    21,TAPEZ DU TEXTE AU CLAVIER DE LA CONSOLE :
+          CON    6000B+40B,7000B+620B
+          DIS    16,IL S AFFICHE SUR L ECRAN DROIT.
+          CON    6000B+40B,7000B+570B
+          DIS    12,ENTREE EFFACE LA SAISIE,
+          CON    6000B+40B,7000B+550B
+          DIS    18,RETOUR ARRIERE EFFACE UN CARACTERE.
+          CON    6000B+40B,7000B+100B
+          DIS    23,LE PP REDESSINE LES DEUX ECRANS EN PERMANENCE.
+AIDEL     EQU    *-AIDE
+ENTETE    CON    6000B+40B,7000B+720B
+          DIS    4,SAISIE :
+SAISIE    CON    6000B+40B,7000B+660B
+          BSS    MAXW
+          END

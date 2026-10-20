@@ -1,0 +1,70 @@
+          IDENT  MACROS,100B,DEBUT
+          ABS
+          ORG    100B
+*         DEMONSTRATION DU MACRO-ASSEMBLEUR : MICROS, MACROS AVEC
+*         SYMBOLE LOCAL, ASSEMBLAGE CONDITIONNEL (IFGE/ELSE/ENDIF),
+*         DUP ET ECHO. ASSEMBLEZ (F7) PUIS CONSULTEZ LE LISTING ET LA
+*         TABLE DES SYMBOLES.
+*
+*         UN MICRO EST UNE CHAINE SUBSTITUEE PARTOUT OU "NOM" APPARAIT.
+*
+VERSION   MICRO  1,,*V1.2*
+TAILLE    EQU    8           TAILLE DES TABLES
+*
+*         MACRO A DEUX PARAMETRES : RANGE UNE VALEUR EN MEMOIRE.
+*
+RANGE     MACRO  VAL,ADR
+          SX6    VAL
+          SA6    ADR
+          ENDM
+*
+*         MACRO AVEC SYMBOLE LOCAL : COPIE N MOTS DE SRC VERS DST.
+*         CHAQUE APPEL RECOIT SA PROPRE ETIQUETTE BCL.
+*
+COPIE     MACRO  SRC,DST,N
+          LOCAL  BCL
+          SB7    N
+BCL       SB7    B7-1
+          SA1    B7+SRC
+          BX6    X1
+          SA6    B7+DST
+          NZ     B7,BCL
+          ENDM
+*
+DEBUT     RANGE  5,CINQ
+          RANGE  TAILLE*2,DOUBLE
+          COPIE  CARRES,COPIE1,TAILLE
+          COPIE  NOMS,COPIE2,3
+*
+*         ASSEMBLAGE CONDITIONNEL SELON LA VALEUR DE TAILLE.
+*
+          IFGE   TAILLE,8
+          SX6    1           GRANDE TABLE
+          ELSE
+          SX6    0           PETITE TABLE
+          ENDIF
+          SA6    GRAND
+          PS
+*
+*         TABLE DES CARRES 1, 4, 9, ... GENEREE PAR DUP.
+*
+K         SET    0
+CARRES    BSS    0
+          DUP    TAILLE,2
+K         SET    K+1
+          CON    K*K
+*
+*         TABLE DE NOMS GENEREE PAR ECHO (UNE ITERATION PAR ELEMENT).
+*
+NOMS      BSS    0
+          ECHO   ,N=(ALPHA,BETA,GAMMA)
+          DATA   H*N*
+          ENDD
+*
+TITRE     DIS    ,*DEMONSTRATION COMPASS "VERSION"*
+CINQ      BSS    1
+DOUBLE    BSS    1
+GRAND     BSS    1
+COPIE1    BSS    TAILLE
+COPIE2    BSS    3
+          END
