@@ -27,6 +27,20 @@ import { DEADSTART_PANEL } from '../src/os/dsl.js';
 import { Runner, RunController, RUN_MODES, DEMO_DEADSTART } from '../src/runtime/runner.js';
 
 /** System text macros (MESSAGE, WRITEC, ENDRUN...), highlighted as macros. */
+// Example files renamed when the project moved to English (old name -> new name).
+const RENAMED_EXAMPLES = {
+  'cpu-flottant.cmp': 'cpu-float.cmp', 'cpu-somme.cmp': 'cpu-sum.cmp', 'cpu-texte.cmp': 'cpu-text.cmp',
+  'cpu-tri.cmp': 'cpu-sort.cmp', 'pp-cartes.cmp': 'pp-cards.cmp', 'pp-horloge.cmp': 'pp-clock.cmp',
+  'pp-imprimante.cmp': 'pp-printer.cmp', 'sys-bonjour.cmp': 'sys-hello.cmp', 'sys-copie.cmp': 'sys-copy.cmp',
+};
+// Hashes of every earlier published version of the examples (before the
+// workspace recorded the original text): a copy with one of these hashes
+// was never edited.
+const LEGACY_EXAMPLE_HASHES = new Set(['95lvzc', 'gflkat', '1wzvcde', 'rre12p', '13o5fte', 'bat707', '51eo9l', '1rmgg5g',
+  'omx21v', '1uwosl', 'aj3h3n', '1ktmx1k', 'pphvre', '1ew7t9n']);
+const normalizeText = (s) => s.replace(/\r/g, '').replace(/\t/g, '        ').replace(/\s+$/, '');
+const textHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
+
 const SYSTEM_MACROS = (() => { try { return collectMacros(Object.values(SYSTEM_TEXTS).join('\n')); } catch { return new Set(); } })();
 
 const SETTINGS_KEY = 'cdc6600-ide/settings/v1';
@@ -619,6 +633,7 @@ class App {
       this.examples = [];
     }
     this.renderExamples();
+    await this.refreshExampleCopies();
     for (const ex of this.examples.filter((x) => x.kind === 'text')) {
       const t = await this.exampleText(ex.file);
       if (t !== null) this.exampleTexts[compassName(ex.file)] = t;
@@ -629,15 +644,69 @@ class App {
     } else if (!this.activeId) this.showEmptyEditor(true);
   }
 
+  /**
+   * Example copies saved by an earlier version of the Workbench (or of an
+   * example): an unedited copy is replaced by the current example text, under
+   * the current file name; an edited copy is kept as an ordinary file, so that
+   * opening the example gives the current version.
+   */
+  async refreshExampleCopies() {
+    let changed = false;
+    for (const f of [...this.workspace.files]) {
+      if (!f.example) continue;
+      const file = RENAMED_EXAMPLES[f.example] || f.example;
+      if (!this.examples.some((x) => x.file === file)) continue;
+      const text = await this.exampleText(file);
+      if (text === null) continue;
+      const cur = normalizeText(f.draft ?? f.content);
+      if (cur === normalizeText(text) && file === f.example) {
+        if (f.base === null || f.content !== text || f.draft !== null) {
+          // same text, only line endings differ: no pending change
+          f.base = text;
+          f.content = text;
+          f.draft = null;
+          changed = true;
+        }
+        continue;
+      }
+      const unedited = f.base !== null ? cur === normalizeText(f.base) : LEGACY_EXAMPLE_HASHES.has(textHash(cur));
+      if (unedited) {
+        f.content = text;
+        f.draft = null;
+        f.base = text;
+        f.example = file;
+        if (f.name === file || RENAMED_EXAMPLES[f.name] === file) f.name = this.workspace.byName(file) && this.workspace.byName(file) !== f ? this.workspace.uniqueName(file) : file;
+        const open = this.editors.get(f.id);
+        if (open) open.editor.setValue(text);
+        this.log(`Example updated to the current version: ${f.name}.`);
+      } else {
+        f.example = null;
+        this.log(`${f.name}: edited copy of an earlier example, kept as an ordinary file.`, 'warn');
+      }
+      changed = true;
+    }
+    if (changed) {
+      this.workspace.sort();
+      this.workspace.persist();
+      this.workspace.emit();
+      this.renderEditorTabs();
+    }
+  }
+
+  /** Text of an example, with LF line endings (as the editor keeps it). */
   async exampleText(file) {
     const emb = globalThis.__CDC_EMBEDDED__ && globalThis.__CDC_EMBEDDED__.examples;
-    if (emb) return emb.files[file] ?? null;
-    try {
-      const r = await fetch(`examples/${file}`, { cache: 'no-cache' });
-      return r.ok ? await r.text() : null;
-    } catch {
-      return null;
+    let text = null;
+    if (emb) text = emb.files[file] ?? null;
+    else {
+      try {
+        const r = await fetch(`examples/${file}`, { cache: 'no-cache' });
+        text = r.ok ? await r.text() : null;
+      } catch {
+        text = null;
+      }
     }
+    return text === null ? null : text.replace(/\r\n?/g, '\n');
   }
 
   renderExamples() {

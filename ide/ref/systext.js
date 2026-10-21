@@ -71,8 +71,8 @@ RA+1 to be free, stores the request and waits for it to be cleared: every reques
 ${RA1_WORD}
 ${T([
   ['MSG', 'P1 = message address', 'message (at most 40 characters, 4 words) to the dayfile and to console line 1'],
-  ['END', '', 'normal end of job (dayfile: FIN NORMALE DU TRAVAIL.)'],
-  ['ABT', '', 'abnormal end of job (FIN ANORMALE DU TRAVAIL.)'],
+  ['END', '', 'normal end of job (dayfile: NORMAL END OF JOB.)'],
+  ['ABT', '', 'abnormal end of job (ABNORMAL END OF JOB.)'],
   ['RCL', 'P1 = status word', 'recall: no effect, completed at once'],
   ['TIM', 'P1 = address', 'elapsed milliseconds stored at P1'],
   ['CLK', 'P1 = address', 'time of day, display code, stored at P1'],
@@ -81,7 +81,7 @@ ${T([
   ['CIO', 'P1 = FET address', 'input/output on the file described by the FET'],
 ], ['Request', 'Parameters', 'Effect'])}
 ${p(`Only the first 18 bits (the request name) select the request; the R bit and P2 are not examined by MTR. An unknown
-request ends the job with the dayfile message ${c('DEMANDE RA+1 ILLEGALE.')}. Requests from the program and the
+request ends the job with the dayfile message ${c('ILLEGAL RA+1 REQUEST.')}. Requests from the program and the
 messages of the system appear in the Dayfile tab of the workbench.`)}
 ${h4('File environment table (FET)')}
 ${p(`A file is described by a 5-word FET, created by ${see('sys-filec', 'FILEC')}; its address is the operand of the
@@ -326,7 +326,7 @@ ENDRUN    MACRO
           SYSTEM END
           ENDM
 `,
-  p(`Ends the job normally: request ${c('END')}. MTR writes ${c('FIN NORMALE DU TRAVAIL.')} in the dayfile, sets the job
+  p(`Ends the job normally: request ${c('END')}. MTR writes ${c('NORMAL END OF JOB.')} in the dayfile, sets the job
 status to "ended" and stops the CPU program (exchange to the idle package). The macro does not return.`),
   `
           SX6    1
@@ -339,7 +339,7 @@ ABORT     MACRO
           SYSTEM ABT
           ENDM
 `,
-  p(`Ends the job abnormally: request ${c('ABT')}. MTR writes ${c('FIN ANORMALE DU TRAVAIL.')} in the dayfile, sets the job
+  p(`Ends the job abnormally: request ${c('ABT')}. MTR writes ${c('ABNORMAL END OF JOB.')} in the dayfile, sets the job
 status to "aborted" and stops the CPU program. The macro does not return.`),
   `
           SA1    FLAG

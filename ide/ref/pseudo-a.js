@@ -13,7 +13,7 @@ const deviation = (s) => note(`<strong>Deviation from the manual.</strong> ${s}`
 // Overview
 // =====================================================================
 
-const vueA = {
+const overview = {
   id: 'ps-overview',
   title: 'Classification and legality of pseudo instructions',
   keys: [],
@@ -1928,7 +1928,7 @@ export const CHAPTERS = [
     id: 'ps-ch-overview',
     title: 'Pseudo instructions: overview',
     intro: p(`Classification of pseudo instructions, first statement group, assembly types and legality matrix.`),
-    entries: [vueA],
+    entries: [overview],
   },
   {
     id: 'ps-ch-ident',

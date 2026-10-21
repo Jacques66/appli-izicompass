@@ -190,7 +190,7 @@ ${ex(continued('          LIT    ' + Array.from({ length: 60 }, (_, k) => k + 1)
 `,
 };
 
-const COMMENTAIRES = {
+const COMMENTS = {
   id: 'lang-comments',
   title: 'Comments',
   keys: [],
@@ -230,7 +230,7 @@ ${ex(`
 // Chapter 2: statement editing
 // =================================================================
 
-const EDITION = {
+const EDITING = {
   id: 'lang-edition',
   title: 'Statement editing: concatenation and micro substitution',
   keys: ['_', '"'],
@@ -304,7 +304,7 @@ ${ex(`
 `,
 };
 
-const MICROS_PREDEF = {
+const PREDEFINED_MICROS = {
   id: 'lang-predefined-micros',
   title: 'Predefined micros',
   keys: ['JDATE', 'MODLEVEL', 'PCOMMENT', 'SEQUENCE'],
@@ -349,7 +349,7 @@ ${ex(`
 // Chapter 3: names and symbols
 // =================================================================
 
-const NOMS = {
+const NAMES = {
   id: 'lang-names',
   title: 'Names',
   keys: [],
@@ -379,7 +379,7 @@ ZONE      DATA   0L"ZONE"
 `,
 };
 
-const SYMBOLES = {
+const SYMBOLS = {
   id: 'lang-symbols',
   title: 'Symbols: form, definition, redefinition',
   keys: [],
@@ -466,7 +466,7 @@ X3        EQU    3`, { errors: ['6'] })}
 `,
 };
 
-const SYMBOLES_DEFAUT = {
+const DEFAULT_SYMBOLS = {
   id: 'lang-default-symbols',
   title: 'Default symbols (=S, =X, =Y)',
   keys: ['=S', '=X', '=Y'],
@@ -512,7 +512,7 @@ ${ex(`
 `,
 };
 
-const QUALIFIES = {
+const QUALIFIED = {
   id: 'lang-qualified',
   title: 'Qualified symbols',
   keys: ['//'],
@@ -558,7 +558,7 @@ OWN       EQU    3
 `,
 };
 
-const LIAISON = {
+const LINKAGE = {
   id: 'lang-linkage',
   title: 'Linkage symbols: entry points and externals',
   keys: [],
@@ -605,7 +605,7 @@ NEG       EQU    -*`, { errors: ['N'] })}
 `,
 };
 
-const REGISTRES = {
+const REGISTERS = {
   id: 'lang-registers',
   title: 'CPU registers in the language',
   keys: [],
@@ -662,7 +662,7 @@ ${ex(`
 // Chapter 4: special elements and data notation
 // =================================================================
 
-const SPECIAUX = {
+const SPECIAL = {
   id: 'lang-special',
   title: 'Special elements (*, *L, *O, *P, $, *F)',
   keys: ['*L', '*O', '*P', '*F', '$'],
@@ -720,7 +720,7 @@ START     EQU    *
 `,
 };
 
-const DONNEES = {
+const DATA_PAGE = {
   id: 'lang-data',
   title: 'Data items, constants and literals',
   keys: [],
@@ -757,7 +757,7 @@ ${ex(`
 `,
 };
 
-const CARACTERES = {
+const CHARACTERS = {
   id: 'lang-character-data',
   title: 'Character data (C, H, A, R, L, Z)',
   keys: [],
@@ -838,7 +838,7 @@ ${ex(`
 `,
 };
 
-const NUMERIQUES = {
+const NUMERIC = {
   id: 'lang-numeric-data',
   title: 'Numeric data: integers, radix and modifiers',
   keys: [],
@@ -917,7 +917,7 @@ ${ex(`
 `,
 };
 
-const FLOTTANTS = {
+const FLOATING = {
   id: 'lang-floating',
   title: 'Single- and double-precision floating point',
   keys: [],
@@ -983,7 +983,7 @@ ${ex(`
 `,
 };
 
-const LITTERAUX = {
+const LITERALS = {
   id: 'lang-literals',
   title: 'Literals',
   keys: ['='],
@@ -1137,7 +1137,7 @@ TWO       EQU    3RABCD`, { errors: ['A'] })}
 `,
 };
 
-const CHAMPS = {
+const FIELDS = {
   id: 'lang-fields',
   title: 'Destination field size and truncation',
   keys: [],
@@ -1293,7 +1293,7 @@ N         SET    N+1
 // Chapter 6: program structure
 // =================================================================
 
-const PROGRAMME = {
+const PROGRAM = {
   id: 'lang-program',
   title: 'Subprogram, first statement group, block group',
   keys: [],
@@ -1350,7 +1350,7 @@ ${ex(`
 `,
 };
 
-const BLOCS = {
+const BLOCKS = {
   id: 'lang-blocks',
   title: 'Blocks: types, names and allocation order',
   keys: [],
@@ -1413,7 +1413,7 @@ AREA      BSS    3
 `,
 };
 
-const COMPTEURS = {
+const COUNTERS = {
   id: 'lang-counters',
   title: 'Origin, location and position counters',
   keys: [],
@@ -1539,7 +1539,7 @@ ${ex(`
 `,
 };
 
-const RELOGEABLE = {
+const RELOCATABLE = {
   id: 'lang-relocatable',
   title: 'Relocatable program',
   keys: [],
@@ -1575,7 +1575,7 @@ RESULT    BSS    1
 `,
 };
 
-const ABSOLU = {
+const ABSOLUTE = {
   id: 'lang-absolute',
   title: 'Absolute program',
   keys: [],
@@ -1649,7 +1649,7 @@ ENT3      SA1    ENT2
 `,
 };
 
-const PARTIEL = {
+const PARTIAL = {
   id: 'lang-partial-binary',
   title: 'Partial binary (SEG, blank IDENT)',
   keys: [],
@@ -1711,7 +1711,7 @@ function charsetTable() {
   return T(rows, ['Display', 'CDC', 'ASCII', 'External BCD (E)', 'Internal BCD (I)', '6-bit ASCII (A)', 'ASCII (hex, N)', '026', '029']);
 }
 
-const JEUX = {
+const CHARSETS = {
   id: 'lang-charsets',
   title: 'Character set and code table',
   keys: [],
@@ -1821,7 +1821,7 @@ function errorTable() {
   return T(rows, ['Flag', 'Severity', 'Message', 'Causes in this assembler']);
 }
 
-const ERREURS = {
+const ERRORS = {
   id: 'lang-errors',
   title: 'Error flags',
   keys: [],
@@ -1841,7 +1841,7 @@ ${errorTable()}
 `,
 };
 
-const ERREURS_FATALES = {
+const FATAL_ERRORS = {
   id: 'lang-fatal-errors',
   title: 'Fatal errors: examples',
   keys: [],
@@ -1905,7 +1905,7 @@ U         ERR
 `,
 };
 
-const ERREURS_INFO = {
+const ERROR_EXAMPLES = {
   id: 'lang-error-examples',
   title: 'Informative warnings: examples',
   keys: [],
@@ -2013,7 +2013,7 @@ U                                                 SX7    UNDEF
 `,
 };
 
-const LISTING_RESUMES = {
+const LISTING_SUMMARIES = {
   id: 'lang-listing-summaries',
   title: 'End-of-listing summaries: blocks, literals, statistics, error directory',
   keys: [],
@@ -2075,7 +2075,7 @@ VALUE            4 PROGRAM*      1/9 L        1/3
 `,
 };
 
-const BINAIRE = {
+const BINARY = {
   id: 'lang-binary',
   title: 'Binary output: records and prefix table (PRFX 7700)',
   keys: [],
@@ -2116,7 +2116,7 @@ ${see('ps-comment', 'COMMENT')}.</p>
 `,
 };
 
-const BINAIRE_RELOC = {
+const BINARY_RELOC = {
   id: 'lang-binary-relocatable',
   title: 'Relocatable binary tables (PIDL, ENTR, TEXT, FILL, REPL, LINK, XFER)',
   keys: [],
@@ -2185,7 +2185,7 @@ LCC       separate coded record: directive text in display code, then a zero wor
 `,
 };
 
-const BINAIRE_ABSOLU = {
+const BINARY_ABSOLUTE = {
   id: 'lang-binary-absolute',
   title: 'Absolute binary: 5000 and 5100 tables, PP header',
   keys: [],
@@ -2282,54 +2282,54 @@ export const CHAPTERS = [
     id: 'lang-ch-format',
     title: 'Statement format',
     intro: '<p>Source lines, fields, continuation lines and comments.</p>',
-    entries: [FORMAT, CONTINUATION, COMMENTAIRES],
+    entries: [FORMAT, CONTINUATION, COMMENTS],
   },
   {
     id: 'lang-ch-edition',
     title: 'Statement editing',
     intro: '<p>Concatenation, micro substitution and predefined micros.</p>',
-    entries: [EDITION, MICROS_PREDEF],
+    entries: [EDITING, PREDEFINED_MICROS],
   },
   {
     id: 'lang-ch-symbols',
     title: 'Names and symbols',
     intro: '<p>Names, symbols and their definition, default symbols, qualifiers, linkage symbols, registers.</p>',
-    entries: [NOMS, SYMBOLES, SYMBOLES_DEFAUT, QUALIFIES, LIAISON, REGISTRES],
+    entries: [NAMES, SYMBOLS, DEFAULT_SYMBOLS, QUALIFIED, LINKAGE, REGISTERS],
   },
   {
     id: 'lang-ch-data',
     title: 'Special elements and data notation',
     intro: '<p>Special elements, character and numeric data, floating point, hexadecimal, literals.</p>',
-    entries: [SPECIAUX, DONNEES, CARACTERES, NUMERIQUES, FLOTTANTS, HEX, LITTERAUX],
+    entries: [SPECIAL, DATA_PAGE, CHARACTERS, NUMERIC, FLOATING, HEX, LITERALS],
   },
   {
     id: 'lang-ch-expressions',
     title: 'Expressions',
     intro: '<p>Syntax and arithmetic of expressions, field sizes, relocation, evaluation by pass.</p>',
-    entries: [EXPRESSIONS, CHAMPS, RELOCATION, PASSES],
+    entries: [EXPRESSIONS, FIELDS, RELOCATION, PASSES],
   },
   {
     id: 'lang-ch-program',
     title: 'Program structure',
     intro: '<p>Subprograms, blocks, counters, force upper, relocatable and absolute programs, overlays.</p>',
-    entries: [PROGRAMME, BLOCS, COMPTEURS, FORCE, RELOGEABLE, ABSOLU, OVERLAYS, PARTIEL],
+    entries: [PROGRAM, BLOCKS, COUNTERS, FORCE, RELOCATABLE, ABSOLUTE, OVERLAYS, PARTIAL],
   },
   {
     id: 'lang-ch-charsets',
     title: 'Character sets',
     intro: '<p>The 64-character set and the character generation codes.</p>',
-    entries: [JEUX, CODES],
+    entries: [CHARSETS, CODES],
   },
   {
     id: 'lang-ch-errors',
     title: 'Errors',
     intro: '<p>Error flags, their meaning and examples.</p>',
-    entries: [ERREURS, ERREURS_FATALES, ERREURS_INFO],
+    entries: [ERRORS, FATAL_ERRORS, ERROR_EXAMPLES],
   },
   {
     id: 'lang-ch-output',
     title: 'Listing, binary and execution',
     intro: '<p>Listing format, loader tables written by the assembler, execution parameters.</p>',
-    entries: [LISTING, LISTING_RESUMES, REFERENCES, BINAIRE, BINAIRE_RELOC, BINAIRE_ABSOLU, EXECUTION],
+    entries: [LISTING, LISTING_SUMMARIES, REFERENCES, BINARY, BINARY_RELOC, BINARY_ABSOLUTE, EXECUTION],
   },
 ];

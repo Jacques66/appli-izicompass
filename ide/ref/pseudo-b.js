@@ -16,7 +16,7 @@ export const CHAPTERS = [];
 // Conditional assembly
 // =====================================================================
 
-const SAUT = {
+const SKIPPING = {
   id: 'ps-skipping',
   title: 'The conditional assembly skip machine',
   keys: [],
@@ -600,7 +600,7 @@ CHAPTERS.push({
   title: 'Conditional assembly',
   intro: p(`The IF... pseudo instructions assemble or skip a sequence of statements according to a condition evaluated in
 pass one. The common mechanism (names, skip counts, ELSE and ENDIF) is described in ${see('ps-skipping', 'the skip machine')}.`),
-  entries: [SAUT, IFOP, IFPL, IFTYPE, IFATT, IFC, SKIP, ELSE, ENDIF],
+  entries: [SKIPPING, IFOP, IFPL, IFTYPE, IFATT, IFC, SKIP, ELSE, ENDIF],
 });
 
 // =====================================================================
@@ -1422,7 +1422,7 @@ ${ex(`
 `,
 };
 
-const APPEL = {
+const MACROCALL = {
   id: 'ps-macro-call',
   title: 'Macro call',
   keys: [],
@@ -1756,14 +1756,14 @@ CHAPTERS.push({
   intro: p(`A macro is a saved sequence of statements, assembled at each call with the actual parameters substituted for the
 formal parameters. MACRO and MACROE macros are called by name (mnemonic entries); OPDEF macros are called by the syntax
 of a CPU instruction (syntactic entries). System text macros (${see('sys-intro', 'SYSTEXT')}) are used in the same way.`),
-  entries: [MACRO, APPEL, MACROE, ENDM, LOCAL, IRP, OPDEF],
+  entries: [MACRO, MACROCALL, MACROE, ENDM, LOCAL, IRP, OPDEF],
 });
 
 // =====================================================================
 // Operation code table management
 // =====================================================================
 
-const TABLES = {
+const OPTABLES = {
   id: 'ps-opcode-tables',
   title: 'The operation code table',
   keys: [],
@@ -2077,7 +2077,7 @@ CHAPTERS.push({
   title: 'Operation code table management',
   intro: p(`These pseudo instructions add, copy or disable entries of the operation code table. The table itself, its two
 parts and the lookup order are described in ${see('ps-opcode-tables', 'the operation code table')}.`),
-  entries: [TABLES, NIL, OPSYN, PURGMAC, CPOP, CPSYN, PURGDEF, PPOP],
+  entries: [OPTABLES, NIL, OPSYN, PURGMAC, CPOP, CPSYN, PURGDEF, PPOP],
 });
 
 // =====================================================================

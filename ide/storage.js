@@ -30,6 +30,7 @@ export class Workspace {
         id: f.id || newId(), name: f.name, kind: f.kind || kindOf(f.name), content: f.content || '',
         draft: typeof f.draft === 'string' ? f.draft : null, breakpoints: Array.isArray(f.breakpoints) ? f.breakpoints : [],
         created: f.created || Date.now(), modified: f.modified || Date.now(), example: f.example || null,
+        base: typeof f.base === 'string' ? f.base : null,
       }));
     }
     this.openIds = data && Array.isArray(data.open) ? data.open.filter((id) => this.get(id)) : [];
@@ -77,6 +78,7 @@ export class Workspace {
     const f = {
       id: newId(), name: this.uniqueName(name), kind: kind || kindOf(name), content, draft: null,
       breakpoints: [], created: Date.now(), modified: Date.now(), example,
+      base: example ? content : null,   // example text as supplied, to detect later edits
     };
     this.files.push(f);
     this.sort();
