@@ -1,21 +1,21 @@
-// Définitions et appels : MACRO, MACROE, OPDEF, DUP, ECHO, RMT.
+// Definitions and calls: MACRO, MACROE, OPDEF, DUP, ECHO, RMT.
 //
-// Les lignes d'une définition sont capturées NON éditées. Les noms de
-// paramètres formels et de symboles locaux y sont remplacés par une marque de
-// deux caractères (comme le « ;x » de COMPASS) ; l'édition (concaténation,
-// micros) a lieu à chaque expansion.
+// The lines of a definition are captured UNEDITED. The names of formal
+// parameters and local symbols are replaced in them by a two-character mark
+// (like the ";x" of COMPASS); editing (concatenation, micros) takes place at
+// each expansion.
 
 import { scanFields, MARK, CONCAT, MICRO } from './source.js';
 import { MacroFrame, DupFrame, ListFrame, stripParens } from './frames.js';
 import { qText } from './cpuasm.js';
 import { toDisplay } from '../common/charset.js';
 
-// Délimiteurs reconnaissant un nom de paramètre dans le corps.
+// Delimiters that recognize a parameter name in the body.
 const DELIM = new Set(['+', '-', '*', '/', '(', ')', '$', '=', ',', '.', ' ', MICRO, CONCAT]);
 const PARAM_SEP = new Set(['+', '-', '*', '/', '(', ')', '$', '=', ',', '.']);
 const RESERVED = new Set(['END', 'ENDD', 'ENDM', 'IRP', 'LOCAL']);
 
-/** Découpe une liste de noms (paramètres formels, LOCAL). */
+/** Splits a list of names (formal parameters, LOCAL). */
 export function splitNames(text) {
   const out = [];
   let cur = '';
@@ -27,7 +27,7 @@ export function splitNames(text) {
   return out;
 }
 
-/** Champ variable brut (jusqu'au premier blanc hors parenthèses). */
+/** Raw variable field (up to the first blank outside parentheses). */
 export function rawVarField(img, pos) {
   if (pos < 0) return '';
   let s = '', depth = 0;
@@ -42,8 +42,8 @@ export function rawVarField(img, pos) {
 }
 
 /**
- * Remplace les noms (formels puis locaux) par des marques dans une ligne.
- * Les « ;x » déjà présents deviennent aussi des marques.
+ * Replaces names (formals, then locals) with marks in a line.
+ * Any ";x" already present also becomes a mark.
  */
 export function markLine(img, names) {
   if (!names.size && !img.includes(';')) return img;
@@ -75,7 +75,7 @@ function bodyLine(st, f) {
 
 // =========================================================== capture
 
-/** Démarre la capture d'une définition. */
+/** Starts capturing a definition. */
 export function startCapture(asm, entry, cap) {
   cap.entry = entry;
   cap.body = [];
@@ -87,7 +87,7 @@ export function startCapture(asm, entry, cap) {
   asm.capture = cap;
 }
 
-/** Traite une instruction pendant une capture (instruction non éditée). */
+/** Processes a statement during a capture (unedited statement). */
 export function captureStatement(asm, st) {
   const cap = asm.capture;
   if (st.comment) {
@@ -128,7 +128,7 @@ export function captureStatement(asm, st) {
         if (k > 0) cap.open.length = k;
         return;
       } else if (f.op === 'END') {
-        asm.flag(cap.entry, 'E', 'END dans une définition');
+        asm.flag(cap.entry, 'E', 'END inside a definition');
         endCapture(asm);
         asm.processStatement(st);
         return;
@@ -140,7 +140,7 @@ export function captureStatement(asm, st) {
     case 'dup':
     case 'echo': {
       if (f.op === 'END') {
-        asm.flag(cap.entry, 'E', 'END dans une séquence DUP/ECHO');
+        asm.flag(cap.entry, 'E', 'END inside a DUP/ECHO sequence');
         endCapture(asm);
         asm.processStatement(st);
         return;
@@ -164,7 +164,7 @@ export function captureStatement(asm, st) {
         return;
       }
       if (f.op === 'END') {
-        asm.flag(cap.entry, 'E', 'END dans une séquence RMT');
+        asm.flag(cap.entry, 'E', 'END inside an RMT sequence');
         endCapture(asm);
         asm.processStatement(st);
         return;
@@ -185,7 +185,7 @@ function endCapture(asm) {
       const names = new Map();
       cap.formals.forEach((n, k) => names.set(n, k + 1));
       cap.locals.forEach((n, k) => names.set(n, cap.formals.length + k + 1));
-      if (names.size > 63) asm.flag(cap.entry, 'F', 'plus de 63 paramètres et symboles locaux');
+      if (names.size > 63) asm.flag(cap.entry, 'F', 'more than 63 parameters and local symbols');
       const body = cap.body.map((b) => {
         const img = markLine(b.img, names);
         const f = scanFields(img, asm.cc);
@@ -241,7 +241,7 @@ function endCapture(asm) {
   }
 }
 
-/** Assemble du code distant (HERE ou END). */
+/** Assembles remote code (HERE or END). */
 export function assembleRemote(asm, entry, name) {
   let body = [];
   if (name) {
@@ -254,9 +254,9 @@ export function assembleRemote(asm, entry, name) {
   if (body.length) asm.pushFrame(new ListFrame('rmt', body, entry.site, entry.level + 1, '*RMT*'));
 }
 
-// =========================================================== appels
+// =========================================================== calls
 
-/** Paramètres effectifs d'un appel (champ variable édité). */
+/** Actual parameters of a call (edited variable field). */
 export function parseActuals(img, pos) {
   const out = [];
   if (pos < 0) return out;
@@ -267,7 +267,7 @@ export function parseActuals(img, pos) {
     if (c === undefined || c === ' ') { out.push(cur); break; }
     if (c === ',') { out.push(cur); cur = ''; i++; continue; }
     if (c === '(' && cur === '') {
-      // paramètre entre parenthèses : jusqu'à la parenthèse fermante associée
+      // parenthesized parameter: up to the matching closing parenthesis
       let depth = 0, j = i;
       let txt = '';
       for (; j < img.length; j++) {
@@ -278,7 +278,7 @@ export function parseActuals(img, pos) {
       }
       cur = txt.slice(1);
       i = j + 1;
-      // texte après la parenthèse jusqu'à la virgule ou au blanc : ajouté tel quel
+      // text after the parenthesis up to the comma or blank: appended as is
       while (i < img.length && img[i] !== ',' && img[i] !== ' ') cur += img[i++];
       continue;
     }
@@ -288,7 +288,7 @@ export function parseActuals(img, pos) {
   return out;
 }
 
-/** Symbole inventé pour un LOCAL (unique dans le sous-programme). */
+/** Invented symbol for a LOCAL (unique within the subprogram). */
 export function invent(asm) {
   asm.inventCounter++;
   asm.inventedCount = (asm.inventedCount || 0) + 1;
@@ -296,8 +296,8 @@ export function invent(asm) {
 }
 
 /**
- * Appel de macro, MACROE ou OPDEF.
- * @param prep analyse syntaxique (OPDEF)
+ * Call of a macro, MACROE or OPDEF.
+ * @param prep syntactic analysis (OPDEF)
  */
 export function beginMacroCall(asm, entry, def, prep) {
   entry.kind = 'maccall';
@@ -324,7 +324,7 @@ export function beginMacroCall(asm, entry, def, prep) {
       const map = new Map();
       for (const a of acts) {
         const eq = a.indexOf('=');
-        if (eq <= 0) { if (a) asm.flag(entry, 'A', `paramètre par mot-clé attendu : ${a}`); continue; }
+        if (eq <= 0) { if (a) asm.flag(entry, 'A', `keyword parameter expected: ${a}`); continue; }
         map.set(a.slice(0, eq), stripParensIf(a.slice(eq + 1)));
       }
       if (def.format === 2) actuals.push(loc || '');

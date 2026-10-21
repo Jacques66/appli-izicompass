@@ -1,50 +1,51 @@
 # Architecture
 
-Tout est écrit en JavaScript (ES modules), sans dépendance externe. Le même code
-tourne dans Node (outils en ligne de commande, tests) et dans le navigateur (IDE).
+Everything is written in JavaScript (ES modules), with no external dependencies. The
+same code runs in Node (command-line tools, tests) and in the browser (IDE).
 
 ```
 src/
-  common/word.js      arithmétique 60/18/12 bits, complément à un (BigInt pour 60 bits)
-  common/charset.js   code display CDC, ASCII, BCD externe, Hollerith (cartes)
-  cpu/float.js        unité flottante 6600 (add, mul, div, DP, arrondi, normalisation)
-  cpu/cpu.js          unité centrale : X/A/B, P, RA/FL, mode de sortie, exchange jump,
-                      ECS (RE/WE), CMU (IM/DM/CC/CU), pile d'instructions, chronométrage
-  cpu/scoreboard.js   modèle temporel du tableau de marque (scoreboard) du 6600
-  cpu/disasm.js       désassembleur CPU (syntaxe COMPASS)
-  pp/pp.js            processeur périphérique 12 bits (barillet de 10 PP)
-  pp/disasm.js        désassembleur PP
-  io/channel.js       canaux d'E/S (actif/plein, fonction, données)
-  io/devices.js       périphériques : panneau deadstart, console 6612, lecteur 405,
-                      imprimante 1612, bande 607, disque 6603, horloge temps réel
-  machine.js          machine complète : mémoire centrale, ECS, CPU, PP, canaux,
-                      ordonnancement (cycle majeur 1 µs, cycle mineur 100 ns)
-  asm/compass.js      point d'entrée de l'assembleur (voir docs/API.md)
-  asm/assembler.js    cœur : passes, blocs, compteurs, symboles, émission, relocation
-  asm/source.js       lignes, continuations, édition (concaténation, micros), champs
-  asm/expr.js         expressions, constantes, données caractère et numériques
-  asm/cpuops.js       table syntaxique des instructions CPU (même modèle que CPOP)
-  asm/cpuasm.js       analyse des sous-champs et codage CPU
-  asm/ppops.js        table des instructions PP ; asm/ppasm.js : codage PP
-  asm/pseudos.js      pseudo-instructions
+  common/word.js      60/18/12-bit arithmetic, ones' complement (BigInt for 60 bits)
+  common/charset.js   CDC display code, ASCII, external BCD, Hollerith (cards)
+  cpu/float.js        6600 floating-point unit (add, mul, div, DP, rounding, normalization)
+  cpu/cpu.js          central processor: X/A/B, P, RA/FL, exit mode, exchange jump,
+                      ECS (RE/WE), CMU (IM/DM/CC/CU), instruction stack, timing
+  cpu/scoreboard.js   timing model of the 6600 scoreboard
+  cpu/disasm.js       CPU disassembler (COMPASS syntax)
+  pp/pp.js            12-bit peripheral processor (barrel of 10 PPs)
+  pp/disasm.js        PP disassembler
+  io/channel.js       I/O channels (active/full, function, data)
+  io/devices.js       peripherals: deadstart panel, 6612 console, 405 reader,
+                      1612 line printer, 607 tape, 6603 disk, real-time clock
+  machine.js          complete machine: central memory, ECS, CPU, PPs, channels,
+                      scheduling (1 µs major cycle, 100 ns minor cycle)
+  asm/compass.js      assembler entry point (see docs/API.md)
+  asm/assembler.js    core: passes, blocks, counters, symbols, emission, relocation
+  asm/source.js       lines, continuations, editing (concatenation, micros), fields
+  asm/expr.js         expressions, constants, character and numeric data
+  asm/cpuops.js       syntax table of the CPU instructions (same model as CPOP)
+  asm/cpuasm.js       subfield analysis and CPU encoding
+  asm/ppops.js        PP instruction table; asm/ppasm.js: PP encoding
+  asm/pseudos.js      pseudo instructions
   asm/macros.js       MACRO, MACROE, OPDEF, LOCAL, IRP, DUP, ECHO, RMT
-  asm/frames.js       sources empilées (texte, expansion, duplication, code distant)
-  asm/listing.js      listing COMPASS ; asm/binary.js : tables du chargeur
-  loader/loader.js    édition de liens et chargement (relogeable, absolu, PP)
-  os/systext.js       texte système SYSTEXT et decks communs (COMPASS)
-  os/mtr.js           moniteur MTR (PP0) ; os/dsd.js : console DSD (PP1)
-  os/dsl.js           chargeur de deadstart et construction de la bande système
-  os/system.js        lancement d'un travail (direct ou par deadstart)
-  runtime/runner.js   modes d'exécution et pilotage pour l'IDE
-ide/                  IDE web : éditeur, assemblage, listing, débogueur, console
-cli/                  compass (assembleur) et cdc6600 (exécution) en ligne de commande
+  asm/frames.js       stacked sources (text, expansion, duplication, remote code)
+  asm/listing.js      COMPASS listing; asm/binary.js: loader tables
+  loader/loader.js    linking and loading (relocatable, absolute, PP)
+  os/systext.js       SYSTEXT system text and common decks (COMPASS)
+  os/mtr.js           MTR monitor (PP0); os/dsd.js: DSD console (PP1)
+  os/dsl.js           deadstart loader and system tape construction
+  os/system.js        job startup (direct or by deadstart)
+  runtime/runner.js   run modes and control for the IDE
+ide/                  COMPASS Workbench (web IDE): editor, assembly, listing, debugger, console
+ide/ref/              integrated COMPASS reference (Documentation tab, F1 help)
+cli/                  compass (assembler) and cdc6600 (execution) command-line tools
 test/                 tests (node --test)
-ide/examples/         programmes d'exemple
-docs/spec/            spécifications extraites du manuel COMPASS 60492600 M (1986)
+ide/examples/         example programs
+docs/spec/            specifications drawn from COMPASS manual 60492600 M (1986)
 ```
 
-Sources de référence :
-- *COMPASS Version 3 Reference Manual*, CDC 60492600 révision M (1986), bitsavers.
+Reference sources:
+- *COMPASS Version 3 Reference Manual*, CDC 60492600 revision M (1986), bitsavers.
 - *6000 Series Computer Systems Hardware Reference Manual*, CDC 60100000.
-- Comportement matériel vérifié par comparaison avec l'émulateur DtCyber (GPL),
-  consulté en lecture seule ; aucun code n'en est repris.
+- Hardware behavior checked by comparison with the DtCyber emulator (GPL),
+  consulted read-only; none of its code is reused.

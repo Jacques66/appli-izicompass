@@ -1,0 +1,144 @@
+          IDENT  PRINTER,100B
+          PERIPH
+          ORG    100B
+*         PP PROGRAM: PRINTING ON THE 1612 LINE PRINTER (CHANNEL 12B).
+*
+*         THE PRINTER RECEIVES ONE EXTERNAL BCD CHARACTER PER WORD.
+*         FOR EACH LINE: FNC 600B (SELECT), ACN, OAM OF THE
+*         CHARACTERS, DCN, THEN FNC 605B, WHICH PRINTS THE LINE.
+*         THE TEXTS ARE IN DISPLAY CODE (2 CHARACTERS PER WORD) AND
+*         ARE CONVERTED TO BCD BY THE BCD TABLE.
+*         THE OUTPUT APPEARS IN THE PERIPHERALS TAB > LINE PRINTER.
+*
+CH        EQU    12B         READER/PRINTER CHANNEL
+SELECT    EQU    600B        SELECT THE PRINTER
+PAGE      EQU    604B        PAGE EJECT
+PRTLN     EQU    605B        PRINT THE LINE
+*
+PT        EQU    20B         POINTER TO THE TEXT
+NCH       EQU    21B         NUMBER OF CHARACTERS
+T1        EQU    22B
+T2        EQU    23B
+T3        EQU    24B
+N         EQU    25B         CURRENT NUMBER
+SQ        EQU    26B         ITS SQUARE
+CNT       EQU    27B         COUNTER
+*
+START     FNC    PAGE,CH     NEW PAGE
+          LDC    HEADER
+          STD    PT
+          RJM    PRT         PRINT THE HEADER
+          LDC    BLANK
+          STD    PT
+          RJM    PRT         BLANK LINE
+          LDN    1
+          STD    N           N = 1
+*
+*         SQUARE BY ADDITIONS (THE PP HAS NO MULTIPLY)
+*
+LOOP      LDN    0
+          STD    SQ
+          LDD    N
+          STD    CNT
+SQUARE    LDD    SQ
+          ADD    N
+          STD    SQ          SQ = SQ + N
+          SOD    CNT
+          NJN    SQUARE
+*
+*         OCTAL FORMATTING INTO THE MODEL LINE
+*
+          LDD    N
+          SHN    -6          TWO HIGH-ORDER DIGITS
+          RJM    OCT2
+          STM    LNUM+2
+          LDD    N
+          LPN    77B         TWO LOW-ORDER DIGITS
+          RJM    OCT2
+          STM    LNUM+3
+          LDD    SQ
+          SHN    -6
+          RJM    OCT2
+          STM    LNUM+10B
+          LDD    SQ
+          LPN    77B
+          RJM    OCT2
+          STM    LNUM+11B
+          LDC    LNUM
+          STD    PT
+          RJM    PRT
+          AOD    N           N = N + 1
+          SBN    11D
+          PJN    FINISH      N > 10: END
+          LJM    LOOP
+FINISH    LDC    BLANK
+          STD    PT
+          RJM    PRT
+          LDC    ENDL
+          STD    PT
+          RJM    PRT
+HALT      UJN    *           END: THE PP LOOPS ON ITSELF
+*
+*         PRT: PRINTS THE TEXT AT ADDRESS (PT), ENDED BY A ZERO WORD.
+*         PP SUBROUTINE CONVENTION: RJM PRT STORES THE RETURN ADDRESS
+*         IN THE M WORD OF THE LJM INSTRUCTION THAT PRECEDES PRT.
+*
+PRTX      LJM    *           EXIT
+PRT       EQU    *-1         ENTRY
+          LDN    0
+          STD    NCH
+CONV      LDI    PT          NEXT WORD OF THE TEXT
+          SHN    -6          FIRST CHARACTER
+          ZJN    SEND        CHARACTER 00: END OF LINE
+          STD    T1
+          LDM    BCD,T1      CONVERSION TO EXTERNAL BCD
+          STM    BUF,NCH
+          AOD    NCH
+          LDI    PT
+          LPN    77B         SECOND CHARACTER
+          ZJN    SEND
+          STD    T1
+          LDM    BCD,T1
+          STM    BUF,NCH
+          AOD    NCH
+          AOD    PT
+          UJN    CONV
+SEND      FNC    SELECT,CH
+          ACN    CH
+          LDD    NCH
+          OAM    BUF,CH      SEND THE CHARACTERS
+          DCN    CH
+          FNC    PRTLN,CH    PRINT
+          LJM    PRTX
+*
+*         OCT2: A = 6 BITS -> A = TWO OCTAL DIGITS IN DISPLAY CODE
+*
+OCT2X     LJM    *
+OCT2      EQU    *-1
+          STD    T2
+          LPN    7           RIGHT DIGIT
+          STD    T3
+          LDD    T2
+          LPN    70B         LEFT DIGIT
+          SHN    3
+          ADD    T3
+          ADC    3333B       0 = 33B IN DISPLAY CODE
+          LJM    OCT2X
+*
+*         TEXTS (DISPLAY CODE) AND DISPLAY -> BCD CONVERSION TABLE
+*
+HEADER    DIS    ,*CDC 6600 - 1612 LINE PRINTER - SQUARES IN OCTAL*
+BLANK     CON    0
+LNUM      DIS    10,N = 0000  N*N = 0000
+          CON    0
+ENDL      DIS    ,*END OF LIST.*
+BCD       CON    0B,61B,62B,63B,64B,65B,66B,67B 00-7
+          CON    70B,71B,41B,42B,43B,44B,45B,46B 10-17
+          CON    47B,50B,51B,22B,23B,24B,25B,26B 20-27
+          CON    27B,30B,31B,12B,1B,2B,3B,4B 30-37
+          CON    5B,6B,7B,10B,11B,60B,40B,54B 40-47
+          CON    21B,34B,74B,53B,13B,20B,33B,73B 50-57
+          CON    36B,17B,32B,16B,14B,35B,52B,37B 60-67
+          CON    55B,56B,72B,57B,15B,75B,76B,77B 70-77
+BUF       BSS    136D        LINE TO PRINT
+          END

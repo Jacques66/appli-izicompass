@@ -1,6 +1,6 @@
-// Pseudo-instructions COMPASS 3.
-// Chaque traitement reçoit (asm, entry, pass). Les valeurs qui influencent
-// l'implantation sont calculées en passe 1 et mémorisées dans entry.p1.
+// COMPASS 3 pseudo instructions.
+// Each handler receives (asm, entry, pass). Values that affect storage
+// layout are computed in pass 1 and kept in entry.p1.
 
 import { M60, to60, signed60 } from '../common/word.js';
 import { Val, Cursor, AsmError, parseExpression, parseDataItem, charDataWords, readSymbolName, fitsBits, truncBits } from './expr.js';
@@ -21,7 +21,7 @@ export const FIRST_GROUP_ONLY = new Set(['ABS', 'MACHINE', 'PERIPH', 'PPU', 'CIP
 const H = {};
 export const PSEUDO_HANDLERS = H;
 
-// ------------------------------------------------------------ utilitaires
+// ------------------------------------------------------------ utilities
 
 function vfText(entry) {
   return simpleField(entry.img, entry.f.varPos);
@@ -32,12 +32,12 @@ function vfSubs(entry) {
   return t === '' ? [] : t.split(',');
 }
 
-/** Texte de l'image à partir du début du champ variable (chaînes, titres). */
+/** Image text from the start of the variable field (strings, titles). */
 function restOfStatement(entry) {
   return entry.f.varPos < 0 ? '' : entry.img.slice(entry.f.varPos);
 }
 
-/** Chaîne de TITLE/TTL/CTEXT/COMMENT : règle de la colonne de commentaire. */
+/** String of TITLE/TTL/CTEXT/COMMENT: comment column rule. */
 function titleString(asm, entry, max = 62) {
   const img = entry.img;
   let i = entry.f.opEnd;
@@ -54,10 +54,10 @@ function loc(entry) {
 }
 
 function noLocation(asm, entry) {
-  // champ location ignoré (pas de diagnostic)
+  // location field ignored (no diagnostic)
 }
 
-/** Valeur 21 bits étendue (pseudos de définition de symboles). */
+/** Sign-extended 21-bit value (symbol definition pseudos). */
 function to21(v) {
   const r = v.clone();
   const lo = r.w & ((1n << 21n) - 1n);
@@ -67,8 +67,8 @@ function to21(v) {
 
 function evalDefined(asm, entry, text) {
   const v = asm.evalText(entry, text, { requireDefined: true });
-  if (v.undef && v.undef.length) throw new AsmError('U', `symbole non défini : ${v.undef[0]}`);
-  if (v.regs.length) throw new AsmError('A', 'registre interdit');
+  if (v.undef && v.undef.length) throw new AsmError('U', `undefined symbol: ${v.undef[0]}`);
+  if (v.regs.length) throw new AsmError('A', 'register not allowed');
   asm.checkReloc(v);
   return v;
 }
@@ -90,13 +90,13 @@ H.IDENT = (asm, entry, pass) => {
     asm.identEntry = entry;
     asm.progName = subs[0] || '';
     asm.identSubs = subs;
-    if (!asm.progName) asm.flag(entry, 'A', 'nom de programme manquant');
+    if (!asm.progName) asm.flag(entry, 'A', 'missing program name');
     if (!asm.titles.main) asm.titles.identTitle = vfText(entry);
     return;
   }
-  // IDENT suivant : overlay (absolu / PP) ou section partielle (IDENT blanc)
+  // subsequent IDENT: overlay (absolute / PP) or partial section (blank IDENT)
   if (asm.type === 'reloc') {
-    asm.flag(entry, 'O', 'second IDENT dans un programme relogeable');
+    asm.flag(entry, 'O', 'second IDENT in a relocatable program');
     return;
   }
   asm.forceUpper(asm.cur);
@@ -110,7 +110,7 @@ H.END = (asm, entry, pass) => {
   }
   const fr = entry.frame;
   if (fr && fr.kind === 'xtext') {
-    // END d'un texte externe : termine seulement ce texte
+    // END of an external text: ends only that text
     const idx = asm.frames.indexOf(fr);
     if (idx > 0) asm.frames.length = idx;
     entry.kind = 'list';
@@ -118,7 +118,7 @@ H.END = (asm, entry, pass) => {
     return;
   }
   if (asm.rmt.unlabeled.length && !entry.st.remoteDone) {
-    // assembler d'abord le code distant, puis rejouer END
+    // assemble the remote code first, then replay END
     asm.entries.pop();
     asm.groupEntries.pop();
     asm.pushFrame({ kind: 'endreplay', done: false, next() { if (this.done) return null; this.done = true; return { ...entry.st, remoteDone: true, forceLevel: entry.level }; } });
@@ -134,7 +134,7 @@ H.END = (asm, entry, pass) => {
   asm.completeProgram(entry);
 };
 
-// ===================================================== contrôle binaire
+// ===================================================== binary control
 
 H.ABS = (asm, entry, pass) => {
   if (pass === 2) return;
@@ -164,14 +164,14 @@ H.MACHINE = (asm, entry, pass) => {
 
 H.SEGMENT = (asm, entry, pass) => {
   if (pass === 2) { asm.forceUpper(asm.cur); return; }
-  if (!loc(entry)) asm.flag(entry, 'L', 'nom de segment manquant');
+  if (!loc(entry)) asm.flag(entry, 'L', 'missing segment name');
   asm.forceUpper(asm.cur);
   if (asm.type === 'reloc') return;
   asm.segments.push({ name: loc(entry), subs: vfSubs(entry), block: asm.cur, at: asm.cur.origin, entry });
 };
 
 H.SEG = (asm, entry, pass) => {
-  if (asm.type !== 'abs') { if (pass === 1) asm.flag(entry, 'O', 'SEG : programme CPU absolu seulement'); return; }
+  if (asm.type !== 'abs') { if (pass === 1) asm.flag(entry, 'O', 'SEG: absolute CPU program only'); return; }
   asm.forceUpper(asm.cur);
 };
 
@@ -189,15 +189,15 @@ H.COMMENT = (asm, entry, pass) => {
 
 H.NOLABEL = (asm, entry, pass) => {
   if (pass === 2) return;
-  if (asm.type === 'reloc') { asm.flag(entry, 'O', 'NOLABEL : programme absolu seulement'); return; }
+  if (asm.type === 'reloc') { asm.flag(entry, 'O', 'NOLABEL: absolute program only'); return; }
   const t = vfText(entry);
-  if (t && t[0] !== 'I') { asm.flag(entry, 'A', 'NOLABEL : caractère autre que I'); return; }
+  if (t && t[0] !== 'I') { asm.flag(entry, 'A', 'NOLABEL: character other than I'); return; }
   asm.nolabel = t ? 'I' : 'ALL';
 };
 
 H.LCC = (asm, entry, pass) => {
   if (pass === 2) return;
-  if (asm.type !== 'reloc') { asm.flag(entry, 'O', 'LCC : programme relogeable seulement'); return; }
+  if (asm.type !== 'reloc') { asm.flag(entry, 'O', 'LCC: relocatable program only'); return; }
   asm.lcc.push(vfText(entry));
 };
 
@@ -210,7 +210,7 @@ H.MEMSEL = (asm, entry, pass) => {
 
 H.LDSET = (asm, entry, pass) => {
   if (pass === 2) return;
-  if (asm.type !== 'reloc') { asm.flag(entry, 'O', 'LDSET : programme relogeable seulement'); return; }
+  if (asm.type !== 'reloc') { asm.flag(entry, 'O', 'LDSET: relocatable program only'); return; }
   asm.ldset.push(...vfSubs(entry));
 };
 
@@ -229,7 +229,7 @@ H.BASE = (asm, entry, pass) => {
   let next;
   if (t[0] === '*') next = asm.stacks.BASE.pop() || 'D';
   else if ('OMD'.includes(t[0])) { pushStack(asm.stacks.BASE, prev); next = t[0]; }
-  else { asm.flag(entry, 'A', 'BASE : caractère autre que O, M, D ou *'); return; }
+  else { asm.flag(entry, 'A', 'BASE: character other than O, M, D or *'); return; }
   asm.base = next;
   if (!asm.userMicros.has('BASE')) asm.micros.set('BASE', next);
   setListValue(entry, `${prev}>${next}`);
@@ -244,7 +244,7 @@ H.CODE = (asm, entry, pass) => {
   let next;
   if (t[0] === '*') next = asm.stacks.CODE.pop() || 'D';
   else if ('ADEINO'.includes(t[0])) { pushStack(asm.stacks.CODE, prev); next = t[0]; }
-  else { asm.flag(entry, 'A', 'CODE : caractère autre que A, D, E, I, N, O ou *'); return; }
+  else { asm.flag(entry, 'A', 'CODE: character other than A, D, E, I, N, O or *'); return; }
   asm.code = next;
   if (!asm.userMicros.has('CODE')) asm.micros.set('CODE', next);
   setListValue(entry, `${prev}>${next}`);
@@ -255,7 +255,7 @@ H.CHAR = (asm, entry, pass) => {
   const s = vfSubs(entry);
   const a = asm.evalAbsolute(entry, s[0], { allowEmpty: false });
   const b = asm.evalAbsolute(entry, s[1], { allowEmpty: false });
-  if (a < 0 || a > 0o77 || b < 0 || b > 0o77) { asm.flag(entry, 'A', 'CHAR : valeur hors 0-77B'); return; }
+  if (a < 0 || a > 0o77 || b < 0 || b > 0o77) { asm.flag(entry, 'A', 'CHAR: value outside 0-77B'); return; }
   asm.other = asm.other.slice();
   asm.other[a] = b;
   setListValue(entry, `${a.toString(8).padStart(2, '0')}>${b.toString(8).padStart(2, '0')}`);
@@ -269,7 +269,7 @@ H.QUAL = (asm, entry, pass) => {
   let next;
   if (t === '*') next = asm.stacks.QUAL.pop() ?? '';
   else {
-    if (t && (t.length > 8 || /^[$=:0-9]/.test(t) || /[+\-*/,^]/.test(t))) { asm.flag(entry, 'A', 'qualificatif incorrect'); return; }
+    if (t && (t.length > 8 || /^[$=:0-9]/.test(t) || /[+\-*/,^]/.test(t))) { asm.flag(entry, 'A', 'incorrect qualifier'); return; }
     pushStack(asm.stacks.QUAL, prev);
     next = t;
   }
@@ -280,13 +280,13 @@ H.QUAL = (asm, entry, pass) => {
 
 H['B1=1'] = (asm, entry, pass) => {
   if (pass === 2) return;
-  if (asm.type === 'pp') { asm.flag(entry, 'O', 'B1=1 interdit en PP'); return; }
+  if (asm.type === 'pp') { asm.flag(entry, 'O', 'B1=1 not allowed in PP'); return; }
   asm.b1 = 'B1';
   asm.defineSymbol(entry, 'B1=1', Val.abs(1), 'equ');
 };
 H['B7=1'] = (asm, entry, pass) => {
   if (pass === 2) return;
-  if (asm.type === 'pp') { asm.flag(entry, 'O', 'B7=1 interdit en PP'); return; }
+  if (asm.type === 'pp') { asm.flag(entry, 'O', 'B7=1 not allowed in PP'); return; }
   asm.b1 = 'B7';
   asm.defineSymbol(entry, 'B7=1', Val.abs(1), 'equ');
 };
@@ -306,7 +306,7 @@ function pushStack(st, v) {
   if (st.length > 50) st.shift();
 }
 
-// ===================================================== blocs et compteurs
+// ===================================================== blocks and counters
 
 function useBlock(asm, entry, text, lcm) {
   const t = text;
@@ -318,16 +318,16 @@ function useBlock(asm, entry, text, lcm) {
   }
   let b;
   if (t === '' || t === '0') {
-    if (lcm) { asm.flag(entry, 'A', 'USELCM 0 interdit'); return; }
+    if (lcm) { asm.flag(entry, 'A', 'USELCM 0 not allowed'); return; }
     b = asm.nominalBlock();
   } else if (t === '//') {
     b = asm.type === 'reloc' ? asm.getBlock('//', 'blank', lcm ? 'B+' : 'B', lcm) : asm.getBlock('//', 'local', lcm ? 'L+//' : 'L//', lcm);
   } else if (t.startsWith('/') && t.endsWith('/') && t.length > 2) {
     const name = t.slice(1, -1);
-    if (name.length > 7) { asm.flag(entry, 'A', 'nom de bloc commun trop long'); return; }
+    if (name.length > 7) { asm.flag(entry, 'A', 'common block name too long'); return; }
     b = asm.type === 'reloc' ? asm.getBlock(t, 'common', (lcm ? 'C+' : 'C') + name, lcm) : asm.getBlock(t, 'local', (lcm ? 'L+' : 'L') + t, lcm);
   } else {
-    if (t.length > 8 || t[0] === ':') { asm.flag(entry, 'A', 'nom de bloc incorrect'); return; }
+    if (t.length > 8 || t[0] === ':') { asm.flag(entry, 'A', 'incorrect block name'); return; }
     b = asm.getBlock(t, 'local', (lcm ? 'L+' : 'L') + t, lcm);
   }
   pushStack(asm.stacks.USE, prev);
@@ -341,7 +341,7 @@ H.USE = (asm, entry, pass) => {
 
 H.USELCM = (asm, entry, pass) => {
   if (pass === 2) return;
-  if (asm.type === 'pp') { asm.flag(entry, 'O', 'USELCM interdit en PP'); return; }
+  if (asm.type === 'pp') { asm.flag(entry, 'O', 'USELCM not allowed in PP'); return; }
   useBlock(asm, entry, vfText(entry), true);
 };
 
@@ -360,16 +360,16 @@ function orgCommon(asm, entry, pass, cond) {
   const v = evalDefined(asm, entry, t);
   const rb = v.relocBlock();
   if (rb) {
-    if (rb.coeff !== 1) throw new AsmError('A', 'relocation négative sur ORG');
+    if (rb.coeff !== 1) throw new AsmError('A', 'negative relocation on ORG');
     target = rb.block;
-    if (target.type === 'lit') throw new AsmError('A', 'ORG dans le bloc des littéraux');
+    if (target.type === 'lit') throw new AsmError('A', 'ORG in the literals block');
   } else if (v.isExternal()) {
-    throw new AsmError('A', 'externe dans ORG');
+    throw new AsmError('A', 'external in ORG');
   } else {
     target = asm.type === 'reloc' ? asm.getBlock('ABSOLUTE*', 'abs', 'absolute') : asm.absoluteBlock();
   }
   value = v.num();
-  if (value < 0) throw new AsmError('A', 'origine négative');
+  if (value < 0) throw new AsmError('A', 'negative origin');
   pushStack(asm.stacks.USE, prev);
   asm.switchTo(target);
   target.origin = value;
@@ -383,7 +383,7 @@ function orgCommon(asm, entry, pass, cond) {
 H.ORG = (asm, entry, pass) => orgCommon(asm, entry, pass, false);
 H.ORGC = (asm, entry, pass) => orgCommon(asm, entry, pass, asm.type === 'reloc');
 
-/** BSS / BSSZ : réserve des mots (zéros pour BSSZ). */
+/** BSS / BSSZ: reserves words (zeros for BSSZ). */
 function bssCommon(asm, entry, pass, zero) {
   asm.prepareCode(entry);
   asm.forceUpper(asm.cur);
@@ -401,10 +401,10 @@ function bssCommon(asm, entry, pass, zero) {
       }
     }
     if (n < 0) {
-      asm.flag(entry, '7', 'BSS négatif');
+      asm.flag(entry, '7', 'negative BSS');
       if (zero) n = 0;
     }
-    if (zero && asm.cur.type === 'blank') asm.flag(entry, 'R', 'BSSZ en commun blanc');
+    if (zero && asm.cur.type === 'blank') asm.flag(entry, 'R', 'BSSZ in blank common');
     entry.p1 = { n };
     setListValue(entry, n ? octStr(n) : '');
   } else n = entry.p1.n;
@@ -430,7 +430,7 @@ H.LOC = (asm, entry, pass) => {
     else {
       const v = evalDefined(asm, entry, t);
       const rb = v.relocBlock();
-      if (rb && rb.coeff !== 1) throw new AsmError('A', 'relocation négative sur LOC');
+      if (rb && rb.coeff !== 1) throw new AsmError('A', 'negative relocation on LOC');
       entry.p1 = { block: rb ? rb.block : null, offset: v.num() };
     }
   }
@@ -447,7 +447,7 @@ H.POS = (asm, entry, pass) => {
   if (pass === 1) {
     const t = vfText(entry);
     n = asm.evalAbsolute(entry, t, { allowEmpty: false });
-    if (n < 0 || n > asm.wordBits) throw new AsmError('A', 'POS hors limites');
+    if (n < 0 || n > asm.wordBits) throw new AsmError('A', 'POS out of range');
     entry.p1 = { n };
   } else n = entry.p1.n;
   if (n === 0) { asm.advanceWord(b); return; }
@@ -455,11 +455,11 @@ H.POS = (asm, entry, pass) => {
   else b.pos = n;
 };
 
-// ===================================================== définition de symboles
+// ===================================================== symbol definition
 
 function needLoc(asm, entry) {
   const l = loc(entry);
-  if (!l || !asm.validSymbol(l)) { asm.flag(entry, 'L', 'symbole de location exigé'); return null; }
+  if (!l || !asm.validSymbol(l)) { asm.flag(entry, 'L', 'location symbol required'); return null; }
   return l;
 }
 
@@ -534,7 +534,7 @@ H.MICCNT = (asm, entry, pass) => {
   }
   if (!needLoc(asm, entry)) return;
   const m = asm.micros.get(vfText(entry));
-  if (m === undefined) { asm.flag(entry, '2', `micro inconnu : ${vfText(entry)}`); return; }
+  if (m === undefined) { asm.flag(entry, '2', `unknown micro: ${vfText(entry)}`); return; }
   const v = Val.abs(m.length);
   entry.p1 = { v };
   asm.defineSymbol(entry, name, v, 'set');
@@ -553,13 +553,13 @@ H.SST = (asm, entry, pass) => {
   }
 };
 
-// ===================================================== liaison
+// ===================================================== linkage
 
 H.ENTRY = (asm, entry, pass) => {
   if (pass === 2) return;
-  if (asm.type === 'pp') { asm.flag(entry, 'O', 'ENTRY interdit en PP'); return; }
+  if (asm.type === 'pp') { asm.flag(entry, 'O', 'ENTRY not allowed in PP'); return; }
   for (const n of vfSubs(entry)) {
-    if (!/^[A-Z][^:]{0,6}$/.test(n) || n.endsWith(':')) { asm.flag(entry, 'A', `point d'entrée incorrect : ${n}`); continue; }
+    if (!/^[A-Z][^:]{0,6}$/.test(n) || n.endsWith(':')) { asm.flag(entry, 'A', `incorrect entry point: ${n}`); continue; }
     asm.entryPoints.set(n, { cond: entry.op === 'ENTRYC', entry });
   }
 };
@@ -567,16 +567,16 @@ H.ENTRYC = H.ENTRY;
 
 H.EXT = (asm, entry, pass) => {
   if (pass === 2) return;
-  if (asm.type !== 'reloc') { asm.flag(entry, 'O', 'EXT : programme relogeable seulement'); return; }
+  if (asm.type !== 'reloc') { asm.flag(entry, 'O', 'EXT: relocatable program only'); return; }
   for (const n of vfSubs(entry)) {
-    if (!/^[A-Z]/.test(n) || n.length > 7) { asm.flag(entry, 'A', `externe incorrect : ${n}`); continue; }
-    if (asm.findSymbol(n, '')) { asm.flag(entry, 'D', `externe défini dans le programme : ${n}`); continue; }
+    if (!/^[A-Z]/.test(n) || n.length > 7) { asm.flag(entry, 'A', `incorrect external: ${n}`); continue; }
+    if (asm.findSymbol(n, '')) { asm.flag(entry, 'D', `external defined in the program: ${n}`); continue; }
     if (!asm.externals.has(n)) asm.externals.set(n, { weak: false, refs: 0 });
-    if (asm.externals.size > 511) asm.flag(entry, 'F', 'plus de 511 externes');
+    if (asm.externals.size > 511) asm.flag(entry, 'F', 'more than 511 externals');
   }
 };
 
-// ===================================================== données
+// ===================================================== data
 
 function dataCtx(asm, entry) {
   return asm.ctxFor(entry, { wordBits: asm.wordBits });
@@ -594,7 +594,7 @@ H.DATA = (asm, entry, pass) => {
     if (cur.atEnd()) break;
     let item;
     try {
-      if (cur.peek() === '=') throw new AsmError('A', 'littéral interdit dans DATA');
+      if (cur.peek() === '=') throw new AsmError('A', 'literal not allowed in DATA');
       item = parseDataItem(cur, ctx);
     } catch (e) {
       if (pass === 1) asm.handleError(entry, e);
@@ -616,14 +616,14 @@ H.CON = (asm, entry, pass) => {
   asm.forceUpper(asm.cur);
   asm.defineLocation(entry);
   const pos = entry.f.varPos;
-  if (pos < 0) { if (pass === 1) asm.flag(entry, '8', 'CON sans expression'); return; }
+  if (pos < 0) { if (pass === 1) asm.flag(entry, '8', 'CON without expression'); return; }
   const cur = new Cursor(entry.img, pos);
   const wb = asm.wordBits;
   for (;;) {
     let v = null;
     try {
       v = parseExpression(cur, asm.ctxFor(entry, { fieldBits: wb, noUndefError: pass === 1, noRef: pass === 1 }));
-      if (v.regs.length) throw new AsmError('A', 'registre interdit dans CON');
+      if (v.regs.length) throw new AsmError('A', 'register not allowed in CON');
     } catch (e) {
       if (pass === 2) asm.handleError(entry, e);
       while (!cur.atSubEnd()) cur.next();
@@ -657,7 +657,7 @@ H.DIS = (asm, entry, pass) => {
   const comma = img.indexOf(',', p);
   const countText = comma < 0 ? null : img.slice(p, comma);
   if (comma < 0 || /\s/.test(countText)) {
-    if (pass === 1) asm.flag(entry, 'A', 'DIS : virgule manquante après le compte');
+    if (pass === 1) asm.flag(entry, 'A', 'DIS: missing comma after the count');
     return;
   }
   let n = 0;
@@ -673,9 +673,9 @@ H.DIS = (asm, entry, pass) => {
     words = charDataWords(str, 'H', ctx);
   } else {
     const d = img[comma + 1];
-    if (d === undefined) { if (pass === 1) asm.flag(entry, 'A', 'DIS : chaîne manquante'); return; }
+    if (d === undefined) { if (pass === 1) asm.flag(entry, 'A', 'DIS: missing string'); return; }
     const end = img.indexOf(d, comma + 2);
-    if (end < 0) { if (pass === 1) asm.flag(entry, 'A', 'DIS : délimiteur de fin manquant'); }
+    if (end < 0) { if (pass === 1) asm.flag(entry, 'A', 'DIS: missing end delimiter'); }
     const str = end < 0 ? img.slice(comma + 2) : img.slice(comma + 2, end);
     words = charDataWords(str, 'C', ctx);
   }
@@ -697,8 +697,8 @@ H.LIT = (asm, entry, pass) => {
     if (cur.peek() === ',') { cur.next(); continue; }
     break;
   }
-  if (!words.length) { if (pass === 1) asm.flag(entry, 'A', 'LIT sans donnée'); return; }
-  if (words.length > 100) { if (pass === 1) asm.flag(entry, 'F', 'LIT de plus de 100 mots'); return; }
+  if (!words.length) { if (pass === 1) asm.flag(entry, 'A', 'LIT without data'); return; }
+  if (words.length > 100) { if (pass === 1) asm.flag(entry, 'F', 'LIT of more than 100 words'); return; }
   const v = asm.literalValue(words);
   if (pass === 1 && loc(entry)) asm.defineSymbol(entry, loc(entry), v, 'loc');
   entry.litValue = v;
@@ -723,7 +723,7 @@ H.VFD = (asm, entry, pass) => {
   for (;;) {
     let nText = '';
     while (!cur.atSubEnd() && cur.peek() !== '/') nText += cur.next();
-    if (cur.peek() !== '/') { if (pass === 1) asm.flag(entry, 'V', 'VFD : « n/expression » attendu'); break; }
+    if (cur.peek() !== '/') { if (pass === 1) asm.flag(entry, 'V', 'VFD: "n/expression" expected'); break; }
     cur.next();
     let n;
     if (pass === 1) {
@@ -752,14 +752,14 @@ H.VFD = (asm, entry, pass) => {
     if (pass === 1) { asm.emitBits(n, 0n, null); return; }
     let w = 0n, rel = null;
     if (fd.v) {
-      // champs : la taille du champ détermine le cadrage des constantes caractère
+      // fields: the field size determines the justification of character constants
       const v2 = parseExpression(new Cursor(fd.text, 0), asm.ctxFor(entry, { fieldBits: n }));
       try {
         asm.checkReloc(v2);
         const fin = asm.finalize(v2, n, entry);
         w = fin.w;
         rel = fin.rel;
-        if (rel && asm.type === 'reloc' && b.pos < n) throw new AsmError('A', 'champ relogeable à cheval sur deux mots');
+        if (rel && asm.type === 'reloc' && b.pos < n) throw new AsmError('A', 'relocatable field spans two words');
       } catch (e) { asm.handleError(entry, e); }
     }
     asm.emitBits(n, w, rel ? { ...rel, fieldBits: n } : null);
@@ -768,7 +768,7 @@ H.VFD = (asm, entry, pass) => {
 };
 
 H['R='] = (asm, entry, pass) => {
-  if (asm.type === 'pp') { if (pass === 1) asm.flag(entry, 'O', 'R= interdit en PP'); return; }
+  if (asm.type === 'pp') { if (pass === 1) asm.flag(entry, 'O', 'R= not allowed in PP'); return; }
   const l = loc(entry);
   if (l) {
     asm.prepareCode(entry);
@@ -779,7 +779,7 @@ H['R='] = (asm, entry, pass) => {
     const s = vfSubs(entry);
     const reg = s[0] || '';
     const exp = s.slice(1).join(',');
-    if (!/^[ABX][0-7]$/.test(reg)) { asm.flag(entry, 'A', 'R= : registre attendu'); return; }
+    if (!/^[ABX][0-7]$/.test(reg)) { asm.flag(entry, 'A', 'R=: register expected'); return; }
     let field = exp;
     if (exp === reg) field = null;
     else {
@@ -787,7 +787,7 @@ H['R='] = (asm, entry, pass) => {
       try {
         const v = asm.evalText(entry, exp, { regs: true, noUndefError: true, noRef: true });
         if (!v.regs.length && v.isAbsolute() && !v.undef) n = v.num();
-      } catch (e) { /* forme registre */ }
+      } catch (e) { /* register form */ }
       if (n === 0) field = 'B0';
       else if (asm.b1 && (n === 1 || n === 2 || n === -1)) field = n === 1 ? asm.b1 : n === 2 ? `${asm.b1}+${asm.b1}` : `-${asm.b1}`;
     }
@@ -795,12 +795,12 @@ H['R='] = (asm, entry, pass) => {
   }
   const p = entry.p1;
   if (!p || !p.text) return;
-  // instruction générée : « S<reg> <champ> »
+  // generated instruction: "S<reg> <field>"
   const img = '          ' + p.text.padEnd(7, ' ') + p.field;
   const sub = { ...entry, img, f: scanFields(img, 30), op: p.text, opExtra: null };
   const prep = prepareCpuStatement(asm, sub);
   const def = prep && cpuSyntaxLookup(asm, prep.key);
-  if (!def || def.kind === 'opdef') { if (pass === 1) asm.flag(entry, 'A', `R= : syntaxe ${prep && prep.key}`); return; }
+  if (!def || def.kind === 'opdef') { if (pass === 1) asm.flag(entry, 'A', `R=: syntax ${prep && prep.key}`); return; }
   sub.prep = prep;
   sub.flags = entry.flags;
   sub.messages = entry.messages;
@@ -810,22 +810,22 @@ H['R='] = (asm, entry, pass) => {
 
 function repCommon(asm, entry, pass, type) {
   if (pass === 2) return;
-  if (asm.type !== 'reloc') { asm.flag(entry, 'O', 'REP : programme relogeable seulement'); return; }
+  if (asm.type !== 'reloc') { asm.flag(entry, 'O', 'REP: relocatable program only'); return; }
   const r = { type, S: null, D: null, C: 0, B: 0, I: 0, entry };
   for (const s of vfSubs(entry)) {
     const m = /^([SDCBI])\/(.*)$/.exec(s);
-    if (!m) { asm.flag(entry, 'A', `REP : sous-champ ${s}`); continue; }
+    if (!m) { asm.flag(entry, 'A', `REP: subfield ${s}`); continue; }
     if (m[1] === 'S' || m[1] === 'D') r[m[1]] = evalDefined(asm, entry, m[2]);
     else r[m[1]] = asm.evalAbsolute(entry, m[2], { base: asm.countBase(entry) });
   }
-  if (!r.S) { asm.flag(entry, 'A', 'REP : S/ obligatoire'); return; }
+  if (!r.S) { asm.flag(entry, 'A', 'REP: S/ required'); return; }
   asm.reps.push(r);
 }
 H.REP = (asm, entry, pass) => repCommon(asm, entry, pass, 0);
 H.REPC = (asm, entry, pass) => repCommon(asm, entry, pass, 1);
 H.REPI = (asm, entry, pass) => repCommon(asm, entry, pass, 2);
 
-/** Descripteur CMU (MD) et instructions DM, CC, CU (mots complets). */
+/** CMU descriptor (MD) and DM, CC, CU instructions (full words). */
 function cmuWord(asm, entry, pass, op) {
   asm.prepareCode(entry);
   if (loc(entry) !== '-') asm.forceUpper(asm.cur);
@@ -836,7 +836,7 @@ function cmuWord(asm, entry, pass, op) {
     const ev = (t, bits) => asm.finalize(evalDefinedLoose(asm, entry, t), bits, entry);
     const l = Number(ev(s[0] || '0', 13).w);
     const ks = ev(s[1] || '0', 18), cs = Number(ev(s[2] || '0', 4).w), kd = ev(s[3] || '0', 18), cd = Number(ev(s[4] || '0', 4).w);
-    if (cs > 9 || cd > 9) asm.flag(entry, 'A', 'position de caractère > 9');
+    if (cs > 9 || cd > 9) asm.flag(entry, 'A', 'character position > 9');
     if (op === 'MD') {
       w = (BigInt(l >> 4) << 48n) | (ks.w << 30n) | (BigInt(l & 0xf) << 26n) | (BigInt(cs) << 22n) | (BigInt(cd) << 18n) | kd.w;
     } else {
@@ -857,7 +857,7 @@ H.DM = (asm, entry, pass) => cmuWord(asm, entry, pass, 'DM');
 H.CC = (asm, entry, pass) => cmuWord(asm, entry, pass, 'CC');
 H.CU = (asm, entry, pass) => cmuWord(asm, entry, pass, 'CU');
 
-// ===================================================== assemblage conditionnel
+// ===================================================== conditional assembly
 
 function ifCount(asm, entry, text) {
   if (text === undefined || text === '') return null;
@@ -871,12 +871,12 @@ function ifCount(asm, entry, text) {
 }
 
 function ifResult(asm, entry, cond, count) {
-  if (count === undefined) return; // erreur : pas de saut
+  if (count === undefined) return; // error: no skip
   entry.ifResult = cond;
   if (!cond) asm.startSkip(loc(entry), count, 'IF');
 }
 
-/** Découpe « exp1,exp2,n » en respectant les constantes caractère. */
+/** Splits "exp1,exp2,n" while respecting character constants. */
 function exprSubs(asm, entry) {
   const out = [];
   let pos = entry.f.varPos;
@@ -904,7 +904,7 @@ function ifOp(op) {
     try {
       a = asm.evalText(entry, s[0] || '', { regs: asm.type !== 'pp', refFlag: 'F' });
       b = asm.evalText(entry, s[1] || '', { regs: asm.type !== 'pp', refFlag: 'F' });
-      if ((a.undef && a.undef.length) || (b.undef && b.undef.length)) throw new AsmError('U', 'symbole non défini dans IF');
+      if ((a.undef && a.undef.length) || (b.undef && b.undef.length)) throw new AsmError('U', 'undefined symbol in IF');
     } catch (e) {
       asm.handleError(entry, e);
       return;
@@ -943,7 +943,7 @@ function ifSign(minus) {
     let v;
     try {
       v = asm.evalText(entry, s[0] || '', { refFlag: 'F' });
-      if (v.undef && v.undef.length) throw new AsmError('U', 'symbole non défini dans IF');
+      if (v.undef && v.undef.length) throw new AsmError('U', 'undefined symbol in IF');
     } catch (e) {
       asm.handleError(entry, e);
       return;
@@ -984,7 +984,7 @@ H.IF = (asm, entry, pass) => {
     switch (att) {
       case 'SET': {
         const sym = asm.findSymbol(operand, null);
-        if (!sym) throw new AsmError('U', `symbole non défini : ${operand}`);
+        if (!sym) throw new AsmError('U', `undefined symbol: ${operand}`);
         cond = !!sym.redef;
         break;
       }
@@ -1008,7 +1008,7 @@ H.IF = (asm, entry, pass) => {
       }
       case 'ABS': case 'REL': case 'COM': case 'LCM': case 'LOC': {
         const v = asm.evalText(entry, operand, { regs: true, refFlag: 'F' });
-        if (v.undef && v.undef.length) throw new AsmError('U', `symbole non défini : ${v.undef[0]}`);
+        if (v.undef && v.undef.length) throw new AsmError('U', `undefined symbol: ${v.undef[0]}`);
         const rb = v.relocBlock();
         if (att === 'ABS') cond = v.isAbsolute();
         else if (att === 'REL') cond = !!rb;
@@ -1018,7 +1018,7 @@ H.IF = (asm, entry, pass) => {
         break;
       }
       default:
-        throw new AsmError('U', `attribut IF inconnu : ${att}`);
+        throw new AsmError('U', `unknown IF attribute: ${att}`);
     }
   } catch (e) {
     asm.handleError(entry, e);
@@ -1039,7 +1039,7 @@ H.IFC = (asm, entry, pass) => {
   const d = img[comma + 1];
   const e1 = img.indexOf(d, comma + 2);
   const e2 = e1 < 0 ? -1 : img.indexOf(d, e1 + 1);
-  if (comma < 0 || d === undefined || e2 < 0) { asm.flag(entry, 'A', 'IFC : chaînes mal délimitées'); return; }
+  if (comma < 0 || d === undefined || e2 < 0) { asm.flag(entry, 'A', 'IFC: badly delimited strings'); return; }
   const s1 = img.slice(comma + 2, e1), s2 = img.slice(e1 + 1, e2);
   let rest = '';
   if (img[e2 + 1] === ',') rest = simpleField(img, e2 + 2);
@@ -1052,7 +1052,7 @@ H.IFC = (asm, entry, pass) => {
     case 'GE': cond = cmp >= 0; break;
     case 'LT': cond = cmp < 0; break;
     case 'LE': cond = cmp <= 0; break;
-    default: asm.flag(entry, 'O', `IFC : relation inconnue ${op}`); return;
+    default: asm.flag(entry, 'O', `IFC: unknown relation ${op}`); return;
   }
   ifResult(asm, entry, neg ? !cond : cond, ifCount(asm, entry, rest));
 };
@@ -1083,7 +1083,7 @@ H.ELSE = (asm, entry, pass) => {
 
 H.ENDIF = () => {};
 
-// ===================================================== erreurs
+// ===================================================== errors
 
 H.ERR = (asm, entry, pass) => {
   if (pass === 1) return;
@@ -1100,7 +1100,7 @@ function errTest(test) {
     let v;
     try {
       v = asm.evalText(entry, vfText(entry));
-      if (v.isExternal()) throw new AsmError('A', 'externe interdit dans ERRxx');
+      if (v.isExternal()) throw new AsmError('A', 'external not allowed in ERRxx');
     } catch (e) { asm.handleError(entry, e); return; }
     const fin = asm.finalize(v, 60, entry, { signedField: false });
     const w = fin.w;
@@ -1167,16 +1167,16 @@ H.CTEXT = (asm, entry, pass) => {
 H.ENDX = (asm, entry, pass) => { if (pass === 1) asm.ctext = false; };
 H.XREF = (asm, entry, pass) => { if (pass === 1) asm.xrefMode = (vfText(entry)[0] || 'P'); };
 
-// ===================================================== définitions
+// ===================================================== definitions
 
 H.XTEXT = (asm, entry, pass) => {
   if (pass === 2) return;
   const file = loc(entry) || asm.options.X || 'OLDPL';
   const rname = vfText(entry);
   let text = asm.texts[rname ? `${file}/${rname}` : file] ?? asm.texts[rname] ?? asm.texts[file];
-  if (text === undefined) { asm.flag(entry, 'F', `texte externe introuvable : ${file}${rname ? '/' + rname : ''}`); return; }
+  if (text === undefined) { asm.flag(entry, 'F', `external text not found: ${file}${rname ? '/' + rname : ''}`); return; }
   const src = new LineSource(rname || file, text, { xtext: true });
-  // une première ligne portant le nom du texte en colonne 1 est sautée
+  // a first line carrying the text name in column 1 is skipped
   if (rname && src.raw.length && src.raw[0].split(/\s+/)[0] === rname) src.idx = 1;
   if (src.raw.length && /^\*COMDECK/.test(src.raw[0])) src.idx = 1;
   asm.pushFrame(new SourceFrame(src, entry.site, entry.level + 1));
@@ -1212,7 +1212,7 @@ H.ECHO = (asm, entry, pass) => {
   const img = entry.img;
   let p = entry.f.varPos;
   if (p < 0) { asm.flag(entry, '8'); return; }
-  // compte facultatif jusqu'à la première virgule
+  // optional count up to the first comma
   const comma = img.indexOf(',', p);
   let count = null;
   const ctext = comma < 0 ? img.slice(p).split(' ')[0] : img.slice(p, comma);
@@ -1245,7 +1245,7 @@ H.ECHO = (asm, entry, pass) => {
     if (img[i] === ',') i++;
     else break;
   }
-  if (params.length > 63) asm.flag(entry, 'F', 'plus de 63 paramètres');
+  if (params.length > 63) asm.flag(entry, 'F', 'more than 63 parameters');
   startCapture(asm, entry, { kind: 'echo', name: loc(entry), params, count });
 };
 
@@ -1278,7 +1278,7 @@ H.ENDM = () => {};
 H.IRP = () => {};
 H.NIL = () => {};
 H.LOCAL = (asm, entry, pass) => {
-  if (pass === 1) asm.flag(entry, 'O', 'LOCAL hors d\'un en-tête de macro');
+  if (pass === 1) asm.flag(entry, 'O', 'LOCAL outside a macro header');
 };
 
 function macroHeader(asm, entry, keyword) {
@@ -1294,10 +1294,10 @@ function macroHeader(asm, entry, keyword) {
     name = parts[0];
     formals = parts.slice(1);
     format = 2;
-    if (!formals.length) asm.flag(entry, 'L', 'définition de format deux sans paramètre');
+    if (!formals.length) asm.flag(entry, 'L', 'format two definition without parameters');
   }
   if (!name || name.length > 8 || ['END', 'ENDD', 'IRP', 'LOCAL', 'ENDM'].includes(name)) {
-    asm.flag(entry, 'L', 'nom de macro incorrect');
+    asm.flag(entry, 'L', 'incorrect macro name');
   }
   const seen = new Set();
   const ok = [];
@@ -1311,7 +1311,7 @@ function macroHeader(asm, entry, keyword) {
 H.MACRO = (asm, entry, pass) => { if (pass === 1) macroHeader(asm, entry, false); };
 H.MACROE = (asm, entry, pass) => { if (pass === 1) macroHeader(asm, entry, true); };
 
-/** Valide une syntaxe d'OPDEF / CPOP et la normalise en clé. */
+/** Validates an OPDEF / CPOP syntax and normalizes it into a key. */
 export function normalizeSyntax(sx) {
   if (!sx || sx.length < 2) return null;
   const mn = sx.slice(0, 2);
@@ -1325,9 +1325,9 @@ export function normalizeSyntax(sx) {
 
 H.OPDEF = (asm, entry, pass) => {
   if (pass === 2) return;
-  if (asm.type === 'pp') { asm.flag(entry, 'O', 'OPDEF : assemblage CPU seulement'); }
+  if (asm.type === 'pp') { asm.flag(entry, 'O', 'OPDEF: CPU assembly only'); }
   const sx = normalizeSyntax(loc(entry));
-  if (!sx) { asm.flag(entry, '5', `syntaxe incorrecte : ${loc(entry)}`); }
+  if (!sx) { asm.flag(entry, '5', `incorrect syntax: ${loc(entry)}`); }
   const vf = rawVarField(entry.img, entry.f.varPos);
   const formals = [];
   const seen = new Set();
@@ -1339,7 +1339,7 @@ H.OPDEF = (asm, entry, pass) => {
   startCapture(asm, entry, { kind: 'opdef', name: loc(entry), syntax: sx || loc(entry), formals, format: 1, open: [loc(entry)] });
 };
 
-// ===================================================== table des codes opération
+// ===================================================== operation code table
 
 H.CPOP = (asm, entry, pass) => {
   if (pass === 2) return;
@@ -1350,7 +1350,7 @@ H.CPOP = (asm, entry, pass) => {
     const ctl = asm.evalAbsolute(entry, s[0], { allowEmpty: false });
     const val = asm.evalAbsolute(entry, s[1], { allowEmpty: false, base: entry.ctx.base === 'M' ? 'O' : entry.ctx.base });
     const reg = (s[2] || '0').replace(/B$/, '').padStart(3, '0');
-    if (ctl < 0 || ctl > 7 || !/^[0-3]{3}$/.test(reg)) throw new AsmError('A', 'CPOP : paramètre incorrect');
+    if (ctl < 0 || ctl > 7 || !/^[0-3]{3}$/.test(reg)) throw new AsmError('A', 'CPOP: incorrect parameter');
     const def = { kind: 'cpop', key: sx, len: ctl & 1 ? 30 : 15, val: val & 0o777, reg,
       before: ctl === 2 || ctl === 3 || ctl === 6 || ctl === 7, after: ctl >= 4, jk: !(ctl & 1) && sx.endsWith('Q') };
     const list = asm.syntactic.get(sx) || [];
@@ -1367,7 +1367,7 @@ H.PPOP = (asm, entry, pass) => {
     const ctl = asm.evalAbsolute(entry, s[0], { allowEmpty: false });
     const val = asm.evalAbsolute(entry, s[1], { allowEmpty: false, base: entry.ctx.base === 'M' ? 'O' : entry.ctx.base });
     const fmt = { 1: 'md', 2: 'rel', 3: 'c18', 4: 'd', 5: 'md', 6: 'shift', 7: 'mdr' }[ctl];
-    if (!fmt || !name) throw new AsmError('A', 'PPOP : paramètre incorrect');
+    if (!fmt || !name) throw new AsmError('A', 'PPOP: incorrect parameter');
     const def = { kind: 'ppop', name, code: (val >> 6) & 0o77, fmt };
     const list = asm.mnemonic.get(name) || [];
     list.push(def);
@@ -1380,7 +1380,7 @@ H.OPSYN = (asm, entry, pass) => {
   const name1 = loc(entry);
   const name2 = vfText(entry);
   const e2 = asm.lookupMnemonic(name2);
-  if (!e2 || !name1) { asm.flag(entry, 'A', `OPSYN : ${name2} introuvable`); return; }
+  if (!e2 || !name1) { asm.flag(entry, 'A', `OPSYN: ${name2} not found`); return; }
   const copy = { ...e2, synonymOf: name2 };
   if (e2.kind === 'pseudo' && name2 === 'NIL') copy.kind = 'nil';
   const list = asm.mnemonic.get(name1) || [];
@@ -1393,7 +1393,7 @@ H.CPSYN = (asm, entry, pass) => {
   const s1 = normalizeSyntax(loc(entry));
   const s2 = normalizeSyntax(vfText(entry));
   const d2 = s2 && cpuSyntaxLookup(asm, s2);
-  if (!s1 || !d2) { asm.flag(entry, 'A', 'CPSYN : syntaxe introuvable'); return; }
+  if (!s1 || !d2) { asm.flag(entry, 'A', 'CPSYN: syntax not found'); return; }
   const list = asm.syntactic.get(s1) || [];
   list.push({ ...d2 });
   asm.syntactic.set(s1, list);
@@ -1422,7 +1422,7 @@ H.PURGDEF = (asm, entry, pass) => {
 // ===================================================== micros
 
 export function defineMicro(asm, entry, name, value) {
-  if (!name || name.length > 8) { asm.flag(entry, 'L', 'nom de micro incorrect'); return; }
+  if (!name || name.length > 8) { asm.flag(entry, 'L', 'incorrect micro name'); return; }
   asm.micros.set(name, value);
   asm.userMicros.add(name);
 }
@@ -1430,13 +1430,13 @@ export function defineMicro(asm, entry, name, value) {
 H.MICRO = (asm, entry, pass) => {
   if (pass === 2) return;
   const name = loc(entry);
-  if (!name) { asm.flag(entry, 'L', 'nom de micro manquant'); return; }
+  if (!name) { asm.flag(entry, 'L', 'missing micro name'); return; }
   const img = entry.img;
   let p = entry.f.varPos;
   if (p < 0) { defineMicro(asm, entry, name, ''); return; }
   const c1 = img.indexOf(',', p);
   const c2 = c1 < 0 ? -1 : img.indexOf(',', c1 + 1);
-  if (c2 < 0) { asm.flag(entry, 'A', 'MICRO : trois sous-champs attendus'); return; }
+  if (c2 < 0) { asm.flag(entry, 'A', 'MICRO: three subfields expected'); return; }
   const base = asm.countBase(entry);
   let n1 = 0, n2 = 0;
   try {
@@ -1445,7 +1445,7 @@ H.MICRO = (asm, entry, pass) => {
   } catch (e) { asm.handleError(entry, e); return; }
   const d = img[c2 + 1];
   let end = d === undefined ? -1 : img.indexOf(d, c2 + 2);
-  if (end < 0) { asm.flag(entry, 'A', 'MICRO : délimiteur de fin manquant'); end = img.length; }
+  if (end < 0) { asm.flag(entry, 'A', 'MICRO: missing end delimiter'); end = img.length; }
   const str = d === undefined ? '' : img.slice(c2 + 2, end);
   if (n1 < 0 || n2 < 0) asm.flag(entry, '7');
   let value;
@@ -1459,14 +1459,14 @@ function decOctMic(radix) {
   return (asm, entry, pass) => {
     if (pass === 2) return;
     const name = loc(entry);
-    if (!name) { asm.flag(entry, 'L', 'nom de micro manquant'); return; }
+    if (!name) { asm.flag(entry, 'L', 'missing micro name'); return; }
     const s = vfSubs(entry);
     let v, n = 0;
     try {
       v = asm.evalAbsolute(entry, s[0], { allowEmpty: false });
       if (s[1]) n = asm.evalAbsolute(entry, s[1], { base: asm.countBase(entry) });
     } catch (e) { asm.handleError(entry, e); return; }
-    if (n < 0 || n > 10) { asm.flag(entry, 'A', 'compte de micro hors 0-10'); n = 10; }
+    if (n < 0 || n > 10) { asm.flag(entry, 'A', 'micro count outside 0-10'); n = 10; }
     let digits = Math.abs(v).toString(radix);
     if (n) digits = digits.length > n ? digits.slice(digits.length - n) : digits.padStart(n, '0');
     digits = digits.slice(-10);

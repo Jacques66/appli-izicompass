@@ -1,5 +1,5 @@
-// Panneau mémoire centrale : vue virtuelle des mots de 60 bits, édition,
-// points de surveillance (arrêt sur écriture).
+// Central memory panel: virtual view of the 60-bit words, editing,
+// watchpoints (stop on write).
 
 import { h, esc, o, o60, parseOctal } from '../dom.js';
 import { VirtualList, toolbar, tbtn, tinput, inlineEdit } from './common.js';
@@ -12,7 +12,7 @@ export class MemoryPanel {
     this.ctx = ctx;
     this.relative = false;
     this.interp = 'text';
-    this.last = new Map();     // adresse -> valeur affichée la fois précédente
+    this.last = new Map();     // address -> value displayed the previous time
     this.flash = new Set();
     this.selected = -1;
     this.vlist = new VirtualList({
@@ -21,28 +21,28 @@ export class MemoryPanel {
       onClick: (i, e) => this.click(i, e),
       onDblClick: (i, e) => this.edit(i, e),
     });
-    this.goto = tinput({ placeholder: 'adresse (octal)', width: 120, onenter: (v) => this.gotoText(v) });
-    this.modeSel = segmented([['abs', 'Absolu'], ['rel', 'Relatif à RA']], 'abs', (v) => { this.relative = v === 'rel'; this.resize(); });
-    this.interpSel = segmented([['text', 'Display'], ['auto', 'Nombre'], ['int', 'Entier'], ['float', 'Flottant']], this.interp, (v) => { this.interp = v; this.vlist.refresh(); });
+    this.goto = tinput({ placeholder: 'address (octal)', width: 120, onenter: (v) => this.gotoText(v) });
+    this.modeSel = segmented([['abs', 'Absolute'], ['rel', 'Relative to RA']], 'abs', (v) => { this.relative = v === 'rel'; this.resize(); });
+    this.interpSel = segmented([['text', 'Display'], ['auto', 'Number'], ['int', 'Integer'], ['float', 'Float']], this.interp, (v) => { this.interp = v; this.vlist.refresh(); });
     this.info = h('span', { class: 'ptool-dim' });
     this.el = h('div', { class: 'panel panel-memory' },
       toolbar(this.goto,
-        tbtn('P', () => this.gotoAddr(this.ctx.machine.cpu.absolute(this.ctx.machine.cpu.P), true), { tip: 'Aller au mot désigné par P' }),
-        tbtn('RA', () => this.gotoAddr(this.ctx.machine.cpu.RA, true), { tip: 'Aller au début du champ du programme' }),
-        tbtn('', () => this.toggleWatch(this.selected), { icon: 'eye', tip: 'Surveiller le mot sélectionné (arrêt sur écriture)' }),
+        tbtn('P', () => this.gotoAddr(this.ctx.machine.cpu.absolute(this.ctx.machine.cpu.P), true), { tip: 'Go to the word addressed by P' }),
+        tbtn('RA', () => this.gotoAddr(this.ctx.machine.cpu.RA, true), { tip: 'Go to the start of the program field' }),
+        tbtn('', () => this.toggleWatch(this.selected), { icon: 'eye', tip: 'Watch the selected word (stop on write)' }),
         h('div', { class: 'grow' }), this.modeSel, this.interpSel),
-      h('div', { class: 'mem-head mono' }, h('span', { class: 'm-w' }, ''), h('span', { class: 'm-a' }, 'Adresse'), h('span', { class: 'm-o' }, 'Contenu (octal)'), h('span', { class: 'm-t' }, 'Interprétation')),
+      h('div', { class: 'mem-head mono' }, h('span', { class: 'm-w' }, ''), h('span', { class: 'm-a' }, 'Address'), h('span', { class: 'm-o' }, 'Contents (octal)'), h('span', { class: 'm-t' }, 'Interpretation')),
       this.vlist.el,
       h('div', { class: 'ptool ptool-foot' }, this.info));
     this.resize();
   }
 
-  /** Nombre de lignes : CM entière (absolu) ou FL (relatif). */
+  /** Row count: whole CM (absolute) or FL (relative). */
   resize() {
     const m = this.ctx.machine;
     const n = this.relative ? Math.max(1, Math.min(m.cpu.FL || m.cmSize, m.cmSize)) : m.cmSize;
     this.vlist.setCount(n);
-    this.info.textContent = `${m.cmSize.toLocaleString('fr-FR')} mots de 60 bits (${o(m.cmSize)}B)` + (m.ecsSize ? ` · ECS ${m.ecsSize.toLocaleString('fr-FR')} mots` : '');
+    this.info.textContent = `${m.cmSize.toLocaleString('en-US')} 60-bit words (${o(m.cmSize)}B)` + (m.ecsSize ? ` · ECS ${m.ecsSize.toLocaleString('en-US')} words` : '');
   }
 
   addrOf(i) {
@@ -65,7 +65,7 @@ export class MemoryPanel {
     const cls = `${a === pAbs && this.ctx.runner.kind === 'cpu' ? 'is-p' : ''} ${watch ? 'watch' : ''} ${changed ? 'chg' : ''} ${i === this.selected ? 'sel' : ''} ${w === 0n ? 'zero' : ''} ${inField ? '' : 'out'}`;
     const t = w === 0n ? '' : this.interp === 'text' ? wordToDisplay(w) : interpret(w, this.interp);
     const sym = this.ctx.runner.kind === 'cpu' ? this.ctx.symbolMap().get(a - cpu.RA) : null;
-    return `<div class="m-row ${cls}"><span class="m-w" data-tip="${watch ? 'Surveillé' : 'Cliquer pour surveiller'}"></span>`
+    return `<div class="m-row ${cls}"><span class="m-w" data-tip="${watch ? 'Watched' : 'Click to watch'}"></span>`
       + `<span class="m-a">${o(this.relative ? i : a, 6)}${sym ? `<em>${esc(sym)}</em>` : ''}</span>`
       + `<span class="m-o" data-i="${i}">${o60(w)}</span><span class="m-t">${esc(t)}</span></div>`;
   }
@@ -80,12 +80,12 @@ export class MemoryPanel {
   }
 
   toggleWatch(i) {
-    if (i < 0) { toast('Sélectionnez d\'abord un mot.', 'info'); return; }
+    if (i < 0) { toast('Select a word first.', 'info'); return; }
     const m = this.ctx.machine;
     const a = this.addrOf(i);
     if (m.watchpoints.has(a)) m.watchpoints.delete(a);
     else m.watchpoints.add(a);
-    this.ctx.log(`Surveillance ${m.watchpoints.has(a) ? 'posée' : 'retirée'} en ${o(a, 6)}B.`);
+    this.ctx.log(`Watchpoint ${m.watchpoints.has(a) ? 'set' : 'removed'} at ${o(a, 6)}B.`);
     this.vlist.refresh();
   }
 
@@ -96,9 +96,9 @@ export class MemoryPanel {
     const a = this.addrOf(i);
     inlineEdit(cell, o60(m.cm[a]), (v) => {
       const w = parseWord(v);
-      if (w === null) { toast('Valeur invalide : octal (20 chiffres), entier suffixé D ou flottant.', 'warn'); return false; }
+      if (w === null) { toast('Invalid value: octal (20 digits), integer with a D suffix, or floating-point.', 'warn'); return false; }
       m.cm[a] = w;
-      this.ctx.log(`Mot ${o(a, 6)}B modifié.`);
+      this.ctx.log(`Word ${o(a, 6)}B modified.`);
       setTimeout(() => this.vlist.refresh());
       return true;
     }, { width: '100%' });
@@ -106,7 +106,7 @@ export class MemoryPanel {
 
   gotoText(v) {
     const a = parseOctal(v);
-    if (a === null) { toast('Adresse octale invalide.', 'warn'); return; }
+    if (a === null) { toast('Invalid octal address.', 'warn'); return; }
     this.gotoAddr(Number(a), false);
   }
 

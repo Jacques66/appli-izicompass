@@ -1,4 +1,4 @@
-// Lance un programme sous le mini-système et affiche journal et imprimante.
+// Runs a program under the mini-system and shows the dayfile and the printer output.
 import { readFileSync } from 'node:fs';
 import { assemble } from '../src/asm/compass.js';
 import { Machine } from '../src/machine.js';
@@ -13,8 +13,8 @@ console.log('start', st.ok, st.errors, 'entry', st.entry?.toString(8), 'fl', st.
 let t = 0;
 while (jobStatus(m) === 'run' && t < 2_000_000) { m.run(10000); t += 10000; }
 console.log('status', jobStatus(m), 'time µs', m.time, 'cpu instr', m.cpu.instructions, 'P', m.cpu.P.toString(8), m.cpu.lastError || '');
-console.log('--- journal'); for (const l of dayfile(m)) console.log(l);
-console.log('--- imprimante'); console.log(m.printer.text());
+console.log('--- dayfile'); for (const l of dayfile(m)) console.log(l);
+console.log('--- printer'); console.log(m.printer.text());
 console.log('--- console', m.console.trace.length);
 const vis = m.console.visible(m.time, 30000);
 for (const scr of [0, 1]) {
@@ -23,7 +23,7 @@ for (const scr of [0, 1]) {
     if (!rows.has(e.y)) rows.set(e.y, new Map());
     rows.get(e.y).set(e.x, e.c);
   }
-  console.log(`--- écran ${scr ? 'droit' : 'gauche'}`);
+  console.log(`--- ${scr ? 'right' : 'left'} screen`);
   for (const y of [...rows.keys()].sort((a, b) => b - a)) {
     const r = rows.get(y);
     let s = '';

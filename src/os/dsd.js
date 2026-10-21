@@ -1,13 +1,13 @@
-// DSD : programme d'affichage de la console 6612 (PP1), en COMPASS PP.
+// DSD: 6612 console display program (PP1), in PP COMPASS.
 
 export const DSD = String.raw`          IDENT  DSD,100B
           PERIPH
-          TITLE  DSD - AFFICHAGE CONSOLE DU MINI-SYSTEME.
-*         DSD - RAFRAICHIT EN PERMANENCE LES DEUX ECRANS DE LA CONSOLE.
+          TITLE  DSD - MINI-SYSTEM CONSOLE DISPLAY.
+*         DSD - CONTINUOUSLY REFRESHES BOTH CONSOLE SCREENS.
 *
-*         ECRAN GAUCHE : EN-TETE, ETAT DU TRAVAIL, JOURNAL, COMMANDE.
-*         ECRAN DROIT  : REGISTRE P DU CPU (RPN), RA, FL, TEMPS.
-*         CLAVIER : LA COMMANDE *DROP* ABANDONNE LE TRAVAIL.
+*         LEFT SCREEN:  HEADER, JOB STATUS, DAYFILE, COMMAND.
+*         RIGHT SCREEN: CPU P REGISTER (RPN), RA, FL, TIME.
+*         KEYBOARD: THE *DROP* COMMAND ABORTS THE JOB.
 *
  DAYP     EQU    20B
  STAT     EQU    21B
@@ -18,10 +18,10 @@ export const DSD = String.raw`          IDENT  DSD,100B
  MSEC     EQU    26B
  JNAM     EQU    27B
  LIN1     EQU    30B
- CMDW     EQU    34B         COMMANDE POUR MTR (1 = DROP)
+ CMDW     EQU    34B         COMMAND FOR MTR (1 = DROP)
  DAYF     EQU    200B
 *
- CH       EQU    10B         CANAL DE LA CONSOLE
+ CH       EQU    10B         CONSOLE CHANNEL
 *
  T1       EQU    1
  T2       EQU    2
@@ -30,39 +30,39 @@ export const DSD = String.raw`          IDENT  DSD,100B
  T5       EQU    5
  T6       EQU    6
  T7       EQU    7
- W        EQU    10B         MOT LU (5 CELLULES)
- BP       EQU    15B         POINTEUR DANS LE TAMPON DE SORTIE
- YY       EQU    16B         ORDONNEE DE LA LIGNE COURANTE
+ W        EQU    10B         WORD READ (5 CELLS)
+ BP       EQU    15B         POINTER INTO THE OUTPUT BUFFER
+ YY       EQU    16B         Y COORDINATE OF THE CURRENT LINE
  IDX      EQU    17B
  NL       EQU    20B
  KEY      EQU    21B
- NCMD     EQU    22B         CARACTERES DE LA COMMANDE
+ NCMD     EQU    22B         CHARACTERS IN THE COMMAND
 *
 *
           ORG    100B
  DSD      LDN    0
           STD    NCMD
 *
-*         BOUCLE D'AFFICHAGE.
- DSD1     FNC    7000B,CH    ECRAN GAUCHE, PETITS CARACTERES
+*         DISPLAY LOOP.
+ DSD1     FNC    7000B,CH    LEFT SCREEN, SMALL CHARACTERS
           LDC    740B
           STD    YY
           RJM    BEG
           LDC    TITL
-          RJM    TXT         EN-TETE
+          RJM    TXT         HEADER
           LDN    DATW
           RJM    CMW         DATE
           LDN    TIMW
-          RJM    CMW         HEURE
+          RJM    CMW         TIME OF DAY
           RJM    PUT
-          LDC    24B         LIGNE SUIVANTE
+          LDC    24B         NEXT LINE
           RJM    NXL
           RJM    BEG
           LDC    TJOB
           RJM    TXT
           LDN    JNAM
-          RJM    CMW         NOM DU TRAVAIL
-          LDN    STAT        ETAT
+          RJM    CMW         JOB NAME
+          LDN    STAT        STATUS
           CRD    W
           LDD    W+4
           SBN    1
@@ -86,7 +86,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           LDC    TDAY
           RJM    TXT
           RJM    PUT
-*         JOURNAL : LES 32 LIGNES, DE LA PLUS ANCIENNE A LA PLUS RECENTE.
+*         DAYFILE: THE 32 LINES, FROM OLDEST TO NEWEST.
           LDN    DAYP
           CRD    W
           LDD    W+4
@@ -97,10 +97,10 @@ export const DSD = String.raw`          IDENT  DSD,100B
  DSD6     LDD    IDX
           SHN    2
           ADC    DAYF
-          STD    T7          ADRESSE DE LA LIGNE
+          STD    T7          LINE ADDRESS
           CRD    W
           LDD    W
-          ZJN    DSD7        LIGNE VIDE
+          ZJN    DSD7        EMPTY LINE
           LDC    14B
           RJM    NXL
           RJM    BEG
@@ -123,7 +123,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           ZJN    DSD7A
           LJM    DSD6
  DSD7A    BSS    0
-*         LIGNE DE COMMANDE EN BAS DE L'ECRAN.
+*         COMMAND LINE AT THE BOTTOM OF THE SCREEN.
           LDN    20B
           STD    YY
           RJM    BEG
@@ -134,7 +134,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
  DSD8     LDD    T1
           SBD    NCMD
           PJN    DSD9
-          LDM    CMD,T1      UN CARACTERE PAR MOT, CADRE A GAUCHE
+          LDM    CMD,T1      ONE CHARACTER PER WORD, LEFT-JUSTIFIED
           SHN    6
           ADN    55B
           RJM    ADD
@@ -142,8 +142,8 @@ export const DSD = String.raw`          IDENT  DSD,100B
           UJN    DSD8
  DSD9     RJM    PUT
 *
-*         ECRAN DROIT : REGISTRES.
-          FNC    7100B,CH    ECRAN DROIT, PETITS CARACTERES
+*         RIGHT SCREEN: REGISTERS.
+          FNC    7100B,CH    RIGHT SCREEN, SMALL CHARACTERS
           LDC    740B
           STD    YY
           RJM    BEG
@@ -155,7 +155,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           RJM    BEG
           LDC    TP
           RJM    TXT
-          RPN                REGISTRE P DU CPU
+          RPN                CPU P REGISTER
           RJM    OCT
           RJM    PUT
           LDC    20B
@@ -216,7 +216,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           RJM    CMW
           RJM    PUT
 *
-*         CLAVIER.
+*         KEYBOARD.
           FNC    7020B,CH
           ACN    CH
           IAN    CH
@@ -224,10 +224,10 @@ export const DSD = String.raw`          IDENT  DSD,100B
           DCN    CH
           LDD    KEY
           ZJN    DSD12
-          LMN    60B         RETOUR CHARIOT : EXECUTER
+          LMN    60B         CARRIAGE RETURN: EXECUTE
           ZJN    DSD13
           LDD    KEY
-          LMN    61B         RETOUR ARRIERE
+          LMN    61B         BACKSPACE
           NJN    DSD10
           LDD    NCMD
           ZJN    DSD12
@@ -240,7 +240,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           STM    CMD,NCMD
           AOD    NCMD
  DSD12    LJM    DSD1
-*         EXECUTION DE LA COMMANDE.
+*         COMMAND EXECUTION.
  DSD13    LDD    NCMD
           LMN    4
           NJN    DSD14
@@ -256,7 +256,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           LDM    CMD+3
           LMN    20B         P
           NJN    DSD14
-          LDN    0           DROP : DEMANDE A MTR
+          LDN    0           DROP: REQUEST TO MTR
           STD    W
           STD    W+1
           STD    W+2
@@ -268,9 +268,9 @@ export const DSD = String.raw`          IDENT  DSD,100B
  DSD14    LDN    0
           STD    NCMD
           LJM    DSD1
-          TITLE  SOUS-PROGRAMMES.
+          TITLE  SUBROUTINES.
 *
-*         NXL - NOUVELLE LIGNE : Y = Y - (A).
+*         NXL - NEW LINE: Y = Y - (A).
  NXL      SUBR
           STD    T1
           LDD    YY
@@ -278,7 +278,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           STD    YY
           UJN    NXLX
 *
-*         BEG - COMMENCER UNE LIGNE (COORDONNEES X = 20B, Y = (YY)).
+*         BEG - BEGIN A LINE (COORDINATES X = 20B, Y = (YY)).
  BEG      SUBR
           LDN    0
           STD    BP
@@ -289,7 +289,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           RJM    ADD
           UJN    BEGX
 *
-*         TXT - AJOUTER LE TEXTE (A) (MOTS JUSQU'AU MOT NUL).
+*         TXT - APPEND TEXT (A) (WORDS UP TO THE ZERO WORD).
  TXT      SUBR
           STD    T2
  TXT1     LDI    T2
@@ -298,7 +298,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           AOD    T2
           UJN    TXT1
 *
-*         CMW - AJOUTER LES 10 CARACTERES DU MOT CM (A).
+*         CMW - APPEND THE 10 CHARACTERS OF CM WORD (A).
  CMW      SUBR
           CRD    W
           LDN    W
@@ -313,11 +313,11 @@ export const DSD = String.raw`          IDENT  DSD,100B
           NJN    CMW1
           UJN    CMWX
 *
-*         OCT - AJOUTER 6 CHIFFRES OCTAUX DE (A).
+*         OCT - APPEND 6 OCTAL DIGITS OF (A).
  OCT      SUBR
-          STD    T5          12 BITS BAS
+          STD    T5          LOW 12 BITS
           SHN    -12
-          STD    T6          6 BITS HAUTS
+          STD    T6          HIGH 6 BITS
           LDD    T6
           SHN    -3
           ADN    33B
@@ -356,7 +356,7 @@ export const DSD = String.raw`          IDENT  DSD,100B
           NJN    OCT1
           LJM    OCTX
 *
-*         CNV - REMPLACER LES CARACTERES NON AFFICHABLES (60B-77B) PAR BLANC.
+*         CNV - REPLACE NONDISPLAYABLE CHARACTERS (60B-77B) WITH BLANK.
  CNV      SUBR
           STD    T6
           SHN    -6
@@ -377,13 +377,13 @@ export const DSD = String.raw`          IDENT  DSD,100B
  CNV2     LDD    T6
           UJN    CNVX
 *
-*         ADD - AJOUTER (A) AU TAMPON DE SORTIE.
+*         ADD - APPEND (A) TO THE OUTPUT BUFFER.
  ADD      SUBR
           STM    BUF,BP
           AOD    BP
           UJN    ADDX
 *
-*         PUT - ENVOYER LE TAMPON A LA CONSOLE.
+*         PUT - SEND THE BUFFER TO THE CONSOLE.
  PUT      SUBR
           ACN    CH
           LDD    BP
@@ -393,21 +393,21 @@ export const DSD = String.raw`          IDENT  DSD,100B
           STD    BP
           UJN    PUTX
 *
-*         TEXTES (TERMINES PAR UN MOT NUL).
- TITL     DIS    ,*MINI-SYSTEME CDC 6600   *
- TJOB     DIS    ,*TRAVAIL *
- TNON     DIS    ,*  AUCUN*
- TRUN     DIS    ,*  EN COURS*
- TEND     DIS    ,*  TERMINE*
- TABT     DIS    ,*  ABANDONNE*
- TDAY     DIS    ,*JOURNAL*
- TCMD     DIS    ,*COMMANDE  *
- TREG     DIS    ,*UNITE CENTRALE*
+*         TEXTS (ENDED BY A ZERO WORD).
+ TITL     DIS    ,*CDC 6600 MINI-SYSTEM    *
+ TJOB     DIS    ,*JOB *
+ TNON     DIS    ,*  NONE*
+ TRUN     DIS    ,*  RUNNING*
+ TEND     DIS    ,*  ENDED*
+ TABT     DIS    ,*  ABORTED*
+ TDAY     DIS    ,*DAYFILE*
+ TCMD     DIS    ,*COMMAND  *
+ TREG     DIS    ,*CENTRAL PROCESSOR*
  TP       DIS    ,*P  = *
  TRA      DIS    ,*RA = *
  TFL      DIS    ,*FL = *
  TMS      DIS    ,*MS = *
- TLIN     DIS    ,*DERNIER MESSAGE*
+ TLIN     DIS    ,*LAST MESSAGE*
  CMD      BSS    40B
  BUF      BSS    100B
           END    DSD

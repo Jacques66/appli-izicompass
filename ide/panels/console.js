@@ -1,4 +1,4 @@
-// Panneau de la console 6612 (écrans cathodiques + clavier) et panneau de deadstart.
+// 6612 console panel (CRT screens + keyboard) and deadstart panel.
 
 import { h, icon, o, parseOctal } from '../dom.js';
 import { toolbar, tbtn } from './common.js';
@@ -12,18 +12,18 @@ export class ConsolePanel {
   constructor(ctx) {
     this.ctx = ctx;
     const s = ctx.settings;
-    this.canvas = h('canvas', { class: 'crt-canvas', tabindex: '0', 'aria-label': 'Console 6612 : cliquez puis tapez au clavier' });
+    this.canvas = h('canvas', { class: 'crt-canvas', tabindex: '0', 'aria-label': '6612 console: click, then type on the keyboard' });
     this.crt = new CrtConsole(this.canvas, { phosphor: s.phosphor || 'green', persistence: s.persistence || 50000 });
     this.crt.setView(s.consoleView || 'both');
-    this.kbd = h('div', { class: 'kbd-state' }, icon('keyboard', 15), h('span', null, 'Clavier inactif — cliquez sur un écran'));
+    this.kbd = h('div', { class: 'kbd-state' }, icon('keyboard', 15), h('span', null, 'Keyboard inactive — click a screen'));
     this.coords = h('span', { class: 'crt-coords mono' });
     this.lastKeys = h('span', { class: 'crt-keys mono' });
-    const view = segmented([['both', 'Deux écrans'], ['left', 'Gauche'], ['right', 'Droit']], this.crt.view, (v) => { this.crt.setView(v); s.consoleView = v; ctx.saveSettings(); this.draw(); });
+    const view = segmented([['both', 'Both screens'], ['left', 'Left'], ['right', 'Right']], this.crt.view, (v) => { this.crt.setView(v); s.consoleView = v; ctx.saveSettings(); this.draw(); });
     const ph = select(Object.entries(PHOSPHOR_NAMES), this.crt.phosphor, (v) => { this.crt.setPhosphor(v); s.phosphor = v; ctx.saveSettings(); this.draw(); });
-    const pers = select([['20000', 'Rémanence courte'], ['50000', 'Rémanence normale'], ['150000', 'Rémanence longue']], String(this.crt.persistence), (v) => { this.crt.persistence = Number(v); s.persistence = Number(v); ctx.saveSettings(); this.draw(); });
+    const pers = select([['20000', 'Short persistence'], ['50000', 'Normal persistence'], ['150000', 'Long persistence']], String(this.crt.persistence), (v) => { this.crt.persistence = Number(v); s.persistence = Number(v); ctx.saveSettings(); this.draw(); });
     this.wrap = h('div', { class: 'crt-wrap' }, this.canvas);
     this.el = h('div', { class: 'panel panel-console' },
-      toolbar(view, ph, pers, h('div', { class: 'grow' }), tbtn('Effacer', () => { ctx.machine.console.trace.length = 0; this.draw(); }, { icon: 'trash', tip: 'Effacer les tracés mémorisés' })),
+      toolbar(view, ph, pers, h('div', { class: 'grow' }), tbtn('Clear', () => { ctx.machine.console.trace.length = 0; this.draw(); }, { icon: 'trash', tip: 'Clear the stored traces' })),
       this.wrap,
       h('div', { class: 'crt-foot' }, this.kbd, this.lastKeys, h('div', { class: 'grow' }), this.coords));
 
@@ -33,7 +33,7 @@ export class ConsolePanel {
     this.canvas.addEventListener('keydown', (e) => this.onKey(e));
     this.canvas.addEventListener('mousemove', (e) => {
       const t = this.crt.hitTest(e.clientX, e.clientY);
-      this.coords.textContent = t ? `${t.screen ? 'droit' : 'gauche'}  X=${o(t.x, 3)}B  Y=${o(t.y, 3)}B` : '';
+      this.coords.textContent = t ? `${t.screen ? 'right' : 'left'}  X=${o(t.x, 3)}B  Y=${o(t.y, 3)}B` : '';
     });
     this.canvas.addEventListener('mouseleave', () => { this.coords.textContent = ''; });
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { this.crt.layout = null; this.draw(); }).observe(this.wrap);
@@ -42,7 +42,7 @@ export class ConsolePanel {
 
   setKbd(on) {
     this.kbd.classList.toggle('on', on);
-    this.kbd.querySelector('span').textContent = on ? 'Clavier actif : les touches vont à la console 6612' : 'Clavier inactif — cliquez sur un écran';
+    this.kbd.querySelector('span').textContent = on ? 'Keyboard active: keys go to the 6612 console' : 'Keyboard inactive — click a screen';
   }
 
   onKey(e) {
@@ -79,7 +79,7 @@ export class ConsolePanel {
 
 // -------------------------------------------------------------- deadstart
 
-/** Panneau de deadstart : 16 mots de 12 interrupteurs. */
+/** Deadstart panel: 16 words of 12 switches. */
 export class DeadstartPanel {
   constructor(ctx) {
     this.ctx = ctx;
@@ -98,18 +98,18 @@ export class DeadstartPanel {
       const inp = e.target.closest('.ds-oct');
       if (!inp) return;
       const v = parseOctal(inp.value);
-      if (v === null || v > 0o7777n) { toast('Mot octal de 12 bits attendu (0 à 7777).', 'warn'); inp.value = o(this.words[Number(inp.dataset.r)], 4); return; }
+      if (v === null || v > 0o7777n) { toast('12-bit octal word expected (0 to 7777).', 'warn'); inp.value = o(this.words[Number(inp.dataset.r)], 4); return; }
       this.words[Number(inp.dataset.r)] = Number(v);
       this.changed();
     });
     this.el = h('div', { class: 'panel panel-deadstart scroll' },
       toolbar(
-        tbtn('Deadstart', () => ctx.deadstart(this.words.slice()), { icon: 'play', cls: 'primary', tip: 'Charge le panneau dans PP0 (à partir de 1) et lance la machine' }),
-        tbtn('Programme de démonstration', () => { this.words = DEMO_DEADSTART.slice(); while (this.words.length < 16) this.words.push(0); this.changed(); }, { icon: 'monitor', tip: 'Affiche « CDC 6600 » sur l\'écran gauche' }),
-        tbtn('Panneau du système', () => { this.words = DEADSTART_PANEL.slice(); while (this.words.length < 16) this.words.push(0); this.changed(); }, { icon: 'tape', tip: 'Chargeur de la bande système : DCN 13B ; FNC 2000B,13B ; FNC 2020B,13B ; ACN 13B ; LDC 1000B ; IAM 7000B,13B ; LJM 7000B\nUtilisé par le mode « Système (deadstart sur bande) » avec la bande de l’unité 0' }),
-        tbtn('Tout à zéro', () => { this.words.fill(0); this.changed(); }, { icon: 'trash' })),
-      h('div', { class: 'note' }, 'Au deadstart, chaque PP exécute IAM 10000B sur son canal. Les mots du panneau arrivent par le canal 0 et sont rangés dans PP0 à partir de l\'adresse 1, puis PP0 démarre en 1. Les interrupteurs sont groupés par chiffre octal.'),
-      h('div', { class: 'ds-head mono' }, h('span', null, 'Adr.'), h('span', { class: 'ds-head-sw' }, ...[11, 8, 5, 2].map((b) => h('span', null, `${b}…${b - 2}`))), h('span', null, 'Octal'), h('span', null, 'Instruction PP')),
+        tbtn('Deadstart', () => ctx.deadstart(this.words.slice()), { icon: 'play', cls: 'primary', tip: 'Loads the panel into PP0 (from address 1) and starts the machine' }),
+        tbtn('Demonstration program', () => { this.words = DEMO_DEADSTART.slice(); while (this.words.length < 16) this.words.push(0); this.changed(); }, { icon: 'monitor', tip: 'Displays "CDC 6600" on the left screen' }),
+        tbtn('System panel', () => { this.words = DEADSTART_PANEL.slice(); while (this.words.length < 16) this.words.push(0); this.changed(); }, { icon: 'tape', tip: 'System tape loader: DCN 13B; FNC 2000B,13B; FNC 2020B,13B; ACN 13B; LDC 1000B; IAM 7000B,13B; LJM 7000B\nUsed by the "System (tape deadstart)" mode with the tape on unit 0' }),
+        tbtn('All zeros', () => { this.words.fill(0); this.changed(); }, { icon: 'trash' })),
+      h('div', { class: 'note' }, 'At deadstart, each PP executes IAM 10000B on its channel. The panel words arrive on channel 0 and are stored in PP0 from address 1, then PP0 starts at 1. The switches are grouped by octal digit.'),
+      h('div', { class: 'ds-head mono' }, h('span', null, 'Addr.'), h('span', { class: 'ds-head-sw' }, ...[11, 8, 5, 2].map((b) => h('span', null, `${b}…${b - 2}`))), h('span', null, 'Octal'), h('span', null, 'PP instruction')),
       this.rows);
     this.render();
   }
@@ -137,7 +137,7 @@ export class DeadstartPanel {
         sw += '</span>';
       }
       let dis = '';
-      if (skip) { dis = '<span class="dim">(suite)</span>'; skip--; }
+      if (skip) { dis = '<span class="dim">(cont.)</span>'; skip--; }
       else {
         const d = disasmPP(mem, r + 1);
         dis = d.text;

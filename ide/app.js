@@ -1,7 +1,7 @@
-// Atelier COMPASS : application principale de l'IDE.
+// COMPASS Workbench: main IDE application.
 //
-// Relie l'éditeur, l'assembleur (src/asm/compass.js), le chargeur et
-// l'émulateur (src/machine.js via src/runtime/runner.js) et les panneaux.
+// Connects the editor, the assembler (src/asm/compass.js), the loader,
+// the emulator (src/machine.js through src/runtime/runner.js) and the panels.
 
 import { h, icon, iconButton, store, debounce, download, pickFiles, o, parseOctal } from './dom.js';
 import { LOGO_SVG } from './icons.js';
@@ -16,7 +16,7 @@ import { PpPanel, ChannelsPanel } from './panels/pp.js';
 import { PeripheralsPanel } from './panels/peripherals.js';
 import { ConsolePanel, DeadstartPanel } from './panels/console.js';
 import { DocsPanel, SHORTCUTS } from './panels/docs.js';
-import { JournalPanel } from './panels/system.js';
+import { DayfilePanel } from './panels/system.js';
 import { Machine } from '../src/machine.js';
 import { MODELS } from '../src/cpu/cpu.js';
 import { assemble } from '../src/asm/compass.js';
@@ -26,7 +26,7 @@ import { DEADSTART_PANEL } from '../src/os/dsl.js';
 
 import { Runner, RunController, RUN_MODES, DEMO_DEADSTART } from '../src/runtime/runner.js';
 
-/** Macros du texte système (MESSAGE, WRITEC, ENDRUN...), colorées comme des macros. */
+/** System text macros (MESSAGE, WRITEC, ENDRUN...), highlighted as macros. */
 const SYSTEM_MACROS = (() => { try { return collectMacros(Object.values(SYSTEM_TEXTS).join('\n')); } catch { return new Set(); } })();
 
 const SETTINGS_KEY = 'cdc6600-ide/settings/v1';
@@ -39,22 +39,22 @@ const DEFAULTS = {
   phosphor: 'green', persistence: 50000, consoleView: 'both',
 };
 
-/** Vitesses : µs simulées par image (environ 60 images par seconde). */
+/** Speeds: simulated µs per frame (about 60 frames per second). */
 const SPEEDS = [
-  { us: 1, label: '1 µs/image' }, { us: 10, label: '10 µs/image' }, { us: 100, label: '100 µs/image' },
-  { us: 1000, label: '1 ms/image' }, { us: 5000, label: '5 ms/image' }, { us: 16667, label: 'Temps réel' },
-  { us: 83333, label: '× 5' }, { us: 0, label: 'Vitesse max', max: true },
+  { us: 1, label: '1 µs/frame' }, { us: 10, label: '10 µs/frame' }, { us: 100, label: '100 µs/frame' },
+  { us: 1000, label: '1 ms/frame' }, { us: 5000, label: '5 ms/frame' }, { us: 16667, label: 'Real time' },
+  { us: 83333, label: '× 5' }, { us: 0, label: 'Max speed', max: true },
 ];
 
 const TEMPLATES = {
-  cpu: `          IDENT  PROG,100B,DEBUT
+  cpu: `          IDENT  PROG,100B,START
           ABS
           ORG    100B
-*         NOUVEAU PROGRAMME CPU ABSOLU.
+*         NEW ABSOLUTE CPU PROGRAM.
 *
-DEBUT     SX6    1             X6 = 1
-          SA6    RESULT        RANGEMENT EN MEMOIRE
-          PS                   ARRET
+START     SX6    1             X6 = 1
+          SA6    RESULT        STORE IN MEMORY
+          PS                   STOP
 *
 RESULT    BSS    1
           END
@@ -62,15 +62,15 @@ RESULT    BSS    1
   pp: `          IDENT  PRG,100B
           PERIPH
           ORG    100B
-*         NOUVEAU PROGRAMME PP.
+*         NEW PP PROGRAM.
 *
-DEBUT     LDN    0
+START     LDN    0
           STD    20B
-BOUCLE    AOD    20B           COMPTEUR EN CELLULE DIRECTE 20B
-          UJN    BOUCLE
+LOOP      AOD    20B           COUNTER IN DIRECT CELL 20B
+          UJN    LOOP
           END
 `,
-  text: `*         TEXTE EXTERNE (APPEL PAR XTEXT NOM).
+  text: `*         EXTERNAL TEXT (CALLED BY XTEXT NAME).
 *
 `,
 };
@@ -81,9 +81,9 @@ class App {
     this.workspace = new Workspace();
     this.editors = new Map();     // id -> { editor, file, saved }
     this.activeId = null;
-    this.result = null;           // dernier assemblage
-    this.assembled = null;        // { id, text } source du dernier assemblage
-    this.loaded = null;           // { id, text, mode } programme chargé
+    this.result = null;           // last assembly
+    this.assembled = null;        // { id, text } source of the last assembly
+    this.loaded = null;           // { id, text, mode } loaded program
     this.examples = [];
     this.exampleTexts = {};
     this.lastPanelUpdate = 0;
@@ -114,7 +114,7 @@ class App {
         e.returnValue = '';
       }
     });
-    this.log('Atelier COMPASS prêt. F7 assemble, F5 exécute, F1 affiche les raccourcis.');
+    this.log('COMPASS Workbench ready. F7 assembles, F5 runs, F1 opens the COMPASS reference (Shift+F1: shortcuts).');
   }
 
   // ------------------------------------------------------------ machine
@@ -123,7 +123,7 @@ class App {
     const s = this.settings;
     const m = new Machine({ model: MODELS[s.model] ? s.model : '6600', cmWords: s.cmWords, ecsWords: s.ecsWords });
     if (prev) {
-      // Les périphériques gardent leur contenu (papier, paquet de cartes, bandes).
+      // Peripherals keep their contents (paper, card deck, tapes).
       m.printer.output = prev.printer.output;
       m.printer.pages = prev.printer.pages;
       m.cardReader.hopper = prev.cardReader.hopper;
@@ -167,6 +167,11 @@ class App {
       saveSettings: () => this.saveSettings(),
       log: (m, k) => this.log(m, k),
       revealSource: (line, file) => this.revealSource(line, file),
+      openExample: (text, name) => {
+        const f = this.workspace.create({ name, content: text });
+        this.openFile(f.id);
+        toast(`Example copied to ${f.name}`, 'ok', 2000);
+      },
       symbolMap: () => this.symbolMap(),
       refresh: (f) => this.refresh(f),
       stepPP: (n) => this.stepPP(n),
@@ -184,44 +189,44 @@ class App {
     return this.symCache.map;
   }
 
-  // ------------------------------------------------------------- mise en page
+  // ------------------------------------------------------------- layout
 
   buildLayout() {
-    document.getElementById('brand').innerHTML = `${LOGO_SVG}<div class="brand-text"><span class="brand-main">CDC 6600</span><span class="brand-sub">Atelier COMPASS</span></div>`;
+    document.getElementById('brand').innerHTML = `${LOGO_SVG}<div class="brand-text"><span class="brand-main">CDC 6600</span><span class="brand-sub">COMPASS Workbench</span></div>`;
     this.buildToolbar();
 
-    // Barre latérale : fichiers et exemples.
+    // Sidebar: files and examples.
     this.sidebar = document.getElementById('sidebar');
     this.fileList = h('div', { class: 'file-list' });
     this.exampleList = h('div', { class: 'file-list examples' });
     this.sidebar.append(
-      h('div', { class: 'side-head' }, h('span', { class: 'side-title' }, 'Fichiers'),
+      h('div', { class: 'side-head' }, h('span', { class: 'side-title' }, 'Files'),
         h('div', { class: 'side-actions' },
-          iconButton('filePlus', 'Nouveau fichier (Ctrl+N)', () => this.newFileDialog()),
-          iconButton('upload', 'Importer depuis le disque (Ctrl+O)', () => this.importFiles()))),
+          iconButton('filePlus', 'New file (Ctrl+N)', () => this.newFileDialog()),
+          iconButton('upload', 'Import from disk (Ctrl+O)', () => this.importFiles()))),
       this.fileList,
-      h('div', { class: 'side-head' }, h('span', { class: 'side-title' }, 'Exemples')),
+      h('div', { class: 'side-head' }, h('span', { class: 'side-title' }, 'Examples')),
       this.exampleList);
     this.workspace.onChange(() => this.renderFiles());
 
-    // Éditeur.
+    // Editor.
     this.editorTabs = document.getElementById('editor-tabs');
     this.editorHost = document.getElementById('editor-host');
 
-    // Panneau bas : résultats d'assemblage.
+    // Bottom panel: assembly results.
     this.problems = new ProblemsPanel(this.ctx);
     this.listing = new ListingPanel(this.ctx);
     this.symbols = new SymbolsPanel(this.ctx);
     this.map = new MapPanel(this.ctx);
     this.logPanel = new LogPanel();
     this.bottomTabs = new Tabs(document.getElementById('bottom-panel'), { key: 'bottom', cls: 'tabs-bottom' });
-    this.bottomTabs.add({ id: 'problems', label: 'Problèmes', icon: 'alert', panel: this.problems, badge: true })
+    this.bottomTabs.add({ id: 'problems', label: 'Problems', icon: 'alert', panel: this.problems, badge: true })
       .add({ id: 'listing', label: 'Listing', icon: 'list', panel: this.listing })
-      .add({ id: 'symbols', label: 'Symboles', icon: 'tag', panel: this.symbols })
-      .add({ id: 'map', label: 'Carte du chargeur', icon: 'map', panel: this.map })
+      .add({ id: 'symbols', label: 'Symbols', icon: 'tag', panel: this.symbols })
+      .add({ id: 'map', label: 'Load map', icon: 'map', panel: this.map })
       .add({ id: 'log', label: 'Messages', icon: 'log', panel: this.logPanel });
 
-    // Panneau droit : machine.
+    // Right panel: machine.
     this.consolePanel = new ConsolePanel(this.ctx);
     this.cpuPanel = new CpuPanel(this.ctx);
     this.memPanel = new MemoryPanel(this.ctx);
@@ -230,20 +235,20 @@ class App {
     this.periph = new PeripheralsPanel(this.ctx);
     this.dsPanel = new DeadstartPanel(this.ctx);
     this.docs = new DocsPanel(this.ctx);
-    this.journal = new JournalPanel(this.ctx);
+    this.dayfilePanel = new DayfilePanel(this.ctx);
     this.rightTabs = new Tabs(document.getElementById('right-panel'), { key: 'right', cls: 'tabs-right' });
     this.rightTabs.add({ id: 'console', label: 'Console', icon: 'monitor', panel: this.consolePanel })
-      .add({ id: 'journal', label: 'Journal', icon: 'log', panel: this.journal })
+      .add({ id: 'dayfile', label: 'Dayfile', icon: 'log', panel: this.dayfilePanel })
       .add({ id: 'cpu', label: 'CPU', icon: 'cpu', panel: this.cpuPanel })
-      .add({ id: 'memory', label: 'Mémoire', icon: 'memory', panel: this.memPanel })
+      .add({ id: 'memory', label: 'Memory', icon: 'memory', panel: this.memPanel })
       .add({ id: 'pp', label: 'PP', icon: 'grid', panel: this.ppPanel })
-      .add({ id: 'channels', label: 'Canaux', icon: 'plug', panel: this.chPanel })
-      .add({ id: 'periph', label: 'Périphériques', icon: 'printer', panel: this.periph })
+      .add({ id: 'channels', label: 'Channels', icon: 'plug', panel: this.chPanel })
+      .add({ id: 'periph', label: 'Peripherals', icon: 'printer', panel: this.periph })
       .add({ id: 'deadstart', label: 'Deadstart', icon: 'switches', panel: this.dsPanel })
       .add({ id: 'docs', label: 'Documentation', icon: 'book', panel: this.docs });
-    this.rightPanels = [this.consolePanel, this.journal, this.cpuPanel, this.memPanel, this.ppPanel, this.chPanel, this.periph];
+    this.rightPanels = [this.consolePanel, this.dayfilePanel, this.cpuPanel, this.memPanel, this.ppPanel, this.chPanel, this.periph];
 
-    // Séparateurs.
+    // Splitters.
     const ws = document.getElementById('workspace');
     makeSplitter(document.querySelector('[data-split="sidebar"]'), this.sidebar, { axis: 'x', min: 150, max: 420, key: 'sidebar' });
     makeSplitter(document.querySelector('[data-split="right"]'), document.getElementById('right-panel'), {
@@ -261,22 +266,22 @@ class App {
     const tb = document.getElementById('toolbar');
     const sep = () => h('div', { class: 'tb-sep' });
     this.btn = {
-      new: iconButton('filePlus', 'Nouveau fichier (Ctrl+N)', () => this.newFileDialog()),
-      open: iconButton('upload', 'Importer un fichier (Ctrl+O)', () => this.importFiles()),
-      save: iconButton('save', 'Enregistrer (Ctrl+S)', () => this.save()),
-      export: iconButton('download', 'Exporter le fichier courant', () => this.exportFile()),
-      asm: iconButton('hammer', 'Assembler (F7 ou Ctrl+B)', () => this.assembleCurrent(true), { label: 'Assembler', cls: 'with-label' }),
-      run: iconButton('play', 'Exécuter / continuer (F5)', () => this.run(), { label: 'Exécuter', cls: 'with-label run' }),
+      new: iconButton('filePlus', 'New file (Ctrl+N)', () => this.newFileDialog()),
+      open: iconButton('upload', 'Import a file (Ctrl+O)', () => this.importFiles()),
+      save: iconButton('save', 'Save (Ctrl+S)', () => this.save()),
+      export: iconButton('download', 'Export the current file', () => this.exportFile()),
+      asm: iconButton('hammer', 'Assemble (F7 or Ctrl+B)', () => this.assembleCurrent(true), { label: 'Assemble', cls: 'with-label' }),
+      run: iconButton('play', 'Run / continue (F5)', () => this.run(), { label: 'Run', cls: 'with-label run' }),
       pause: iconButton('pause', 'Pause (F6)', () => this.controller.pause()),
-      stepCpu: iconButton('stepCpu', 'Pas à pas CPU : une instruction (F10)', () => this.stepCPU()),
-      stepPp: iconButton('stepPp', 'Pas à pas PP : une instruction du PP courant (Maj+F10)', () => this.stepPP()),
-      reset: iconButton('reset', 'Recharger et réinitialiser (Ctrl+Maj+F5)', () => this.reload()),
-      settings: iconButton('gear', 'Paramètres', () => this.settingsDialog()),
-      theme: iconButton('moon', 'Thème clair / sombre', () => this.toggleTheme()),
-      help: iconButton('help', 'Raccourcis clavier (F1)', () => this.shortcutsDialog()),
+      stepCpu: iconButton('stepCpu', 'Step CPU: one instruction (F10)', () => this.stepCPU()),
+      stepPp: iconButton('stepPp', 'Step PP: one instruction of the current PP (Shift+F10)', () => this.stepPP()),
+      reset: iconButton('reset', 'Reload and reset (Ctrl+Shift+F5)', () => this.reload()),
+      settings: iconButton('gear', 'Settings', () => this.settingsDialog()),
+      theme: iconButton('moon', 'Light / dark theme', () => this.toggleTheme()),
+      help: iconButton('help', 'Keyboard shortcuts (Shift+F1)', () => this.shortcutsDialog()),
     };
     this.modeSel = select(Object.entries(RUN_MODES), this.settings.mode, (v) => { this.settings.mode = v; this.runner.options.mode = v; this.saveSettings(); this.loaded = null; this.updateToolbar(); }, 'tb-select');
-    this.modeSel.setAttribute('data-tip', 'Mode d\'exécution');
+    this.modeSel.setAttribute('data-tip', 'Execution mode');
     this.speed = h('input', { type: 'range', class: 'range', min: 0, max: SPEEDS.length - 1, step: 1, value: this.settings.speed });
     this.speedLabel = h('span', { class: 'tb-speed-label' });
     this.speed.addEventListener('input', () => {
@@ -291,7 +296,7 @@ class App {
       h('div', { class: 'tb-group' }, this.btn.asm), sep(),
       h('div', { class: 'tb-group' }, this.btn.run, this.btn.pause, this.btn.stepCpu, this.btn.stepPp, this.btn.reset), sep(),
       h('div', { class: 'tb-group' }, this.modeSel,
-        h('div', { class: 'tb-speed', 'data-tip': 'Vitesse de simulation (µs simulées par image)' }, icon('speed', 15), this.speed, this.speedLabel)),
+        h('div', { class: 'tb-speed', 'data-tip': 'Simulation speed (simulated µs per frame)' }, icon('speed', 15), this.speed, this.speedLabel)),
       h('div', { class: 'grow' }),
       h('div', { class: 'tb-group' }, this.btn.theme, this.btn.settings, this.btn.help));
   }
@@ -300,18 +305,18 @@ class App {
     this.st = {
       state: h('span', { class: 'sb-item sb-state' }),
       mode: h('span', { class: 'sb-item' }),
-      time: h('span', { class: 'sb-item mono', 'data-tip': 'Temps simulé' }),
-      mips: h('span', { class: 'sb-item mono', 'data-tip': 'Instructions CPU par seconde réelle · rapport au temps réel' }),
+      time: h('span', { class: 'sb-item mono', 'data-tip': 'Simulated time' }),
+      mips: h('span', { class: 'sb-item mono', 'data-tip': 'CPU instructions per real second · ratio to real time' }),
       asm: h('span', { class: 'sb-item' }),
       cursor: h('span', { class: 'sb-item mono' }),
-      upper: h('button', { class: 'sb-item sb-btn', type: 'button', 'data-tip': 'Majuscules automatiques (COMPASS est en majuscules)', onclick: () => this.setAutoUpper(!this.settings.autoUpper) }),
+      upper: h('button', { class: 'sb-item sb-btn', type: 'button', 'data-tip': 'Automatic uppercase (COMPASS is written in uppercase)', onclick: () => this.setAutoUpper(!this.settings.autoUpper) }),
       store: h('span', { class: 'sb-item' }),
     };
     const S = this.st;
     this.statusbar.append(S.state, S.mode, S.time, S.mips, h('div', { class: 'grow' }), S.asm, S.store, S.upper, S.cursor);
   }
 
-  // -------------------------------------------------------------- thème
+  // -------------------------------------------------------------- theme
 
   applyTheme() {
     const t = this.settings.theme;
@@ -321,7 +326,7 @@ class App {
     const dark = t === 'dark' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     this.btn.theme.innerHTML = '';
     this.btn.theme.append(icon(dark ? 'sun' : 'moon', 16));
-    this.btn.theme.dataset.tip = dark ? 'Passer au thème clair' : 'Passer au thème sombre';
+    this.btn.theme.dataset.tip = dark ? 'Switch to light theme' : 'Switch to dark theme';
   }
 
   toggleTheme() {
@@ -332,7 +337,7 @@ class App {
     this.applyTheme();
   }
 
-  // ------------------------------------------------------------ fichiers
+  // --------------------------------------------------------------- files
 
   restoreFiles() {
     const ws = this.workspace;
@@ -364,7 +369,7 @@ class App {
         onBreakpoints: (set) => this.onBreakpoints(id, set),
         onCommand: (cmd, n) => {
           if (cmd === 'gotoLine') this.gotoLineDialog();
-          else if (cmd === 'replacedAll') toast(`${n} remplacement${n > 1 ? 's' : ''}`, 'ok');
+          else if (cmd === 'replacedAll') toast(`${n} replacement${n > 1 ? 's' : ''}`, 'ok');
         },
       });
       editor.el.classList.add('hidden');
@@ -397,8 +402,8 @@ class App {
     if (!e) return;
     if (e.editor.getValue() !== e.file.content) {
       const r = await openDialog({
-        title: 'Fichier modifié', body: `Enregistrer les modifications de « ${e.file.name} » ?`, width: 440,
-        buttons: [{ label: 'Annuler', value: 'cancel' }, { label: 'Ne pas enregistrer', value: 'discard', kind: 'danger' }, { label: 'Enregistrer', value: 'save', kind: 'primary' }],
+        title: 'File modified', body: `Save the changes to “${e.file.name}”?`, width: 440,
+        buttons: [{ label: 'Cancel', value: 'cancel' }, { label: 'Don\'t save', value: 'discard', kind: 'danger' }, { label: 'Save', value: 'save', kind: 'primary' }],
       });
       if (!r || r === 'cancel') return;
       if (r === 'save') this.workspace.save(id, e.editor.getValue());
@@ -421,12 +426,12 @@ class App {
     if (on && !el) {
       el = h('div', { class: 'editor-empty' },
         h('div', { class: 'ee-logo', html: LOGO_SVG }),
-        h('div', { class: 'ee-title' }, 'Atelier COMPASS'),
-        h('div', { class: 'ee-text' }, 'Ouvrez un fichier ou un exemple dans le panneau de gauche, ou créez un nouveau programme.'),
+        h('div', { class: 'ee-title' }, 'COMPASS Workbench'),
+        h('div', { class: 'ee-text' }, 'Open a file or an example from the left panel, or create a new program.'),
         h('div', { class: 'ee-actions' },
-          h('button', { class: 'btn btn-primary', type: 'button', onclick: () => this.newFileDialog() }, 'Nouveau programme'),
-          h('button', { class: 'btn', type: 'button', onclick: () => this.openExample(this.examples.find((x) => x.file === 'pp-console.cmp')) }, 'Exemple : console 6612'),
-          h('button', { class: 'btn', type: 'button', onclick: () => this.runDeadstart(this.settings.deadstart) }, 'Deadstart de démonstration')));
+          h('button', { class: 'btn btn-primary', type: 'button', onclick: () => this.newFileDialog() }, 'New program'),
+          h('button', { class: 'btn', type: 'button', onclick: () => this.openExample(this.examples.find((x) => x.file === 'pp-console.cmp')) }, 'Example: 6612 console'),
+          h('button', { class: 'btn', type: 'button', onclick: () => this.runDeadstart(this.settings.deadstart) }, 'Demonstration deadstart')));
       this.editorHost.append(el);
     } else if (!on && el) el.remove();
   }
@@ -452,7 +457,7 @@ class App {
       },
       icon(f.kind === 'text' ? 'fileText' : 'file', 14),
       h('span', { class: 'etab-name' }, f.name),
-      h('button', { class: 'etab-close', type: 'button', 'aria-label': 'Fermer', 'data-tip': 'Fermer', onclick: (e) => { e.stopPropagation(); this.closeFile(id); } }, h('span', { class: 'etab-dot' }), icon('close', 12)));
+      h('button', { class: 'etab-close', type: 'button', 'aria-label': 'Close', 'data-tip': 'Close', onclick: (e) => { e.stopPropagation(); this.closeFile(id); } }, h('span', { class: 'etab-dot' }), icon('close', 12)));
       T.append(tab);
     }
   }
@@ -461,7 +466,7 @@ class App {
     const L = this.fileList;
     L.textContent = '';
     const files = this.workspace.files;
-    if (!files.length) L.append(h('div', { class: 'side-empty' }, 'Aucun fichier. Créez-en un ou ouvrez un exemple.'));
+    if (!files.length) L.append(h('div', { class: 'side-empty' }, 'No files. Create one or open an example.'));
     for (const f of files) {
       const loaded = this.loaded && this.loaded.id === f.id;
       L.append(h('div', {
@@ -472,21 +477,21 @@ class App {
       },
       icon(f.kind === 'text' ? 'fileText' : 'file', 15),
       h('span', { class: 'file-name' }, f.name),
-      loaded ? h('span', { class: 'file-badge', 'data-tip': 'Programme chargé dans la machine' }, icon('cpu', 12)) : null,
-      this.isModified(f.id) ? h('span', { class: 'file-mod', 'data-tip': 'Modifié, non enregistré' }) : null,
+      loaded ? h('span', { class: 'file-badge', 'data-tip': 'Program loaded in the machine' }, icon('cpu', 12)) : null,
+      this.isModified(f.id) ? h('span', { class: 'file-mod', 'data-tip': 'Modified, not saved' }) : null,
       h('button', { class: 'file-more', type: 'button', 'aria-label': 'Actions', onclick: (e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); this.fileMenu(f, r.left, r.bottom + 2); } }, icon('chevronDown', 13))));
     }
-    if (!this.workspace.persistent) L.append(h('div', { class: 'side-warn' }, icon('alert', 13), 'Stockage du navigateur indisponible : les fichiers ne seront pas conservés.'));
+    if (!this.workspace.persistent) L.append(h('div', { class: 'side-warn' }, icon('alert', 13), 'Browser storage unavailable: files will not be kept.'));
   }
 
   fileMenu(f, x, y) {
     contextMenu([
-      { label: 'Ouvrir', icon: 'file', action: () => this.openFile(f.id) },
-      { label: 'Renommer…', icon: 'pencil', action: () => this.renameFile(f) },
-      { label: 'Dupliquer', icon: 'copy', action: () => { const n = this.workspace.create({ name: f.name, content: this.textOf(f.id), kind: f.kind }); this.openFile(n.id); } },
-      { label: 'Exporter', icon: 'download', action: () => download(f.name, this.textOf(f.id)) },
+      { label: 'Open', icon: 'file', action: () => this.openFile(f.id) },
+      { label: 'Rename…', icon: 'pencil', action: () => this.renameFile(f) },
+      { label: 'Duplicate', icon: 'copy', action: () => { const n = this.workspace.create({ name: f.name, content: this.textOf(f.id), kind: f.kind }); this.openFile(n.id); } },
+      { label: 'Export', icon: 'download', action: () => download(f.name, this.textOf(f.id)) },
       { separator: true },
-      { label: 'Supprimer…', icon: 'trash', danger: true, action: () => this.deleteFile(f) },
+      { label: 'Delete…', icon: 'trash', danger: true, action: () => this.deleteFile(f) },
     ], x, y);
   }
 
@@ -497,22 +502,22 @@ class App {
   }
 
   validName(v, except = null) {
-    if (!v) return 'Nom requis.';
-    if (/[\\/:*?"<>|]/.test(v)) return 'Caractères interdits : \\ / : * ? " < > |';
+    if (!v) return 'Name required.';
+    if (/[\\/:*?"<>|]/.test(v)) return 'Forbidden characters: \\ / : * ? " < > |';
     const other = this.workspace.byName(v);
-    if (other && other.id !== except) return 'Un fichier porte déjà ce nom.';
+    if (other && other.id !== except) return 'A file with this name already exists.';
     return null;
   }
 
   async renameFile(f) {
-    const v = await promptDialog('Renommer', 'Nouveau nom', f.name, { validate: (x) => this.validName(x, f.id) });
+    const v = await promptDialog('Rename', 'New name', f.name, { validate: (x) => this.validName(x, f.id) });
     if (!v) return;
     this.workspace.rename(f.id, v);
     this.renderEditorTabs();
   }
 
   async deleteFile(f) {
-    if (!(await confirmDialog('Supprimer le fichier', `Supprimer définitivement « ${f.name} » de l'espace de travail ?`, { okLabel: 'Supprimer', danger: true }))) return;
+    if (!(await confirmDialog('Delete file', `Permanently delete “${f.name}” from the workspace?`, { okLabel: 'Delete', danger: true }))) return;
     const e = this.editors.get(f.id);
     if (e) { e.editor.dispose(); this.editors.delete(f.id); }
     if (this.loaded && this.loaded.id === f.id) this.loaded = null;
@@ -527,18 +532,18 @@ class App {
 
   async newFileDialog() {
     let kind = 'cpu';
-    const name = h('input', { class: 'input', type: 'text', value: this.workspace.uniqueName('programme.cmp'), spellcheck: 'false', autofocus: true });
+    const name = h('input', { class: 'input', type: 'text', value: this.workspace.uniqueName('program.cmp'), spellcheck: 'false', autofocus: true });
     const err = h('div', { class: 'field-error' });
-    const kinds = segmented([['cpu', 'Programme CPU'], ['pp', 'Programme PP'], ['text', 'Texte XTEXT']], kind, (v) => {
+    const kinds = segmented([['cpu', 'CPU program'], ['pp', 'PP program'], ['text', 'XTEXT text']], kind, (v) => {
       kind = v;
       const base = name.value.replace(/\.[^.]*$/, '');
       name.value = this.workspace.uniqueName(`${base}${v === 'text' ? '.txt' : '.cmp'}`);
     });
     const ok = await openDialog({
-      title: 'Nouveau fichier', width: 460,
-      body: h('div', { class: 'form' }, field('Type', kinds), field('Nom', name, 'Extension .cmp pour un programme, .txt pour un texte appelé par XTEXT.'), err),
-      buttons: [{ label: 'Annuler', value: false }, {
-        label: 'Créer', kind: 'primary',
+      title: 'New file', width: 460,
+      body: h('div', { class: 'form' }, field('Type', kinds), field('Name', name, 'Extension .cmp for a program, .txt for a text called by XTEXT.'), err),
+      buttons: [{ label: 'Cancel', value: false }, {
+        label: 'Create', kind: 'primary',
         action: () => { const m = this.validName(name.value.trim()); if (m) { err.textContent = m; return false; } return true; },
       }],
       onOpen: () => { name.focus(); name.setSelectionRange(0, name.value.lastIndexOf('.') >>> 0); },
@@ -553,7 +558,7 @@ class App {
     for (const x of files) {
       const f = this.workspace.create({ name: x.name, content: x.text.replace(/\r\n?/g, '\n') });
       this.openFile(f.id);
-      this.log(`Fichier importé : ${f.name}`);
+      this.log(`File imported: ${f.name}`);
     }
   }
 
@@ -570,7 +575,7 @@ class App {
     const ok = this.workspace.save(f.id, ed.getValue());
     this.renderEditorTabs();
     this.renderFiles();
-    toast(ok ? `« ${f.name} » enregistré` : 'Enregistré en mémoire seulement (stockage indisponible)', ok ? 'ok' : 'warn', 1800);
+    toast(ok ? `“${f.name}” saved` : 'Saved in memory only (storage unavailable)', ok ? 'ok' : 'warn', 1800);
   }
 
   onEdit(id) {
@@ -596,11 +601,11 @@ class App {
     this.workspace.setBreakpoints(id, set);
     if (this.loaded && this.loaded.id === id) {
       const r = this.runner.setSourceBreakpoints(set);
-      if (r.unresolved.length) this.log(`Points d'arrêt sans code généré (ignorés) : lignes ${r.unresolved.join(', ')}.`, 'warn');
+      if (r.unresolved.length) this.log(`Breakpoints on lines without generated code (ignored): lines ${r.unresolved.join(', ')}.`, 'warn');
     }
   }
 
-  // ------------------------------------------------------------ exemples
+  // ------------------------------------------------------------ examples
 
   async loadExamples() {
     const emb = globalThis.__CDC_EMBEDDED__ && globalThis.__CDC_EMBEDDED__.examples;
@@ -619,7 +624,7 @@ class App {
       if (t !== null) this.exampleTexts[compassName(ex.file)] = t;
     }
     if (!this.workspace.files.length && this.examples.length) {
-      // Premier lancement : l'exemple de la console est ouvert.
+      // First launch: the console example is opened.
       await this.openExample(this.examples.find((x) => x.file === 'pp-console.cmp') || this.examples[0], { quiet: true });
     } else if (!this.activeId) this.showEmptyEditor(true);
   }
@@ -638,7 +643,7 @@ class App {
   renderExamples() {
     const L = this.exampleList;
     L.textContent = '';
-    if (!this.examples.length) L.append(h('div', { class: 'side-empty' }, 'Exemples indisponibles.'));
+    if (!this.examples.length) L.append(h('div', { class: 'side-empty' }, 'Examples unavailable.'));
     for (const ex of this.examples) {
       L.append(h('div', { class: 'file example', role: 'button', tabindex: '0', 'data-tip': ex.description, onclick: () => this.openExample(ex), onkeydown: (e) => { if (e.key === 'Enter') this.openExample(ex); } },
         icon(ex.kind === 'text' ? 'fileText' : 'file', 15),
@@ -652,14 +657,14 @@ class App {
     const existing = this.workspace.files.find((f) => f.example === ex.file);
     if (existing) { this.openFile(existing.id); return; }
     const text = await this.exampleText(ex.file);
-    if (text === null) { toast(`Exemple introuvable : ${ex.file}`, 'error'); return; }
+    if (text === null) { toast(`Example not found: ${ex.file}`, 'error'); return; }
     const f = this.workspace.create({ name: ex.file, content: text, example: ex.file });
     this.openFile(f.id);
-    if (!quiet) this.log(`Exemple ouvert : ${ex.title} (${ex.file}).`);
+    if (!quiet) this.log(`Example opened: ${ex.title} (${ex.file}).`);
     if (ex.cards) this.loadExampleCards(ex);
   }
 
-  /** Place le paquet de cartes d'un exemple dans le panneau et dans le lecteur. */
+  /** Puts an example's card deck in the panel and in the card reader. */
   loadExampleCards(ex) {
     this.settings.cardDeck = ex.cards.replace(/\n$/, '');
     this.saveSettings();
@@ -668,17 +673,17 @@ class App {
     r.hopper.length = 0;
     r.card = null;
     r.loadDeck(ex.cards, this.settings.cardCode || '029');
-    this.log(`Paquet de l'exemple chargé dans le lecteur 405 (${r.hopper.length} cartes).`, 'ok');
+    this.log(`Example deck loaded in the 405 card reader (${r.hopper.length} cards).`, 'ok');
     this.periph.update(true);
   }
 
-  // ---------------------------------------------------------- assemblage
+  // ------------------------------------------------------------ assembly
 
-  /** Assemble le fichier actif. Retourne le résultat (ou null). */
+  /** Assembles the active file. Returns the result (or null). */
   assembleCurrent(showPanel = true) {
     const f = this.activeFile();
     const ed = this.activeEditor();
-    if (!f || !ed) { toast('Aucun fichier ouvert.', 'warn'); return null; }
+    if (!f || !ed) { toast('No file open.', 'warn'); return null; }
     const text = ed.getValue();
     const name = compassName(f.name);
     const texts = { ...this.exampleTexts, ...this.workspace.texts(f.id) };
@@ -688,7 +693,7 @@ class App {
     try {
       r = assemble(text, { fileName: name, texts, date: new Date() });
     } catch (e) {
-      r = { ok: false, errors: [{ line: 0, file: name, flag: '!', fatal: true, message: `Erreur interne de l'assembleur : ${e.message}` }], listing: '', lines: [], symbols: [], programs: [] };
+      r = { ok: false, errors: [{ line: 0, file: name, flag: '!', fatal: true, message: `Internal assembler error: ${e.message}` }], listing: '', lines: [], symbols: [], programs: [] };
       console.error(e);
     }
     const ms = performance.now() - t0;
@@ -700,23 +705,23 @@ class App {
     const fatal = (r.errors || []).filter((e) => e.fatal).length;
     const warn = (r.errors || []).length - fatal;
     const lines = text.split('\n').length;
-    const info = `${lines} lignes en ${ms.toFixed(0)} ms`;
+    const info = `${lines} lines in ${ms.toFixed(0)} ms`;
     this.problems.show(r, info);
     this.listing.show(r);
     this.symbols.show(r);
     this.map.show(r, this.loaded ? this.runner : null);
     this.bottomTabs.setBadge('problems', fatal ? String(fatal) : warn ? String(warn) : '', fatal ? 'error' : 'warn');
-    const msg = fatal ? `${fatal} erreur${fatal > 1 ? 's' : ''}, ${warn} avertissement${warn > 1 ? 's' : ''}` : `assemblage réussi${warn ? `, ${warn} avertissement${warn > 1 ? 's' : ''}` : ''}`;
-    this.log(`${f.name} : ${msg} (${info}).`, fatal ? 'error' : warn ? 'warn' : 'ok');
+    const msg = fatal ? `${fatal} error${fatal > 1 ? 's' : ''}, ${warn} warning${warn > 1 ? 's' : ''}` : `assembly successful${warn ? `, ${warn} warning${warn > 1 ? 's' : ''}` : ''}`;
+    this.log(`${f.name}: ${msg} (${info}).`, fatal ? 'error' : warn ? 'warn' : 'ok');
     if (showPanel) {
       if (fatal || warn) this.bottomTabs.select('problems');
-      toast(`${f.name} : ${msg}`, fatal ? 'error' : warn ? 'warn' : 'ok', 2200);
+      toast(`${f.name}: ${msg}`, fatal ? 'error' : warn ? 'warn' : 'ok', 2200);
     }
     this.updateStatus();
     return r;
   }
 
-  // ------------------------------------------------------------ exécution
+  // ----------------------------------------------------------- execution
 
   isStale() {
     if (!this.loaded) return true;
@@ -725,20 +730,20 @@ class App {
     return this.loaded.text !== this.textOf(this.loaded.id);
   }
 
-  /** Assemble si nécessaire puis charge dans la machine. */
+  /** Assembles if needed, then loads into the machine. */
   async load() {
     this.controller.halt();
     const mode = this.settings.mode;
     if (mode === 'deadstart') return this.runDeadstart(this.settings.deadstart, false);
     const f = this.activeFile();
-    if (!f) { toast('Ouvrez d\'abord un programme.', 'warn'); return false; }
+    if (!f) { toast('Open a program first.', 'warn'); return false; }
     let r = this.result;
     if (!r || !this.assembled || this.assembled.id !== f.id || this.assembled.text !== this.textOf(f.id)) r = this.assembleCurrent(false);
     if (!r) return false;
     const fatal = (r.errors || []).filter((e) => e.fatal);
     if (fatal.length || !r.ok) {
       this.bottomTabs.select('problems');
-      toast(`Chargement impossible : ${fatal.length} erreur${fatal.length > 1 ? 's' : ''} d'assemblage`, 'error');
+      toast(`Cannot load: ${fatal.length} assembly error${fatal.length > 1 ? 's' : ''}`, 'error');
       if (fatal[0] && fatal[0].line) this.revealSource(fatal[0].line, fatal[0].file);
       return false;
     }
@@ -750,7 +755,7 @@ class App {
       res = await this.runner.load(r, { ...this.runnerOptions(), fileName: r.fileName });
     } catch (e) {
       console.error(e);
-      res = { ok: false, message: `Erreur au chargement : ${e.message}` };
+      res = { ok: false, message: `Load error: ${e.message}` };
     }
     if (!res.ok) {
       toast(res.message, 'error');
@@ -763,13 +768,13 @@ class App {
     this.controller.ready();
     this.cpuPanel.mark();
     this.log(res.message, 'ok');
-    for (const w of res.warnings || []) this.log(`Chargeur : ${w}`, 'warn');
-    if (b.unresolved.length) this.log(`Points d'arrêt sans code généré (ignorés) : lignes ${b.unresolved.join(', ')}.`, 'warn');
+    for (const w of res.warnings || []) this.log(`Loader: ${w}`, 'warn');
+    if (b.unresolved.length) this.log(`Breakpoints on lines without generated code (ignored): lines ${b.unresolved.join(', ')}.`, 'warn');
     this.map.show(r, this.runner);
     this.memPanel.resize();
     if (res.mode === 'pp' && this.rightTabs.active === 'cpu') this.rightTabs.select('pp');
-    if (res.mode === 'systape') this.log('La bande système est montée sur l’unité 0 (exportable depuis Périphériques > Bandes).');
-    if ((res.mode === 'system' || res.mode === 'systape') && !['console', 'journal', 'cpu', 'periph'].includes(this.rightTabs.active)) this.rightTabs.select('console');
+    if (res.mode === 'systape') this.log('The system tape is mounted on unit 0 (can be exported from Peripherals > Tapes).');
+    if ((res.mode === 'system' || res.mode === 'systape') && !['console', 'dayfile', 'cpu', 'periph'].includes(this.rightTabs.active)) this.rightTabs.select('console');
     this.renderFiles();
     this.showExecLine();
     this.refresh(true);
@@ -793,7 +798,7 @@ class App {
   }
 
   async reload() {
-    if (await this.load()) toast('Programme rechargé', 'info', 1500);
+    if (await this.load()) toast('Program reloaded', 'info', 1500);
   }
 
   async ensureLoaded() {
@@ -817,7 +822,7 @@ class App {
     this.refresh(true);
   }
 
-  /** Deadstart avec les mots du panneau, puis marche. */
+  /** Deadstart with the panel words, then run. */
   async runDeadstart(words, start = true) {
     this.controller.halt();
     const res = await this.runner.load(null, { mode: 'deadstart', deadstart: words });
@@ -839,7 +844,7 @@ class App {
   onFrame(info) {
     const now = performance.now();
     const running = info.state === 'running';
-    // la console est redessinée à chaque image ; les autres panneaux ~8 fois par seconde
+    // the console is redrawn every frame; the other panels about 8 times per second
     if (this.rightTabs.active === 'console') this.consolePanel.update();
     if (!running || now - this.lastPanelUpdate > 120) {
       this.lastPanelUpdate = now;
@@ -865,7 +870,7 @@ class App {
     this.updateStatus();
   }
 
-  /** Surligne la ligne source de l'emplacement courant d'exécution. */
+  /** Highlights the source line of the current execution location. */
   showExecLine(isError = false) {
     if (!this.loaded || !this.loaded.id) { this.setExecLine(null); return; }
     let loc = this.runner.currentLocation();
@@ -912,8 +917,8 @@ class App {
   async gotoLineDialog() {
     const ed = this.activeEditor();
     if (!ed) return;
-    const v = await promptDialog('Aller à la ligne', `Numéro de ligne (1 à ${ed.lineCount})`, String(ed.cursor().line), {
-      validate: (x) => (/^\d+$/.test(x) && +x >= 1 && +x <= ed.lineCount ? null : 'Numéro de ligne invalide.'),
+    const v = await promptDialog('Go to line', `Line number (1 to ${ed.lineCount})`, String(ed.cursor().line), {
+      validate: (x) => (/^\d+$/.test(x) && +x >= 1 && +x <= ed.lineCount ? null : 'Invalid line number.'),
     });
     if (v) ed.revealLine(Number(v));
   }
@@ -923,10 +928,10 @@ class App {
     this.saveSettings();
     for (const x of this.editors.values()) x.editor.setAutoUpper(on);
     this.updateStatus();
-    toast(on ? 'Majuscules automatiques activées' : 'Majuscules automatiques désactivées', 'info', 1500);
+    toast(on ? 'Automatic uppercase on' : 'Automatic uppercase off', 'info', 1500);
   }
 
-  // -------------------------------------------------------- état et barres
+  // ------------------------------------------------------ status and bars
 
   updateToolbar() {
     const s = this.controller.state;
@@ -935,14 +940,14 @@ class App {
     this.btn.run.disabled = running;
     this.btn.pause.disabled = !running;
     const label = this.btn.run.querySelector('.btn-label');
-    if (label) label.textContent = s === 'paused' ? 'Continuer' : 'Exécuter';
-    this.btn.run.dataset.tip = s === 'paused' ? 'Continuer (F5)' : 'Assembler, charger et exécuter (F5)';
+    if (label) label.textContent = s === 'paused' ? 'Continue' : 'Run';
+    this.btn.run.dataset.tip = s === 'paused' ? 'Continue (F5)' : 'Assemble, load and run (F5)';
   }
 
   updateCursor(ed) {
     const c = ed.cursor();
-    const field = c.col <= 10 ? 'location' : c.col <= 17 ? 'opération' : c.col <= 29 ? 'variable' : c.col <= 72 ? 'commentaire' : 'séquence';
-    this.st.cursor.textContent = `Lg ${c.line}, Col ${c.col}${c.selection ? ` (${c.selection} sél.)` : ''} · ${field}`;
+    const field = c.col <= 10 ? 'location' : c.col <= 17 ? 'operation' : c.col <= 29 ? 'variable' : c.col <= 72 ? 'comment' : 'sequence';
+    this.st.cursor.textContent = `Ln ${c.line}, Col ${c.col}${c.selection ? ` (${c.selection} sel.)` : ''} · ${field}`;
     this.st.cursor.classList.toggle('beyond', c.col > 72);
   }
 
@@ -951,10 +956,10 @@ class App {
     if (!S) return;
     const c = this.controller;
     const m = this.machine;
-    const labels = { idle: 'Aucun programme', ready: 'Prêt', running: 'En marche', paused: 'En pause', stopped: 'Arrêté' };
+    const labels = { idle: 'No program', ready: 'Ready', running: 'Running', paused: 'Paused', stopped: 'Stopped' };
     let label = labels[c.state] || c.state;
     let cls = c.state;
-    if (c.state === 'stopped' && c.lastStop && (c.lastStop.error || c.lastStop.reason === 'error')) { label = 'Sortie d\'erreur'; cls = 'error'; }
+    if (c.state === 'stopped' && c.lastStop && (c.lastStop.error || c.lastStop.reason === 'error')) { label = 'Error exit'; cls = 'error'; }
     S.state.className = `sb-item sb-state st-${cls}`;
     S.state.innerHTML = '';
     S.state.append(h('span', { class: 'sb-dot' }), label);
@@ -963,20 +968,20 @@ class App {
     S.time.textContent = fmtTime(m.time);
     const st = c.stats;
     S.mips.textContent = c.state === 'running'
-      ? `${st.mips >= 0.01 ? `${st.mips.toFixed(2).replace('.', ',')} MIPS CPU` : `${(st.ppMips).toFixed(2).replace('.', ',')} MIPS PP`} · × ${st.ratio.toFixed(st.ratio < 1 ? 3 : 2).replace('.', ',')}`
-      : `${m.cpu.instructions.toLocaleString('fr-FR')} instr. CPU`;
+      ? `${st.mips >= 0.01 ? `${st.mips.toFixed(2)} CPU MIPS` : `${(st.ppMips).toFixed(2)} PP MIPS`} · × ${st.ratio.toFixed(st.ratio < 1 ? 3 : 2)}`
+      : `${m.cpu.instructions.toLocaleString('en-US')} CPU instr.`;
     const f = this.activeFile();
     if (this.result && this.assembled && f && this.assembled.id === f.id) {
       const fatal = (this.result.errors || []).filter((e) => e.fatal).length;
       const stale = this.assembled.text !== this.textOf(f.id);
       S.asm.className = `sb-item ${fatal ? 'sb-err' : ''}`;
-      S.asm.textContent = fatal ? `${fatal} erreur${fatal > 1 ? 's' : ''}` : stale ? 'Assemblage à refaire' : 'Assemblé';
+      S.asm.textContent = fatal ? `${fatal} error${fatal > 1 ? 's' : ''}` : stale ? 'Needs reassembly' : 'Assembled';
     } else {
       S.asm.className = 'sb-item dim';
-      S.asm.textContent = f ? 'Non assemblé' : '';
+      S.asm.textContent = f ? 'Not assembled' : '';
     }
-    S.store.textContent = f ? (f.kind === 'text' ? 'Texte XTEXT' : 'COMPASS') : '';
-    S.upper.textContent = this.settings.autoUpper ? 'MAJ' : 'maj';
+    S.store.textContent = f ? (f.kind === 'text' ? 'XTEXT text' : 'COMPASS') : '';
+    S.upper.textContent = this.settings.autoUpper ? 'CAPS' : 'caps';
     S.upper.classList.toggle('on', this.settings.autoUpper);
     const ed = this.activeEditor();
     if (ed) this.updateCursor(ed); else S.cursor.textContent = '';
@@ -986,7 +991,7 @@ class App {
     if (this.logPanel) this.logPanel.add(message, kind);
   }
 
-  // ------------------------------------------------------------- dialogues
+  // ------------------------------------------------------------- dialogs
 
   async settingsDialog() {
     const s = { ...this.settings };
@@ -995,39 +1000,39 @@ class App {
     const ds = h('textarea', { class: 'input mono ds-text', rows: 3, spellcheck: 'false' });
     ds.value = (s.deadstart || []).map((w) => o(w, 4)).join(' ');
     const err = h('div', { class: 'field-error' });
-    const cm = select([[String(0o100000), '32 768 mots (100000B)'], [String(0o200000), '65 536 mots (200000B)'], [String(0o400000), '131 072 mots (400000B)'], [String(0o1000000), '262 144 mots (1000000B)']], String(s.cmWords), (v) => { s.cmWords = Number(v); });
-    const ecs = select([['0', 'Sans ECS'], [String(0o200000), '65 536 mots'], [String(0o400000), '131 072 mots'], [String(0o2000000), '524 288 mots']], String(s.ecsWords), (v) => { s.ecsWords = Number(v); });
+    const cm = select([[String(0o100000), '32,768 words (100000B)'], [String(0o200000), '65,536 words (200000B)'], [String(0o400000), '131,072 words (400000B)'], [String(0o1000000), '262,144 words (1000000B)']], String(s.cmWords), (v) => { s.cmWords = Number(v); });
+    const ecs = select([['0', 'No ECS'], [String(0o200000), '65,536 words'], [String(0o400000), '131,072 words'], [String(0o2000000), '524,288 words']], String(s.ecsWords), (v) => { s.ecsWords = Number(v); });
     const model = select(Object.entries(MODELS).map(([k, v]) => [k, v.name]), s.model, (v) => { s.model = v; });
     const mode = select(Object.entries(RUN_MODES), s.mode, (v) => { s.mode = v; });
     const ppn = select([...Array(10).keys()].map((n) => [String(n), `PP${o(n, 2)}`]), String(s.ppNumber), (v) => { s.ppNumber = Number(v); });
-    const theme = segmented([['auto', 'Système'], ['light', 'Clair'], ['dark', 'Sombre']], s.theme, (v) => { s.theme = v; });
+    const theme = segmented([['auto', 'System'], ['light', 'Light'], ['dark', 'Dark']], s.theme, (v) => { s.theme = v; });
     const font = select([11, 12, 13, 14, 15, 16, 18, 20].map((n) => [String(n), `${n} px`]), String(s.fontSize), (v) => { s.fontSize = Number(v); });
-    const upper = toggle(s.autoUpper, (v) => { s.autoUpper = v; }, 'Majuscules automatiques');
-    const auto = toggle(s.autoAssemble, (v) => { s.autoAssemble = v; }, 'Assembler pendant la frappe');
+    const upper = toggle(s.autoUpper, (v) => { s.autoUpper = v; }, 'Automatic uppercase');
+    const auto = toggle(s.autoAssemble, (v) => { s.autoAssemble = v; }, 'Assemble while typing');
     const body = h('div', { class: 'form settings' },
       h('div', { class: 'form-sec' }, 'Machine'),
       h('div', { class: 'form-grid' },
-        field('Modèle', model), field('Mémoire centrale', cm), field('ECS (mémoire étendue)', ecs)),
-      h('div', { class: 'form-sec' }, 'Exécution'),
+        field('Model', model), field('Central memory', cm), field('ECS (extended core storage)', ecs)),
+      h('div', { class: 'form-sec' }, 'Execution'),
       h('div', { class: 'form-grid' },
-        field('Mode', mode), field('PP du mode PP', ppn),
-        field('RA (octal)', ra, 'Base du programme CPU'), field('FL (octal)', fl, '0 = jusqu\'à la fin de la mémoire'),
-        field('EM (octal)', em, '70000B : sorties d\'erreur sur adresse, opérande infini et indéfini')),
-      field('Panneau de deadstart (mots octaux, 16 au plus)', ds, `Panneau du mode « Système (deadstart sur bande) » : ${DEADSTART_PANEL.map((w) => o(w, 4)).join(' ')}`),
+        field('Mode', mode), field('PP for PP mode', ppn),
+        field('RA (octal)', ra, 'CPU program base'), field('FL (octal)', fl, '0 = up to the end of memory'),
+        field('EM (octal)', em, '70000B: error exits on address out of range, infinite and indefinite operand')),
+      field('Deadstart panel (octal words, 16 at most)', ds, `Panel for the “System (tape deadstart)” mode: ${DEADSTART_PANEL.map((w) => o(w, 4)).join(' ')}`),
       h('div', { class: 'form-sec' }, 'Interface'),
-      h('div', { class: 'form-grid' }, field('Thème', theme), field('Taille de police de l\'éditeur', font)),
+      h('div', { class: 'form-grid' }, field('Theme', theme), field('Editor font size', font)),
       h('div', { class: 'form-row' }, upper, auto),
       err);
     const ok = await openDialog({
-      title: 'Paramètres', body, width: 620,
-      buttons: [{ label: 'Annuler', value: false }, {
-        label: 'Appliquer', kind: 'primary',
+      title: 'Settings', body, width: 620,
+      buttons: [{ label: 'Cancel', value: false }, {
+        label: 'Apply', kind: 'primary',
         action: () => {
           const pr = parseOctal(ra.value), pf = parseOctal(fl.value), pe = parseOctal(em.value);
-          if (pr === null || pf === null || pe === null) { err.textContent = 'RA, FL et EM doivent être des nombres octaux.'; return false; }
+          if (pr === null || pf === null || pe === null) { err.textContent = 'RA, FL and EM must be octal numbers.'; return false; }
           const words = ds.value.trim() ? ds.value.trim().split(/[\s,]+/).map((x) => parseOctal(x)) : [];
-          if (words.some((w) => w === null || w > 0o7777n) || words.length > 16) { err.textContent = 'Panneau : 16 mots octaux de 12 bits au plus.'; return false; }
-          if (Number(pr) >= s.cmWords) { err.textContent = 'RA dépasse la taille de la mémoire.'; return false; }
+          if (words.some((w) => w === null || w > 0o7777n) || words.length > 16) { err.textContent = 'Panel: at most 16 octal words of 12 bits.'; return false; }
+          if (Number(pr) >= s.cmWords) { err.textContent = 'RA exceeds the memory size.'; return false; }
           s.ra = Number(pr); s.fl = Number(pf); s.em = Number(pe);
           s.deadstart = words.map(Number);
           return true;
@@ -1047,23 +1052,31 @@ class App {
     this.dsPanel.render();
     if (machineChanged) {
       this.rebuildMachine();
-      this.log(`Machine reconfigurée : ${MODELS[s.model].name}, ${s.cmWords} mots de mémoire centrale.`);
+      this.log(`Machine reconfigured: ${MODELS[s.model].name}, ${s.cmWords} words of central memory.`);
     } else this.loaded = this.loaded && { ...this.loaded, text: null };
     this.updateStatus();
-    toast('Paramètres appliqués', 'ok', 1500);
+    toast('Settings applied', 'ok', 1500);
+  }
+
+  /** F1: COMPASS reference entry for the operation under the cursor. */
+  contextHelp() {
+    const ed = this.activeEditor();
+    const inEditor = ed && document.activeElement && document.activeElement.classList.contains('ed-input');
+    this.rightTabs.select('docs');
+    this.docs.help(inEditor ? ed.helpWords() : []);
   }
 
   shortcutsDialog() {
     const rows = SHORTCUTS.map(([k, d]) => h('tr', null, h('td', null, ...k.split(' / ').flatMap((part, i) => [i ? ' / ' : null, ...part.split('+').flatMap((x, j) => [j ? '+' : null, h('kbd', null, x)])]).filter(Boolean)), h('td', null, d)));
     openDialog({
-      title: 'Raccourcis clavier', width: 560,
+      title: 'Keyboard shortcuts', width: 560,
       body: h('div', null, h('table', { class: 'grid-table keys' }, h('tbody', null, ...rows)),
-        h('p', { class: 'dim small' }, 'La documentation complète (instructions CPU et PP, pseudo-instructions, code display, périphériques) est dans l\'onglet Documentation.')),
-      buttons: [{ label: 'Documentation', value: 'doc' }, { label: 'Fermer', kind: 'primary', value: true }],
+        h('p', { class: 'dim small' }, 'The full documentation (CPU and PP instructions, pseudo-instructions, display code, peripherals) is in the Documentation tab.')),
+      buttons: [{ label: 'Documentation', value: 'doc' }, { label: 'Close', kind: 'primary', value: true }],
     }).then((v) => { if (v === 'doc') this.rightTabs.select('docs'); });
   }
 
-  // ------------------------------------------------------------- clavier
+  // ------------------------------------------------------------ keyboard
 
   bindKeys() {
     window.addEventListener('keydown', (e) => {
@@ -1071,7 +1084,8 @@ class App {
       const ctrl = e.ctrlKey || e.metaKey;
       const k = e.key;
       const run = (fn) => { e.preventDefault(); e.stopPropagation(); hideTip(); fn(); };
-      if (k === 'F1') return run(() => this.shortcutsDialog());
+      if (k === 'F1' && e.shiftKey) return run(() => this.shortcutsDialog());
+      if (k === 'F1') return run(() => this.contextHelp());
       if (k === 'F5' && ctrl && e.shiftKey) return run(() => this.reload());
       if (k === 'F5') return run(() => this.run());
       if (k === 'F6') return run(() => this.controller.pause());
@@ -1091,10 +1105,10 @@ class App {
   }
 }
 
-/** Démarrage (le module ne touche au DOM qu'ici). */
+/** Startup (the module touches the DOM only here). */
 export function start() {
   const app = new App();
-  globalThis.__atelier = app;
+  globalThis.__workbench = app;
   return app;
 }
 

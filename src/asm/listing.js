@@ -1,8 +1,8 @@
-// Listing d'assemblage au format COMPASS 3.
+// Assembly listing in COMPASS 3 format.
 //
-// Ligne : col 1-3 drapeaux d'erreur, col 4 « L », col 5-10 adresse, col 12-31
-// code octal (parcelle p en colonne 12+5p), col 33 indicateur de relocation,
-// col 41-112 image source (colonnes 1-72), col 113-130 séquence / origine.
+// Line: col 1-3 error flags, col 4 "L", col 5-10 address, col 12-31
+// octal code (parcel p in column 12+5p), col 33 relocation indicator,
+// col 41-112 source image (columns 1-72), col 113-130 sequence / origin.
 
 import { ERROR_TEXT, FATAL } from './assembler.js';
 import { wordToDisplay } from '../common/charset.js';
@@ -55,9 +55,9 @@ export class Listing {
     this.lineOnPage = PAGE_LINES;
   }
 
-  // ---------------------------------------------------------- lignes
+  // ---------------------------------------------------------- lines
 
-  /** Lignes précédant le premier IDENT (commentaires). */
+  /** Lines preceding the first IDENT (comments). */
   preamble(st) {
     this.emit(''.padEnd(40) + st.img);
   }
@@ -76,9 +76,9 @@ export class Listing {
     if (this.opts.has('B')) this.headerInfo();
   }
 
-  /** Résumé des blocs et points d'entrée (en tête de programme). */
+  /** Summary of blocks and entry points (at program start). */
   headerInfo() {
-    // produit à la fin du programme (les longueurs sont alors connues) : voir endProgram
+    // produced at end of program (lengths are known then): see endProgram
   }
 
   visible(entry) {
@@ -132,13 +132,13 @@ export class Listing {
     }
     if (!this.visible(e)) {
       this.carryToCall(e);
-      // les références d'une ligne non listée sont rattachées à la dernière ligne listée
+      // references of an unlisted line are attached to the last listed line
       if (e.level > 0 && this.lastPos) e.listPos = this.lastPos;
       this.mapLine(e, null);
       return;
     }
     const lines = this.format(e);
-    // option A : ligne éditée listée après la ligne lue
+    // option A: edited line listed after the line as read
     if (this.opts.has('A') && e.edited && e.img !== e.rawImg && lines.length) {
       const ed = { ...e, rawImg: e.img, code: [], flags: new Set(), listValue: '' };
       lines.splice(1, 0, ...this.format(ed));
@@ -162,7 +162,7 @@ export class Listing {
     this.mapLine(e, first);
   }
 
-  /** Le code d'une expansion non listée apparaît sur la ligne d'appel (premier mot). */
+  /** Code of an unlisted expansion appears on the call line (first word). */
   carryToCall(e) {
     const lc = this.lastCall;
     if (!lc || !e.code || !e.code.length || e.level <= lc.level) return;
@@ -180,7 +180,7 @@ export class Listing {
     }
   }
 
-  /** Correspondance ligne source -> adresse pour l'IDE. */
+  /** Source line -> address map for the IDE. */
   mapLine(e, pos) {
     if (!e.site) return;
     const c = e.code && e.code.find((x) => !x.lit);
@@ -204,7 +204,7 @@ export class Listing {
       location: (c.locBlock ? c.locBlock.final : 0) + c.loc };
   }
 
-  /** Lignes de listing d'une entrée. */
+  /** Listing lines of an entry. */
   format(e) {
     const a = this.asm;
     const flags = sortFlags(e.flags);
@@ -234,7 +234,7 @@ export class Listing {
       out.push(line(flags, false, addr, val.toString().padStart(20).slice(-20), '', src, seq));
       return out;
     }
-    // regroupement des morceaux par mot (mots de détail : options D ou G)
+    // group chunks by word (detail words: options D or G)
     const words = [];
     const showDetail = this.opts.has('D') || this.opts.has('G');
     for (const c of e.code) {
@@ -253,7 +253,7 @@ export class Listing {
         const digits = new Array(20).fill(' ');
         let rel = '';
         for (const c of w.chunks) {
-          const startBit = 60 - c.pos;       // nombre de bits avant le morceau
+          const startBit = 60 - c.pos;       // number of bits before the chunk
           const d0 = Math.floor(startBit / 3);
           const d1 = Math.ceil((startBit + c.bits) / 3);
           const val = c.value << BigInt(c.pos - c.bits);
@@ -263,10 +263,10 @@ export class Listing {
         const showAddr = idx > 0 || w.c0.pos === 60 || (e.f && e.f.loc && e.f.loc !== '-');
         const code = digits.join('');
         out.push(line(idx === 0 ? flags : '', showAddr && Lmark, showAddr ? loc.toString(8) : '', code.trimEnd().padEnd(20), rel, idx === 0 ? src : '', idx === 0 ? seq : ''));
-        if (Lmark && showAddr && orig !== loc) { /* adresse d'origine non affichée */ }
+        if (Lmark && showAddr && orig !== loc) { /* origin address not shown */ }
       });
     } else {
-      // PP : mots de 12 bits, une instruction de deux mots sur une ligne
+      // PP: 12-bit words, a two-word instruction on one line
       const wd = wb === 16 ? 6 : 4;
       const groups = [];
       for (const w of words) {
@@ -297,10 +297,10 @@ export class Listing {
     return (e.st && e.st.seq) || '';
   }
 
-  // ---------------------------------------------------------- fin de programme
+  // ---------------------------------------------------------- end of program
 
   endProgram(a) {
-    // résumé des blocs
+    // block summary
     if (this.opts.has('B')) {
       this.eject();
       this.emit('BLOCKS        TYPE          ADDRESS      LENGTH');
@@ -329,7 +329,7 @@ export class Listing {
         columns(items, 6, 16).forEach((l) => this.emit(l));
       }
     }
-    // littéraux et symboles par défaut (option D)
+    // literals and default symbols (option D)
     const lb = a.blockOrder.find((b) => b.type === 'lit');
     if (this.opts.has('D') && lb && a.literals.length) {
       this.emit('');
@@ -340,14 +340,14 @@ export class Listing {
         else this.emit(addr.padStart(8) + '   ' + w.toString(8).padStart(4, '0'));
       });
     }
-    // statistiques
+    // statistics
     this.emit('');
     const used = Math.max(0o40000, (a.statements * 3) & ~0o77);
     const nsyms = a.symbolOrder.filter((s) => !s.name.startsWith('!')).length;
     this.emit(`${used.toString(8).padStart(16)}B CM STORAGE USED${String(a.statements).padStart(12)} STATEMENTS${String(nsyms).padStart(12)} SYMBOLS`);
     this.emit(`${''.padStart(56)}${String(a.inventedCount || 0).padStart(14)} INVENTED SYMBOLS`);
     this.emit(`${'6600-TYPE CPU ASSEMBLY'.padStart(32)}${''.padStart(24)}${String(a.references || 0).padStart(14)} REFERENCES`);
-    // répertoire d'erreurs
+    // error directory
     let nErr = 0, nWarn = 0;
     for (const e of a.entries) for (const f of e.flags) (FATAL.has(f) ? nErr++ : nWarn++);
     if (nErr) this.emit(`${String(nErr).padStart(16)} ERRORS`);
@@ -362,7 +362,7 @@ export class Listing {
         this.emit(`                  OCCURRED ON PAGES   ${[...pages].join(', ')}`);
       }
     }
-    // table des références symboliques
+    // symbolic reference table
     if (this.opts.has('R')) this.referenceTable(a);
   }
 
@@ -408,7 +408,7 @@ function sortFlags(set) {
   return [...set].sort((a, b) => FLAG_ORDER.indexOf(a) - FLAG_ORDER.indexOf(b)).join('');
 }
 
-/** Code octal d'une entrée : une valeur par instruction, ou par mot pour les données. */
+/** Octal code of an entry: one value per instruction, or per word for data. */
 function octalWords(e, wb) {
   if (e.kind === 'instr' && wb === 60) return e.code.map((x) => octDigits(x.value, x.bits));
   const words = [];

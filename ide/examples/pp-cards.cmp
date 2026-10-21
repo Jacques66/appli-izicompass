@@ -1,0 +1,183 @@
+          IDENT  CARDS,100B
+          PERIPH
+          ORG    100B
+*         PP PROGRAM: READS CARDS ON THE 405 CARD READER
+*         (CHANNEL 12B) AND DISPLAYS THE FIRST 64 COLUMNS ON THE
+*         CONSOLE.
+*
+*         EACH CARD GIVES 80 12-BIT WORDS: ONE COLUMN PER WORD,
+*         ONE BIT PER PUNCH (BIT 11 = ROW 12, BIT 10 = ROW 11,
+*         BIT 9 = ROW 0, BITS 8 TO 0 = ROWS 1 TO 9). THE PP
+*         CONVERTS THE HOLLERITH CODE (029) TO DISPLAY CODE.
+*         READING: FNC 702B, ACN, IAM OF 80 WORDS; THE CHANNEL
+*         DISCONNECTS BY ITSELF AT THE END OF THE CARD. IF THE HOPPER
+*         IS EMPTY, A REMAINS NONZERO.
+*
+*         BEFORE RUNNING: PERIPHERALS TAB > CARD READER, ENTER A
+*         DECK, THEN LOAD IT INTO THE READER.
+*
+CH        EQU    12B         READER/PRINTER CHANNEL
+FREAD     EQU    702B        READ ONE CARD
+CHC       EQU    10B         CONSOLE CHANNEL
+LSMALL    EQU    7000B       LEFT SCREEN, SMALL CHARACTERS
+MAXC      EQU    24D         MAXIMUM NUMBER OF CARDS SHOWN
+LLEN      EQU    34D         WORDS PER DISPLAYED LINE (2 + 32)
+*
+NC        EQU    20B         NUMBER OF CARDS READ
+PL        EQU    21B         POINTER INTO THE DISPLAY AREA
+PC        EQU    22B         POINTER INTO THE CARD
+NW        EQU    23B         WORDS LEFT TO BUILD
+V         EQU    24B         COLUMN TO CONVERT
+D         EQU    25B         ROWS 1 TO 9 OF THE COLUMN
+NR        EQU    26B         ROW NUMBER OF THE DIGIT
+Z         EQU    27B         ZONE (0, 12, 11, 0)
+EIGHT     EQU    30B         COMBINED 8 PUNCH
+T1        EQU    31B
+C1        EQU    32B         FIRST CHARACTER OF THE WORD
+Y         EQU    33B         CURRENT Y COORDINATE
+NT        EQU    34B         NUMBER OF WORDS TO DISPLAY
+*
+START     LDN    0
+          STD    NC
+          STD    NT
+          LDC    AREA
+          STD    PL
+          LDC    7000B+700B
+          STD    Y
+*
+*         READ ONE CARD
+*
+NEXTC     LDD    NC
+          SBN    MAXC
+          MJN    NEXTC1
+          LJM    SHOW        DISPLAY AREA FULL
+NEXTC1    FNC    FREAD,CH
+          ACN    CH
+          LDC    80D         80 COLUMNS
+          IAM    CARD,CH
+          ZJN    GOTC        CARD COMPLETE
+          LJM    SHOW        HOPPER EMPTY: DISPLAY
+GOTC      LDM    CARD        COLUMN 1
+          SBN    17B         6/7/8/9 OR 7/8/9 CARD?
+          ZJN    ENDC
+          ADN    17B-7
+          NJN    BUILD
+ENDC      LJM    SHOW        END CARD: DISPLAY
+*
+*         BUILD A LINE: X, Y THEN 32 WORDS OF TWO CHARACTERS
+*
+BUILD     LDC    6000B       X = 0: 64 CHARACTERS PER LINE
+          STI    PL          X COORDINATE
+          AOD    PL
+          LDD    Y
+          STI    PL          Y COORDINATE
+          AOD    PL
+          LDD    Y
+          SBN    14B         NEXT LINE BELOW
+          STD    Y
+          LDC    CARD
+          STD    PC
+          LDN    32D
+          STD    NW
+WORD      LDI    PC
+          STD    V
+          RJM    HOLL        FIRST CHARACTER
+          SHN    6
+          STD    C1
+          AOD    PC
+          LDI    PC
+          STD    V
+          RJM    HOLL        SECOND CHARACTER
+          ADD    C1
+          STI    PL
+          AOD    PL
+          AOD    PC
+          SOD    NW
+          NJN    WORD
+          AOD    NC          ONE MORE CARD
+          LDD    NT
+          ADN    LLEN
+          STD    NT
+          LJM    NEXTC
+*
+*         CONSOLE REFRESH LOOP
+*
+SHOW      FNC    LSMALL,CHC
+          ACN    CHC
+          LDN    BANNERL
+          OAM    BANNER,CHC
+          LDD    NT
+          OAM    AREA,CHC    CARD LINES
+          DCN    CHC
+          UJN    SHOW
+*
+*         HOLL: HOLLERITH COLUMN (V) -> A = DISPLAY CHARACTER
+*
+HOLLX     LJM    *
+HOLL      EQU    *-1
+          LDN    0
+          STD    EIGHT
+          STD    NR
+          LDD    V
+          LPC    777B        ROWS 1 TO 9
+          STD    D
+          ZJN    ZONES       NO DIGIT
+          LMN    2
+          ZJN    DIGIT       8 ALONE: ORDINARY DIGIT
+          LDD    D
+          LPN    2
+          ZJN    DIGIT       NO 8 PUNCH
+          AOD    EIGHT       COMBINED 8: SPECIAL CHARACTER
+          LDD    D
+          LMN    2           REMOVES THE 8 PUNCH
+          STD    D
+DIGIT     LDN    9D
+          STD    NR
+DIGIT1    LDD    D           LOOKS FOR THE ROW BIT
+          LMN    1
+          ZJN    ZONES
+          LDD    D
+          SHN    -1
+          STD    D
+          SOD    NR
+          UJN    DIGIT1
+ZONES     LDD    V
+          SHN    -9D         ROWS 12, 11 AND 0
+          STD    Z
+          LDM    ZIDX,Z      ZONE NUMBER 0 TO 3
+          STD    Z
+          LDD    EIGHT
+          NJN    SPEC
+          LDD    Z           INDEX = 10*ZONE + DIGIT
+          SHN    3
+          ADD    Z
+          ADD    Z
+          ADD    NR
+          STD    T1
+          LDM    TAB,T1
+          LJM    HOLLX
+SPEC      LDD    Z           INDEX = 8*ZONE + DIGIT
+          SHN    3
+          ADD    NR
+          STD    T1
+          LDM    TAB8,T1
+          LJM    HOLLX
+*
+*         CONVERSION TABLES (029 CODE)
+*
+ZIDX      CON    0,3,2,2,1,1,1,1 ROWS 12/11/0 -> ZONE
+TAB       CON    55B,34B,35B,36B,37B,40B,41B,42B,43B,44B NO ZONE
+          CON    67B,1B,2B,3B,4B,5B,6B,7B,10B,11B ZONE 12
+          CON    46B,12B,13B,14B,15B,16B,17B,20B,21B,22B ZONE 11
+          CON    33B,50B,23B,24B,25B,26B,27B,30B,31B,32B ZONE 0
+TAB8      CON    43B,71B,0B,60B,74B,70B,54B,64B NO ZONE + 8
+          CON    10B,71B,61B,57B,72B,51B,45B,66B ZONE 12 + 8
+          CON    21B,71B,62B,53B,47B,52B,77B,76B ZONE 11 + 8
+          CON    31B,71B,75B,56B,63B,65B,73B,71B ZONE 0 + 8
+*
+BANNER    CON    6000B+20B,7000B+740B
+          DIS    21,405 CARD READER - DECK CONTENTS
+BANNERL   EQU    *-BANNER
+CARD      BSS    80D         CARD READ (80 COLUMNS)
+AREA      BSS    MAXC*LLEN   LINES TO DISPLAY
+          END

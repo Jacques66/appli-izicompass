@@ -1,10 +1,10 @@
-// Éléments communs aux panneaux : liste virtuelle, sections repliables, barres d'outils.
+// Shared panel elements: virtual list, collapsible sections, toolbars.
 
 import { h, icon, store } from '../dom.js';
 
 /**
- * Liste virtuelle à hauteur de ligne fixe : seules les lignes visibles sont
- * construites (mémoire centrale de 131072 mots, listing de milliers de lignes).
+ * Virtual list with a fixed row height: only the visible rows are built
+ * (central memory of 131072 words, listings of thousands of lines).
  */
 export class VirtualList {
   constructor({ rowHeight = 20, count = 0, render, cls = '', onClick = null, onDblClick = null, onContext = null }) {
@@ -69,7 +69,7 @@ export class VirtualList {
   }
 }
 
-/** Section repliable avec titre et actions. */
+/** Collapsible section with a title and actions. */
 export function section(title, body, { key = null, actions = [], open = true, cls = '' } = {}) {
   const saved = key ? store.get(`cdc6600-ide/section/${key}`) : null;
   const isOpen = saved === null ? open : saved;
@@ -85,29 +85,29 @@ export function section(title, body, { key = null, actions = [], open = true, cl
   return el;
 }
 
-/** Barre d'outils de panneau. */
+/** Panel toolbar. */
 export function toolbar(...items) {
   return h('div', { class: 'ptool' }, ...items);
 }
 
-/** Petit bouton texte de barre d'outils. */
+/** Small text toolbar button. */
 export function tbtn(label, onclick, { icon: ic = null, tip = null, cls = '' } = {}) {
   return h('button', { class: `tbtn ${cls}`, type: 'button', onclick, 'data-tip': tip }, ic ? icon(ic, 14) : null, label ? h('span', null, label) : null);
 }
 
-/** Champ de saisie compact. */
+/** Compact input field. */
 export function tinput({ placeholder = '', value = '', width = 90, onenter = null, cls = '', mono = true } = {}) {
   const i = h('input', { class: `tinput ${mono ? 'mono' : ''} ${cls}`, type: 'text', placeholder, value, spellcheck: 'false', style: { width: `${width}px` } });
   if (onenter) i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onenter(i.value, e); } });
   return i;
 }
 
-/** Message d'état vide (« aucun programme chargé »...). */
+/** Empty-state message ("no program loaded"...). */
 export function emptyState(iconName, title, text) {
   return h('div', { class: 'empty' }, icon(iconName, 28), h('div', { class: 'empty-title' }, title), text ? h('div', { class: 'empty-text' }, text) : null);
 }
 
-/** Édition en place d'une cellule : remplace son contenu par un champ. */
+/** In-place cell editing: replaces the cell content with an input field. */
 export function inlineEdit(cell, initial, commit, { width = null } = {}) {
   if (cell.querySelector('input')) return;
   const old = cell.innerHTML;

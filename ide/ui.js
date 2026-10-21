@@ -1,14 +1,14 @@
-// Composants d'interface : infobulles, notifications, boîtes de dialogue, menus.
+// Interface components: tooltips, notifications, dialog boxes, menus.
 
 import { h, icon } from './dom.js';
 
-// ------------------------------------------------------------- infobulles
+// --------------------------------------------------------------- tooltips
 
 let tipEl = null;
 let tipTimer = null;
 let tipTarget = null;
 
-/** Infobulles personnalisées pour tout élément portant data-tip. */
+/** Custom tooltips for every element that carries data-tip. */
 export function initTooltips() {
   tipEl = h('div', { class: 'tooltip', role: 'tooltip' });
   document.body.append(tipEl);
@@ -54,7 +54,7 @@ export function hideTip() {
 
 let toastHost = null;
 
-/** Notification temporaire en bas à droite. kind : info | ok | warn | error */
+/** Temporary notification at the bottom right. kind: info | ok | warn | error */
 export function toast(message, kind = 'info', ms = 3500) {
   if (!toastHost) {
     toastHost = h('div', { class: 'toasts', 'aria-live': 'polite' });
@@ -70,17 +70,17 @@ export function toast(message, kind = 'info', ms = 3500) {
   }, ms);
 }
 
-// ------------------------------------------------------- boîtes de dialogue
+// ------------------------------------------------------------ dialog boxes
 
 let openDialogs = 0;
 export const dialogIsOpen = () => openDialogs > 0;
 
 /**
- * Boîte de dialogue modale.
+ * Modal dialog box.
  * @param {{ title, body: Node|string, buttons: [{ label, kind, value, action }], width, onOpen }} opts
- * @returns Promise résolue avec la valeur du bouton (ou null si fermée)
+ * @returns Promise resolved with the button value (or null if closed)
  */
-export function openDialog({ title, body, buttons = [{ label: 'Fermer', kind: 'primary', value: true }], width = 480, onOpen, cls = '' }) {
+export function openDialog({ title, body, buttons = [{ label: 'Close', kind: 'primary', value: true }], width = 480, onOpen, cls = '' }) {
   return new Promise((resolve) => {
     openDialogs++;
     const prevFocus = document.activeElement;
@@ -112,7 +112,7 @@ export function openDialog({ title, body, buttons = [{ label: 'Fermer', kind: 'p
     const dlg = h('div', { class: `dialog ${cls}`, role: 'dialog', 'aria-modal': 'true', style: { width: `${width}px` } },
       h('div', { class: 'dialog-header' },
         h('div', { class: 'dialog-title' }, title),
-        h('button', { class: 'btn-icon', type: 'button', 'aria-label': 'Fermer', onclick: () => close(null) }, icon('close', 16))),
+        h('button', { class: 'btn-icon', type: 'button', 'aria-label': 'Close', onclick: () => close(null) }, icon('close', 16))),
       h('div', { class: 'dialog-body' }, typeof body === 'string' ? h('p', null, body) : body),
       buttons.length ? footer : null);
     const overlay = h('div', { class: 'overlay', onmousedown: (e) => { if (e.target === overlay) close(null); } }, dlg);
@@ -137,7 +137,7 @@ export function openDialog({ title, body, buttons = [{ label: 'Fermer', kind: 'p
   });
 }
 
-/** Saisie d'un texte. Résout avec la chaîne ou null. */
+/** Text input. Resolves with the string or null. */
 export async function promptDialog(title, label, value = '', { placeholder = '', validate } = {}) {
   const input = h('input', { class: 'input', type: 'text', value, placeholder, autofocus: true, spellcheck: 'false' });
   const err = h('div', { class: 'field-error' });
@@ -146,9 +146,9 @@ export async function promptDialog(title, label, value = '', { placeholder = '',
   const ok = await openDialog({
     title, body, width: 420,
     buttons: [
-      { label: 'Annuler', value: false },
+      { label: 'Cancel', value: false },
       {
-        label: 'Valider', kind: 'primary',
+        label: 'OK', kind: 'primary',
         action: () => {
           const v = input.value.trim();
           const msg = validate ? validate(v) : null;
@@ -163,11 +163,11 @@ export async function promptDialog(title, label, value = '', { placeholder = '',
   return ok ? result : null;
 }
 
-/** Confirmation. Résout avec true/false. */
-export async function confirmDialog(title, message, { okLabel = 'Confirmer', danger = false } = {}) {
+/** Confirmation. Resolves with true/false. */
+export async function confirmDialog(title, message, { okLabel = 'Confirm', danger = false } = {}) {
   const r = await openDialog({
     title, body: message, width: 420,
-    buttons: [{ label: 'Annuler', value: false }, { label: okLabel, kind: danger ? 'danger' : 'primary', value: true }],
+    buttons: [{ label: 'Cancel', value: false }, { label: okLabel, kind: danger ? 'danger' : 'primary', value: true }],
   });
   return r === true;
 }
@@ -176,7 +176,7 @@ export async function confirmDialog(title, message, { okLabel = 'Confirmer', dan
 
 let menuEl = null;
 
-/** Menu contextuel : items [{ label, icon, action, danger, separator, disabled, hint }]. */
+/** Context menu: items [{ label, icon, action, danger, separator, disabled, hint }]. */
 export function contextMenu(items, x, y) {
   closeMenu();
   menuEl = h('div', { class: 'menu', role: 'menu' });
@@ -212,14 +212,14 @@ export function closeMenu() {
   document.removeEventListener('keydown', onMenuKey, true);
 }
 
-// ---------------------------------------------------- contrôles de formulaire
+// ----------------------------------------------------------- form controls
 
-/** Champ de formulaire étiqueté. */
+/** Labeled form field. */
 export function field(label, control, hint = null) {
   return h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), control, hint ? h('span', { class: 'field-hint' }, hint) : null);
 }
 
-/** Liste déroulante stylée. options : [[valeur, libellé]] */
+/** Styled drop-down list. options: [[value, label]] */
 export function select(options, value, onchange, cls = '') {
   const s = h('select', { class: `select ${cls}`, onchange: (e) => onchange && onchange(e.target.value) });
   for (const [v, l] of options) s.append(h('option', { value: v }, l));
@@ -227,14 +227,14 @@ export function select(options, value, onchange, cls = '') {
   return s;
 }
 
-/** Interrupteur (case à cocher stylée). */
+/** Switch (styled checkbox). */
 export function toggle(checked, onchange, label = null) {
   const input = h('input', { type: 'checkbox', class: 'switch-input', onchange: (e) => onchange && onchange(e.target.checked) });
   input.checked = !!checked;
   return h('label', { class: 'switch' }, input, h('span', { class: 'switch-track' }, h('span', { class: 'switch-thumb' })), label ? h('span', { class: 'switch-label' }, label) : null);
 }
 
-/** Contrôle segmenté : options [[valeur, libellé, infobulle]] */
+/** Segmented control: options [[value, label, tooltip]] */
 export function segmented(options, value, onchange) {
   const el = h('div', { class: 'segmented', role: 'radiogroup' });
   const set = (v) => {

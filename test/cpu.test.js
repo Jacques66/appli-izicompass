@@ -16,7 +16,7 @@ test('SX6 / SA6 / PS', () => {
   assert.equal(m.cm[0o100], 5n);
 });
 
-test('boucle B, RJ et flottant', () => {
+test('B loop, RJ and floating point', () => {
   const m = new Machine({ ecsWords: 0 });
   // 0: SB1 B0+10 ; SB2 B0+0        (61 1 0 000010, 61 2 0 000000)
   // 1: SB2 B2+1  ; NE B1 B2 1      (61 2 2 000001, 05 1 2 000001)
@@ -39,18 +39,18 @@ test('boucle B, RJ et flottant', () => {
   assert.ok(m.cpu.cycles > 0);
 });
 
-test('sortie d\'erreur : adresse hors limites avec EM', () => {
+test('error exit: address out of range with EM', () => {
   const m = new Machine({ ecsWords: 0 });
   load(m, ['51100 07777 46000 46000']);
   m.startCPU({ P: 0, FL: 0o100, RA: 0o200, EM: 0o010000 });
-  // programme en RA=200
+  // program at RA=200
   m.cm[0o200] = m.cm[0]; m.cm[0] = 0n;
   m.run(100);
   assert.equal(m.cpu.stopped, true);
   assert.equal((m.cm[0o200] >> 48n) & 7n, 1n);
 });
 
-test('disque 6603 : écriture puis lecture d\'un secteur par un PP', async () => {
+test('disk 6603: a PP writes then reads a sector', async () => {
   const { assemble } = await import('../src/asm/compass.js');
   const { loadPP } = await import('../src/loader/loader.js');
   const r = assemble(`
@@ -58,14 +58,14 @@ test('disque 6603 : écriture puis lecture d\'un secteur par un PP', async () =>
           PERIPH
  CH       EQU    13B
           ORG    100B
- START    FNC    1405B,CH    PISTE 5
-          FNC    1602B,CH    TETE 2
-          FNC    1207B,CH    ECRIRE LE SECTEUR 7
+ START    FNC    1405B,CH    TRACK 5
+          FNC    1602B,CH    HEAD 2
+          FNC    1207B,CH    WRITE SECTOR 7
           ACN    CH
           LDN    3
           OAM    DATA,CH
           DCN    CH
-          FNC    1007B,CH    LIRE LE SECTEUR 7
+          FNC    1007B,CH    READ SECTOR 7
           ACN    CH
           LDN    3
           IAM    BUF,CH

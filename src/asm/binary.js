@@ -1,16 +1,16 @@
-// Binaire produit par COMPASS : tables du chargeur CDC.
+// Binary produced by COMPASS: CDC loader tables.
 //
-// Relogeable : PRFX (7700), [LDSET 7000], PIDL (3400), ENTR (3600), TEXT (4000),
+// Relocatable: PRFX (7700), [LDSET 7000], PIDL (3400), ENTR (3600), TEXT (4000),
 // REPL (4300), FILL (4200), LINK (4400), XFER (4600).
-// Absolu CPU : PRFX, table d'overlay 5000 (ou 5100 avec points d'entrée), image.
-// PP : PRFX, mot d'en-tête PP, image (5 mots PP par mot CM).
+// CPU absolute: PRFX, overlay table 5000 (or 5100 with entry points), image.
+// PP: PRFX, PP header word, image (5 PP words per CM word).
 
 import { displayToWord } from '../common/charset.js';
 
 const hdr = (code, wc, rest = 0n) => (BigInt(code) << 48n) | (BigInt(wc) << 36n) | (rest & ((1n << 36n) - 1n));
 
 function nameWord(name) {
-  // 7 caractères maximum, zéros à droite, 18 bits bas à zéro
+  // 7 characters maximum, zero-filled on the right, low 18 bits zero
   let w = 0n;
   const s = name.slice(0, 7);
   for (let i = 0; i < 7; i++) {
@@ -29,7 +29,7 @@ function text10(s) {
   return displayToWord(s.padEnd(10).slice(0, 10));
 }
 
-/** Table préfixe 7700 (14 mots après l'en-tête). */
+/** Prefix table 7700 (14 words after the header). */
 export function prefixTable(asm, prog) {
   const w = [hdr(0o7700, 0o16)];
   w.push(nameWord(prog.name || ''));
@@ -38,7 +38,7 @@ export function prefixTable(asm, prog) {
   w.push(text10('NOS 2.8.7'));
   w.push(text10('COMPASS'));
   w.push(text10(('3.6-' + (asm.micros.get('MODLEVEL') || '')).slice(0, 10)));
-  // matériel : cible (2 car.), validité (2 car.), hfi
+  // hardware: target (2 chars), validity (2 chars), hfi
   let valid = '  ', target = '  ';
   const mt = asm.machineType || '';
   if (asm.type === 'pp') valid = { PERIPH: '6P', PPU: '7P', CIPPU: '8P' }[asm.ppFlavor] || '6P';
@@ -53,7 +53,7 @@ export function prefixTable(asm, prog) {
 }
 
 /**
- * Construit les enregistrements binaires d'un programme.
+ * Builds the binary records of a program.
  * @returns { records: [ { kind, words: BigInt[] } ] }
  */
 export function buildBinary(asm, prog) {
@@ -81,13 +81,13 @@ export function buildBinary(asm, prog) {
       }
       w.push(hdr(0o3600, e.length), ...e);
     }
-    // TEXT par tranches de 15 mots consécutifs
+    // TEXT in groups of 15 consecutive words
     const words = prog.image.words;
     const relAt = new Map((prog.image.rels || []).map((r) => [r.addr, r.rels]));
     const fills = [], links = new Map();
     let a = 0;
     while (a < words.length) {
-      // sauter les mots nuls non écrits
+      // skip unwritten zero words
       const start = a;
       const n = Math.min(15, words.length - a);
       const relWord = [];
@@ -190,14 +190,14 @@ function posCode(shift) {
   return shift === 30 ? 2 : shift === 15 ? 1 : 0;
 }
 
-/** Table à éléments de 30 bits, deux par mot. */
+/** Table of 30-bit items, two per word. */
 function pack30(code, items) {
   const words = [];
   for (let k = 0; k < items.length; k += 2) words.push((items[k] << 30n) | (items[k + 1] ?? 0n));
   return [hdr(code, words.length), ...words];
 }
 
-/** Texte en mots display (directive LCC). */
+/** Text as display-code words (LCC directive). */
 function textWords(s) {
   const out = [];
   for (let k = 0; k < s.length; k += 10) out.push(text10(s.slice(k, k + 10)));

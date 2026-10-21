@@ -1,7 +1,7 @@
 {
   "name": "cdc6600",
   "version": "1.0.0",
-  "description": "Émulateur CDC 6600 (CPU, 10 PP, canaux, périphériques) + assembleur COMPASS 3 + IDE intégré",
+  "description": "CDC 6600 emulator (CPU, 10 PPs, channels, peripherals) + COMPASS 3 assembler + integrated IDE (COMPASS Workbench)",
   "type": "module",
   "license": "MIT",
   "bin": {

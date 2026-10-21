@@ -1,26 +1,26 @@
-// Coloration syntaxique COMPASS.
+// COMPASS syntax highlighting.
 //
-// Découpage d'une ligne en champs (manuel COMPASS 3, §2.1) :
-//   - `*` en colonne 1 : ligne de commentaire ; `,` en colonne 1 : continuation ;
-//   - location : de la colonne 1 (ou 2) jusqu'au premier blanc ;
-//   - opération : premier mot suivant, s'il commence avant la colonne 30 ;
-//   - variable : sous-champs séparés par des virgules, terminés par un blanc
-//     (sauf dans une donnée caractère nHxxx ou une chaîne délimitée) ;
-//   - commentaire : le reste ; colonnes 73 et suivantes : champ de séquence.
-// Chaque jeton porte une classe CSS (préfixe « t-») et son champ.
+// Division of a line into fields (COMPASS 3 manual, section 2.1):
+//   - `*` in column 1: comment line; `,` in column 1: continuation;
+//   - location: from column 1 (or 2) up to the first blank;
+//   - operation: the next word, if it starts before column 30;
+//   - variable: subfields separated by commas, terminated by a blank
+//     (except inside nHxxx character data or a delimited string);
+//   - comment: the rest; columns 73 and beyond: sequence field.
+// Each token carries a CSS class ("t-" prefix) and its field.
 
-export const COMMENT_COL = 30;   // colonne de commentaire par défaut
-export const LAST_COL = 72;      // dernière colonne interprétée
+export const COMMENT_COL = 30;   // default comment column
+export const LAST_COL = 72;      // last interpreted column
 
-/** Instructions CPU sans désignateur de registre. */
+/** CPU instructions without a register designator. */
 const CPU_PLAIN = new Set([
   'PS', 'RJ', 'RE', 'WE', 'RL', 'WL', 'XJ', 'MJ', 'ES', 'JP', 'ZR', 'NZ', 'PL', 'NG', 'MI', 'IR', 'OR',
   'DF', 'ID', 'EQ', 'NE', 'GE', 'LT', 'LE', 'GT', 'NO', 'IM', 'DM', 'CC', 'CU', 'RI', 'RO', 'CR', 'CW',
 ]);
-/** Instructions CPU suivies d'un numéro de registre (SA1, BX6, ...). */
+/** CPU instructions followed by a register number (SA1, BX6, ...). */
 const CPU_REG = /^(SA|SB|SX|BX|LX|AX|NX|ZX|UX|PX|FX|DX|RX|IX|MX|CX|WX|TB|IB|OB)[0-7]$/;
 
-/** Instructions PP (6000 et Cyber 170). */
+/** PP instructions (6000 and Cyber 170). */
 export const PP_OPS = new Set([
   'PSN', 'LJM', 'RJM', 'UJN', 'ZJN', 'NJN', 'PJN', 'MJN', 'SHN', 'LMN', 'LPN', 'SCN', 'LDN', 'LCN',
   'ADN', 'SBN', 'LDC', 'ADC', 'LPC', 'LMC', 'LRD', 'SRD', 'EXN', 'MXN', 'MAN', 'RPN', 'LDD', 'ADD',
@@ -29,7 +29,7 @@ export const PP_OPS = new Set([
   'FJM', 'EJM', 'SCF', 'CCF', 'SFM', 'CFM', 'IAN', 'IAM', 'OAN', 'OAM', 'ACN', 'DCN', 'FAN', 'FNC',
 ]);
 
-/** Pseudo-instructions COMPASS 3. */
+/** COMPASS 3 pseudo-instructions. */
 export const PSEUDO_OPS = new Set([
   'IDENT', 'END', 'ABS', 'MACHINE', 'PPU', 'PERIPH', 'CIPPU', 'SEGMENT', 'SEG', 'STEXT', 'COMMENT',
   'NOLABEL', 'LCC', 'MEMSEL', 'LDSET', 'BASE', 'CHAR', 'CODE', 'QUAL', 'B1=1', 'B7=1', 'COL', 'USE',
@@ -47,7 +47,7 @@ export function isCpuMnemonic(op) {
   return CPU_PLAIN.has(op) || CPU_REG.test(op);
 }
 
-/** Classe d'un code opération. */
+/** Class of an operation code. */
 export function opClass(op, macros) {
   const u = op.toUpperCase();
   if (macros && macros.has(u)) return 't-macro';
@@ -57,8 +57,8 @@ export function opClass(op, macros) {
 }
 
 /**
- * Recense les noms de macros définis dans un source (MACRO/MACROE/OPDEF).
- * Format un : nom en location ; format deux : premier élément du champ variable.
+ * Collects the macro names defined in a source (MACRO/MACROE/OPDEF).
+ * Format one: name in the location field; format two: first element of the variable field.
  */
 export function collectMacros(text) {
   const set = new Set();
@@ -77,7 +77,7 @@ const IDENT_CHARS = /[A-Za-z0-9$@_.:]/;
 const DATA_LETTERS = 'HLRCAZ';
 
 /**
- * Découpe une ligne en jetons [{ s, c, f }] : texte, classe CSS, champ
+ * Splits a line into tokens [{ s, c, f }]: text, CSS class, field
  * ('loc' | 'op' | 'var' | 'com' | 'seq' | 'cont').
  */
 export function tokenizeLine(line, ctx = {}) {
@@ -96,7 +96,7 @@ export function tokenizeLine(line, ctx = {}) {
     if (end < main.length) push(main.slice(end), 't-com', 'com');
   } else {
     let i = 0;
-    // Champ location (colonne 1 ou 2).
+    // Location field (column 1 or 2).
     if (!isBlank(main[0] || ' ') || !isBlank(main[1] || ' ')) {
       const start = isBlank(main[0]) ? 1 : 0;
       push(main.slice(0, start), '', 'loc');
@@ -106,13 +106,13 @@ export function tokenizeLine(line, ctx = {}) {
       pushWithMicros(out, loc, loc === '+' || loc === '-' ? 't-force' : 't-label', 'loc');
       i = j;
     }
-    // Blancs avant l'opération.
+    // Blanks before the operation.
     let j = i;
     while (j < main.length && isBlank(main[j])) j++;
     push(main.slice(i, j), '', 'loc');
     const commentCol = ctx.commentCol || COMMENT_COL;
     if (j >= main.length) {
-      // rien d'autre
+      // nothing else
     } else if (j >= commentCol - 1) {
       pushCommentWithMicros(out, main.slice(j), 'com');
     } else {
@@ -121,7 +121,7 @@ export function tokenizeLine(line, ctx = {}) {
       const op = main.slice(j, k);
       const opName = op.split(',')[0];
       pushWithMicros(out, op, opClass(opName, ctx.macros), 'op');
-      // Blancs avant le champ variable.
+      // Blanks before the variable field.
       let v = k;
       while (v < main.length && isBlank(main[v])) v++;
       push(main.slice(k, v), '', 'op');
@@ -140,7 +140,7 @@ export function tokenizeLine(line, ctx = {}) {
   return out;
 }
 
-/** Commentaire, avec repérage des références de micros "NOM". */
+/** Comment, with detection of "NAME" micro references. */
 function pushCommentWithMicros(out, s, f) {
   out.push({ s, c: 't-com', f });
 }
@@ -158,8 +158,8 @@ function pushWithMicros(out, s, c, f) {
 }
 
 /**
- * Analyse le champ variable à partir de `i`. Pousse les jetons et retourne
- * l'indice du premier caractère du commentaire (ou la longueur de la ligne).
+ * Scans the variable field starting at `i`. Pushes the tokens and returns
+ * the index of the first comment character (or the line length).
  */
 function scanVariable(s, i, op, out, ctx) {
   const n = s.length;
@@ -168,7 +168,7 @@ function scanVariable(s, i, op, out, ctx) {
   const dataOp = op === 'DATA' || op === 'LIT';
   let depth = 0;
   let subfield = 0;
-  // DIS n,texte : le texte occupe 10n (CPU) ou 2n (PP) caractères, blancs compris.
+  // DIS n,text: the text takes 10n (CPU) or 2n (PP) characters, blanks included.
   if (op === 'DIS') {
     let j = i;
     while (j < n && s[j] !== ',' && !isBlank(s[j])) j++;
@@ -178,7 +178,7 @@ function scanVariable(s, i, op, out, ctx) {
       push(j, j + 1, 't-punct');
       const start = j + 1;
       if (!count.trim()) {
-        // Format deux : ,dchainedd
+        // Format two: ,dstringd
         const d = s[start];
         if (d === undefined) return n;
         let e = s.indexOf(d, start + 1);
@@ -194,7 +194,7 @@ function scanVariable(s, i, op, out, ctx) {
     }
   }
   if (op === 'MICRO') {
-    // MICRO n1,n2,dchaîned
+    // MICRO n1,n2,dstringd
     let commas = 0, j = i;
     while (j < n && commas < 2 && !isBlank(s[j])) { if (s[j] === ',') commas++; j++; }
     if (commas === 2) {
@@ -221,8 +221,8 @@ function scanVariable(s, i, op, out, ctx) {
       continue;
     }
     if (c >= '0' && c <= '9') {
-      // Donnée caractère à compte : nHxxx, nLxxx, nRxxx… (n caractères, blancs compris ;
-      // n = 0 : jusqu'au premier blanc ou virgule).
+      // Counted character data: nHxxx, nLxxx, nRxxx... (n characters, blanks included;
+      // n = 0: up to the first blank or comma).
       let j = i;
       while (j < n && s[j] >= '0' && s[j] <= '9') j++;
       const L = (s[j] || '').toUpperCase();
@@ -235,7 +235,7 @@ function scanVariable(s, i, op, out, ctx) {
         i = e;
         continue;
       }
-      // Nombre : 77B, 12D, 1.5E3, 10000B, 1.0 ...
+      // Number: 77B, 12D, 1.5E3, 10000B, 1.0 ...
       let e = i;
       while (e < n && /[0-9A-Za-z.]/.test(s[e])) {
         if ((s[e] === 'E' || s[e] === 'e') && (s[e + 1] === '+' || s[e + 1] === '-')) e += 2;
@@ -247,7 +247,7 @@ function scanVariable(s, i, op, out, ctx) {
     }
     if (DATA_LETTERS.includes(c.toUpperCase()) && i + 1 < n && !/[A-Za-z0-9\s,"^]/.test(s[i + 1])
       && (dataOp || s[i - 1] === '=') && (i === 0 || /[,=(+\-\s]/.test(s[i - 1]))) {
-      // Donnée délimitée : H*texte*, L/texte/ … (DATA, LIT et littéraux seulement).
+      // Delimited data: H*text*, L/text/ ... (DATA, LIT and literals only).
       const d = s[i + 1];
       const e = s.indexOf(d, i + 2);
       if (e > 0) {
@@ -277,7 +277,7 @@ function scanVariable(s, i, op, out, ctx) {
   return i;
 }
 
-/** Expression simple (sans données caractère) entre a et b. */
+/** Simple expression (no character data) between a and b. */
 function scanExpr(s, a, b, out, ctx) {
   const sub = s.slice(0, b);
   const tmp = [];
@@ -285,7 +285,7 @@ function scanExpr(s, a, b, out, ctx) {
   for (const t of tmp) out.push(t);
 }
 
-/** Saute les blancs ; le reste est du commentaire. */
+/** Skips blanks; the rest is comment. */
 function skipToComment(s, i, out) {
   let j = i;
   while (j < s.length && isBlank(s[j])) j++;
@@ -296,7 +296,7 @@ function skipToComment(s, i, out) {
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
 export const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ESC[c]);
 
-/** Ligne colorée en HTML. */
+/** Highlighted line as HTML. */
 export function highlightLine(line, ctx) {
   let html = '';
   for (const t of tokenizeLine(line, ctx)) {
@@ -306,7 +306,7 @@ export function highlightLine(line, ctx) {
   return html;
 }
 
-/** Champ de la ligne sous la colonne `col` (0 = première colonne). */
+/** Field of the line at column `col` (0 = first column). */
 export function fieldAt(line, col, ctx) {
   let pos = 0;
   let last = null;
@@ -319,7 +319,7 @@ export function fieldAt(line, col, ctx) {
   return last === 'com' ? 'com' : col >= LAST_COL ? 'seq' : null;
 }
 
-/** Colonne (0-based) du début du champ opération, ou -1. */
+/** Column (0-based) where the operation field starts, or -1. */
 export function opColumn(line, ctx) {
   let pos = 0;
   for (const t of tokenizeLine(line, ctx)) {

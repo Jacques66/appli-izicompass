@@ -1,13 +1,13 @@
-// Instructions PP (série 6000, Cyber 70/170) : entrées mnémoniques.
+// PP instructions (6000 series, Cyber 70/170): mnemonic entries.
 //
-// Formats (comme PPOP) :
-//   none   aucun opérande (PSN, MXN…) — d facultatif pour EXN/MXN/MAN/RPN
-//   d      opérande 6 bits (LDN, LDD, LDI, CRD, IAN, ACN…)
-//   rel    saut relatif 6 bits (UJN, ZJN, NJN, PJN, MJN)
-//   shift  décalage signé 6 bits (SHN)
-//   c18    constante 18 bits dans d‖m (LDC, ADC, LPC, LMC)
-//   md     m,d avec d facultatif (LJM, RJM, LDM…SOM)
-//   mdr    m,d avec d obligatoire (CRM, CWM, AJM…EJM, IAM, OAM, FNC)
+// Formats (as in PPOP):
+//   none   no operand (PSN, MXN...) - d optional for EXN/MXN/MAN/RPN
+//   d      6-bit operand (LDN, LDD, LDI, CRD, IAN, ACN...)
+//   rel    6-bit relative jump (UJN, ZJN, NJN, PJN, MJN)
+//   shift  6-bit signed shift (SHN)
+//   c18    18-bit constant in d||m (LDC, ADC, LPC, LMC)
+//   md     m,d with d optional (LJM, RJM, LDM...SOM)
+//   mdr    m,d with d required (CRM, CWM, AJM...EJM, IAM, OAM, FNC)
 
 export const PP_OPS = new Map();
 
@@ -43,7 +43,7 @@ def('AJM', 0o64, 'mdr');
 def('IJM', 0o65, 'mdr');
 def('FJM', 0o66, 'mdr');
 def('EJM', 0o67, 'mdr');
-// Drapeaux de canal Cyber 170 : canal sur 5 bits, bit 40B de d positionné.
+// Cyber 170 channel flags: 5-bit channel, bit 40B of d set.
 def('SCF', 0o64, 'mdr', { flag: 0o40 });
 def('CCF', 0o65, 'mdr', { flag: 0o40 });
 def('SFM', 0o66, 'mdr', { flag: 0o40 });
@@ -60,7 +60,7 @@ def('FNC', 0o77, 'mdr');
 def('ESN', 0o77, 'none', { fixed: 0o7700, machine: '7' });
 def('RFN', 0o74, 'd', { machine: '7' });
 
-/** Longueur en mots d'une instruction PP selon son format. */
+/** Length in words of a PP instruction for its format. */
 export function ppLength(fmt) {
   return fmt === 'c18' || fmt === 'md' || fmt === 'mdr' ? 2 : 1;
 }

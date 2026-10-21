@@ -1,4 +1,4 @@
-// Icônes de l'IDE : SVG en ligne, grille 16 x 16, trait « currentColor ».
+// IDE icons: inline SVG, 16 x 16 grid, "currentColor" stroke.
 
 const P = {
   file: '<path d="M4 1.75h5l3 3v9.5H4z"/><path d="M9 1.75v3h3"/>',
@@ -49,6 +49,7 @@ const P = {
   chevronRight: '<path d="M6 4l4 4-4 4"/>',
   chevronUp: '<path d="M4 10l4-4 4 4"/>',
   arrowRight: '<path d="M2.5 8h10M9 4.5L12.5 8 9 11.5"/>',
+  arrowLeft: '<path d="M13.5 8h-10M7 4.5L3.5 8 7 11.5"/>',
   eye: '<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>',
   dot: '<circle cx="8" cy="8" r="4" fill="currentColor" stroke="none"/>',
   speed: '<path d="M2.5 11.5a5.5 5.5 0 1111 0"/><path d="M8 11.5l3-4"/>',
@@ -61,13 +62,13 @@ const P = {
   reel: '<circle cx="8" cy="8" r="6.25"/><circle cx="8" cy="8" r="1.5"/><path d="M8 1.75v4.75M13.4 11.1L9.3 8.75M2.6 11.1l4.1-2.35"/>',
 };
 
-/** Retourne le balisage SVG d'une icône. */
+/** Returns the SVG markup of an icon. */
 export function iconSvg(name, size = 16, cls = '') {
   const body = P[name] || P.file;
   return `<svg class="ico ${cls}" width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
-/** Logo de l'application : une puce stylisée « 6600 ». */
+/** Application logo: a stylized "6600" chip. */
 export const LOGO_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
   <rect x="1" y="1" width="22" height="22" rx="5" fill="var(--logo-bg)"/>
   <path d="M6 7.5h12M6 12h12M6 16.5h7" stroke="var(--logo-fg)" stroke-width="2" stroke-linecap="round"/>

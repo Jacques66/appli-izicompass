@@ -1,4 +1,4 @@
-// Assembleur COMPASS : pseudo-instructions avancées.
+// COMPASS assembler: advanced pseudo instructions.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assemble } from '../src/asm/compass.js';
@@ -21,7 +21,7 @@ function asm(lines, opts = {}) {
   return { r, at, sym, flags };
 }
 
-test('OPDEF : instruction redéfinie', () => {
+test('OPDEF: redefined instruction', () => {
   const { at, flags } = asm([
     ' MXQ      OPDEF  REG,VAL',
     '          VFD    6/43B,3/REG,6/VAL',
@@ -32,7 +32,7 @@ test('OPDEF : instruction redéfinie', () => {
   assert.equal(at(4).slice(0, 5), '43612');   // VFD 6/43,3/6,6/12
 });
 
-test('OPDEF : paramètres registre et expression', () => {
+test('OPDEF: register and expression parameters', () => {
   const { at, flags } = asm([
     ' SXX+BQ   OPDEF  I,J,K,Q',
     '          SX_I   X_J+Q',
@@ -44,7 +44,7 @@ test('OPDEF : paramètres registre et expression', () => {
   assert.equal(at(5), '7271000005 73772');
 });
 
-test('CPOP et CPSYN', () => {
+test('CPOP and CPSYN', () => {
   const { at, flags } = asm([
     ' SAX+B    CPOP   0,530B,132B',
     '          SA7    X3+B1',
@@ -74,7 +74,7 @@ test('OPSYN, NIL, PURGMAC', () => {
   assert.equal(sym('T3'), 0o101);
 });
 
-test('QUAL : symboles qualifiés', () => {
+test('QUAL: qualified symbols', () => {
   const { at, sym, flags } = asm([
     '          QUAL   P1',
     ' X1V      EQU    11B',
@@ -92,7 +92,7 @@ test('QUAL : symboles qualifiés', () => {
   assert.equal(at(9), '7150000022');
 });
 
-test('LOC et POS', () => {
+test('LOC and POS', () => {
   const { r, sym, flags } = asm([
     '          LOC    0',
     ' A0V      CON    1',
@@ -110,7 +110,7 @@ test('LOC et POS', () => {
   assert.equal(r.programs[0].image.words[3].toString(8).padStart(20, '0'), '00000000010000000007');
 });
 
-test('IRP dans une macro', () => {
+test('IRP inside a macro', () => {
   const { r, flags } = asm([
     ' ZAB      MACRO  ARG,B',
     '          IRP    ARG',
@@ -125,7 +125,7 @@ test('IRP dans une macro', () => {
   assert.equal(img[1].toString(8).slice(0, 10), '7160000013');
 });
 
-test('RMT et HERE', () => {
+test('RMT and HERE', () => {
   const { sym, flags } = asm([
     '          RMT',
     ' LATE     CON    1',
@@ -140,14 +140,14 @@ test('RMT et HERE', () => {
   assert.equal(sym('AFTER'), 0o102);
 });
 
-test('XTEXT : texte externe', () => {
+test('XTEXT: external text', () => {
   const { sym, flags } = asm(['          XTEXT  MYDECK', ' AFTER    CON    0'], { texts: { MYDECK: ' DECKSYM  CON    5\n          CON    6\n' } });
   assert.deepEqual(flags, []);
   assert.equal(sym('DECKSYM'), 0o100);
   assert.equal(sym('AFTER'), 0o102);
 });
 
-test('micros : MICRO, DECMIC, OCTMIC, MICCNT', () => {
+test('micros: MICRO, DECMIC, OCTMIC, MICCNT', () => {
   const { at, sym, flags } = asm([
     ' B        EQU    1024',
     ' SYMBL    DECMIC B,6',
@@ -163,7 +163,7 @@ test('micros : MICRO, DECMIC, OCTMIC, MICCNT', () => {
   assert.equal(at(7).split(' ')[0], '33333433353700000000');
 });
 
-test('ERR, ERRNZ, ERRPL (passe 2)', () => {
+test('ERR, ERRNZ, ERRPL (pass 2)', () => {
   const { flags } = asm([
     ' X        EQU    5',
     '          ERRNZ  X-5',
@@ -175,7 +175,7 @@ test('ERR, ERRNZ, ERRPL (passe 2)', () => {
   assert.deepEqual(flags.sort(), ['3P', '4U', '67'].sort());
 });
 
-test('BASE O, M et D', () => {
+test('BASE O, M and D', () => {
   const { at, flags } = asm([
     '          BASE   O',
     '          SX1    17',
@@ -193,7 +193,7 @@ test('BASE O, M et D', () => {
   assert.equal(at(8), '7130000012');
 });
 
-test('SET, MAX, MIN, IF attributs', () => {
+test('SET, MAX, MIN, IF attributes', () => {
   const { sym, flags, at } = asm([
     ' A        SET    1',
     ' A        SET    A+1',
@@ -215,7 +215,7 @@ test('SET, MAX, MIN, IF attributs', () => {
   assert.equal(at(10), '7130000001');
 });
 
-test('IFC et sauts nommés', () => {
+test('IFC and named skips', () => {
   const { at, flags } = asm([
     ' T1       IFC    EQ,$ABC$ABC$',
     '          SX1    1',
@@ -235,7 +235,7 @@ test('IFC et sauts nommés', () => {
   assert.equal(at(9), '');
 });
 
-test('overlays PP : deux IDENT', () => {
+test('PP overlays: two IDENTs', () => {
   const r = assemble(['          IDENT  OV1,100B', '          PERIPH', '          ORG    100B', ' A        LDN    1',
     '          IDENT  OV2,200B', '          ORG    200B', '          LJM    A', '          END'].join('\n'));
   assert.ok(r.ok, JSON.stringify(r.errors));
@@ -245,7 +245,7 @@ test('overlays PP : deux IDENT', () => {
   assert.deepEqual(p.overlays[1].words, [0o0100, 0o0100]);
 });
 
-test('erreurs diagnostiquées', () => {
+test('diagnosed errors', () => {
   const { flags } = asm([
     ' DUP1     EQU    1',
     ' DUP1     EQU    2',
@@ -257,20 +257,20 @@ test('erreurs diagnostiquées', () => {
   assert.deepEqual(flags, ['2D', '3U', '4O', '5V', '6O']);
 });
 
-test('symbole par défaut =S en absolu et CON relogeable', () => {
+test('default symbol =S in absolute and relocatable CON', () => {
   const { at, sym, flags } = asm(['          SA1    =SDFLT', '          CON    *+1']);
   assert.deepEqual(flags, []);
   assert.equal(at(1), '5110000102');
   assert.equal(at(2), '00000000000000000102');
 });
 
-test('MACROE : paramètres par mot-clé', () => {
+test('MACROE: keyword parameters', () => {
   const { r, flags } = asm([' SAM      MACROE A,B,C', '          CON    A', '          CON    B', '          CON    C', '          ENDM', '          SAM    C=3,A=1,B=2']);
   assert.deepEqual(flags, []);
   assert.deepEqual(r.programs[0].image.words.map(Number), [1, 2, 3]);
 });
 
-test('ECHO imbriqués', () => {
+test('nested ECHO', () => {
   const { r, flags } = asm([
     '          ECHO   ,CM=(1,2)',
     '          ECHO   2,P1=(3,4)',
@@ -281,7 +281,7 @@ test('ECHO imbriqués', () => {
   assert.deepEqual(r.programs[0].image.words.map(Number), [13, 14, 23, 24]);
 });
 
-test('PPOP et caractères CHAR / CODE O', () => {
+test('PPOP and CHAR / CODE O characters', () => {
   const { at, flags } = asm(['          CHAR   1,63B', '          CODE   O', '          CON    1RA', '          CODE   D', '          CON    1RA']);
   assert.deepEqual(flags, []);
   assert.equal(at(3), '00000000000000000063');
@@ -290,7 +290,7 @@ test('PPOP et caractères CHAR / CODE O', () => {
   assert.equal(pp.at(2), '1407');
 });
 
-test('SEGMENT : overlays absolus', () => {
+test('SEGMENT: absolute overlays', () => {
   const r = assemble(['          IDENT  SAMPLE,110B,ENTA', '          ABS', '          ORG    110B', ' ENTA     SX6    1',
     ' OVLOC    BSS    0', ' SEG1     SEGMENT OVLOC+1,ENTB', '          ORG    OVLOC', '          BSS    1', ' ENTB     SX6    2', '          END'].join('\n'));
   assert.ok(r.ok, JSON.stringify(r.errors));

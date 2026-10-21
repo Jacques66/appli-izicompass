@@ -1,0 +1,50 @@
+          IDENT  FLOAT,100B,START
+          ABS
+          ORG    100B
+*         FLOATING-POINT ARITHMETIC ON THE CDC 6600.
+*
+*         1. SQUARE ROOT OF 2 BY NEWTON METHOD:
+*         X(N+1) = (X(N) + A/X(N)) / 2
+*         2. SUM OF THE SERIES 1/K**2 FOR K = 100 DOWN TO 1, WHICH
+*         TENDS TO PI**2/6 = 1.6449...
+*
+*         A 6600 FLOATING-POINT NUMBER: SIGN, 11-BIT EXPONENT AND
+*         48-BIT INTEGER COEFFICIENT (ONES COMPLEMENT).
+*
+START     SA1    VALUE       X1 = A
+          SA2    ONE         X2 = X0 = 1.0
+          SA3    HALF        X3 = 0.5
+          SB1    1
+          SB2    6           6 ITERATIONS
+NEWTON    RX4    X1/X2       A/X
+          RX5    X2+X4       X + A/X
+          NX5    X5          NORMALIZE
+          RX2    X5*X3       X = (X + A/X) / 2
+          SB2    B2-B1
+          NZ     B2,NEWTON
+          BX6    X2
+          SA6    ROOT        ROOT = 1.41421356...
+*
+*         SERIES: SUMMED BACKWARDS (SMALL TERMS FIRST).
+*
+          SA4    ONE         X4 = 1.0
+          BX6    X6-X6       X6 = 0 (SUM)
+          SB2    100D        K = 100
+SERIES    SX1    B2          X1 = K (INTEGER)
+          PX1    X1          INTEGER -> FLOATING CONVERSION
+          NX1    X1
+          RX2    X1*X1       K**2
+          RX3    X4/X2       1/K**2
+          RX6    X6+X3       SUM = SUM + 1/K**2
+          NX6    X6
+          SB2    B2-B1
+          NZ     B2,SERIES
+          SA6    ZETA2       ZETA2 = 1.63498...
+          PS
+*
+VALUE     DATA   2.0
+ONE       DATA   1.0
+HALF      DATA   0.5
+ROOT      BSS    1
+ZETA2     BSS    1
+          END

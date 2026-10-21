@@ -1,18 +1,18 @@
-// Expressions, constantes et données COMPASS.
+// COMPASS expressions, constants and data.
 //
-// Une valeur d'expression (classe Val) porte :
-//   w       mot de 60 bits en complément à un (BigInt masqué) ;
-//   blocks  coefficients de relocation par bloc (Map bloc -> entier) ;
-//   exts    coefficients par symbole externe (Map nom -> entier) ;
-//   regs    registres rencontrés (instructions CPU) ;
-//   undef   symboles non définis rencontrés.
-// Les symboles relogeables valent toujours leur décalage dans leur bloc : la
-// conversion en adresse finale se fait à l'émission (voir assembler.js).
+// An expression value (class Val) carries:
+//   w       60-bit ones' complement word (masked BigInt);
+//   blocks  relocation coefficients per block (Map block -> integer);
+//   exts    coefficients per external symbol (Map name -> integer);
+//   regs    registers encountered (CPU instructions);
+//   undef   undefined symbols encountered.
+// Relocatable symbols always hold their offset within their block: the
+// conversion to a final address happens at emission (see assembler.js).
 //
-// Grammaire : expression := [addop] terme {addop terme}
-//             terme      := élément {mulop élément}
-//             addop      := + | - | &     mulop := * | /
-// Pas de parenthèses ; division par zéro = 0 ; élément vide = 0.
+// Grammar: expression := [addop] term {addop term}
+//          term       := element {mulop element}
+//          addop      := + | - | &     mulop := * | /
+// No parentheses; division by zero = 0; empty element = 0.
 
 import { M60, SIGN60, add60, sub60, signed60, to60 } from '../common/word.js';
 import { charValue, charBits, blankValue } from './charcode.js';
@@ -31,7 +31,7 @@ export class Val {
     this.exts = null;
     this.regs = [];
     this.undef = null;
-    this.hasQ = false;     // au moins un élément non registre
+    this.hasQ = false;     // at least one non-register element
     this.literal = false;
   }
   static abs(n) {
@@ -57,7 +57,7 @@ export class Val {
   isAbsolute() {
     return !this.isRelocatable() && !this.isExternal();
   }
-  /** Bloc relogeable unique (coefficient ±1), ou null. */
+  /** Single relocatable block (coefficient ±1), or null. */
   relocBlock() {
     if (!this.blocks) return null;
     let found = null;
@@ -69,7 +69,7 @@ export class Val {
     for (const [e, c] of this.exts) if (c) return { name: e, coeff: c };
     return null;
   }
-  /** Valeur signée (BigInt) de la partie absolue. */
+  /** Signed value (BigInt) of the absolute part. */
   signed() {
     return signed60(this.w);
   }
@@ -80,12 +80,12 @@ export class Val {
 
 const isDigit = (c) => c >= '0' && c <= '9';
 const isLetter = (c) => c >= 'A' && c <= 'Z';
-// Caractères qui ne peuvent pas figurer dans un symbole.
+// Characters that cannot appear in a symbol.
 const NOT_SYMBOL = new Set(['+', '-', '*', '/', ' ', ',', '_', '&', '\u0000']);
 export const isSymbolChar = (c) => c !== undefined && c !== '' && !NOT_SYMBOL.has(c);
 const CHAR_TYPES = new Set(['C', 'H', 'A', 'R', 'L', 'Z']);
 
-/** Curseur sur une image de ligne. */
+/** Cursor over a line image. */
 export class Cursor {
   constructor(text, pos = 0) {
     this.s = text;
@@ -98,13 +98,13 @@ export class Cursor {
   atSubEnd() { const c = this.peek(); return c === '' || c === ' ' || c === ','; }
 }
 
-// --------------------------------------------------------------- nombres
+// --------------------------------------------------------------- numbers
 
 const BIG10 = 10n;
 
 /**
- * Lit une donnée numérique (sans signe) : chiffres, point, modificateurs.
- * Retourne { kind: 'int'|'float'|'double', words: [BigInt...] } (valeurs positives).
+ * Reads a numeric data item (unsigned): digits, point, modifiers.
+ * Returns { kind: 'int'|'float'|'double', words: [BigInt...] } (positive values).
  * @param preradix 'B'|'O'|'D'|null
  */
 function parseNumeric(cur, ctx, preradix, allowDouble) {
@@ -112,7 +112,7 @@ function parseNumeric(cur, ctx, preradix, allowDouble) {
   let intPart = '', fracPart = '', point = false;
   while (isDigit(cur.peek())) intPart += cur.next();
   if (cur.peek() === '.') {
-    // « 1.5 », « 1.E-3 », « 2. » : le point fait partie du nombre
+    // "1.5", "1.E-3", "2.": the point is part of the number
     point = true;
     cur.next();
     while (isDigit(cur.peek())) fracPart += cur.next();
@@ -122,30 +122,30 @@ function parseNumeric(cur, ctx, preradix, allowDouble) {
   for (;;) {
     const c = cur.peek();
     if (c === 'B' || c === 'O' || c === 'D') {
-      if (seen.has('R')) throw new AsmError('A', 'radix en double');
+      if (seen.has('R')) throw new AsmError('A', 'duplicate radix');
       seen.add('R');
       postradix = c;
       cur.next();
     } else if (c === 'E') {
-      if (seen.has('E')) throw new AsmError('A', 'exposant en double');
+      if (seen.has('E')) throw new AsmError('A', 'duplicate exponent');
       seen.add('E');
       cur.next();
       if (cur.peek() === 'E') { cur.next(); dbl = true; }
       dexp = readSignedInt(cur);
     } else if (c === 'S') {
-      if (seen.has('S')) throw new AsmError('A', 'échelle en double');
+      if (seen.has('S')) throw new AsmError('A', 'duplicate scale');
       seen.add('S');
       cur.next();
       bscale = readSignedInt(cur);
     } else if (c === 'P') {
-      if (seen.has('P')) throw new AsmError('A', 'point binaire en double');
+      if (seen.has('P')) throw new AsmError('A', 'duplicate binary point');
       seen.add('P');
       cur.next();
       ppos = readSignedInt(cur);
       ppos.given = true;
     } else break;
   }
-  if (preradix && postradix) throw new AsmError('A', 'pré-radix et post-radix');
+  if (preradix && postradix) throw new AsmError('A', 'both pre-radix and post-radix');
   let radix = preradix || postradix;
   let base;
   if (radix === 'B' || radix === 'O') base = 8n;
@@ -153,10 +153,10 @@ function parseNumeric(cur, ctx, preradix, allowDouble) {
   else base = ctx.base === 'O' || ctx.base === 'M' ? 8n : 10n;
   const digits = intPart + fracPart;
   if (base === 8n && /[89]/.test(digits)) {
-    if (!radix && (ctx.base === 'O' || ctx.base === 'M')) throw new AsmError('A', '8 ou 9 dans une donnée octale');
-    if (radix === 'B' || radix === 'O') throw new AsmError('A', '8 ou 9 dans une donnée octale');
+    if (!radix && (ctx.base === 'O' || ctx.base === 'M')) throw new AsmError('A', '8 or 9 in an octal data item');
+    if (radix === 'B' || radix === 'O') throw new AsmError('A', '8 or 9 in an octal data item');
   }
-  // Valeur rationnelle num/den.
+  // Rational value num/den.
   let num = 0n;
   for (const d of digits) num = num * base + BigInt(d);
   let den = 1n;
@@ -173,14 +173,14 @@ function parseNumeric(cur, ctx, preradix, allowDouble) {
   }
   const text = cur.s.slice(start, cur.i);
   if (!point && !dbl) {
-    // Entier : arrondi au plus proche.
+    // Integer: rounded to nearest.
     let v = roundDiv(num, den);
     if (v > M60) { ctx.warn && ctx.warn('7'); v &= M60; }
     return { kind: 'int', words: [v], text };
   }
-  if (ctx.pp) throw new AsmError('A', 'constante flottante interdite en PP');
+  if (ctx.pp) throw new AsmError('A', 'floating-point constant not allowed in PP');
   if (!point && dbl) {
-    // EE sur une valeur entière -> entier simple précision
+    // EE on an integer value -> single-precision integer
     return { kind: 'int', words: [roundDiv(num, den) & M60], text };
   }
   if (dbl && allowDouble) {
@@ -209,8 +209,8 @@ function roundDiv(num, den) {
 }
 
 /**
- * Flottant CDC à partir de num/den > 0 (ou 0).
- * Simple précision : coefficient normalisé 48 bits arrondi ; double : 96 bits.
+ * CDC floating-point value from num/den > 0 (or 0).
+ * Single precision: rounded normalized 48-bit coefficient; double: 96 bits.
  */
 function floatWords(num, den, dbl, ppos) {
   const bits = dbl ? 96 : 48;
@@ -218,7 +218,7 @@ function floatWords(num, den, dbl, ppos) {
     if (dbl) return [0n, 0n];
     return [0n];
   }
-  // Trouver e tel que 2^(bits-1) <= num/den / 2^e < 2^bits.
+  // Find e such that 2^(bits-1) <= num/den / 2^e < 2^bits.
   const nb = num.toString(2).length - den.toString(2).length;
   let e = nb - bits;
   let c;
@@ -229,7 +229,7 @@ function floatWords(num, den, dbl, ppos) {
     else break;
   }
   if (c >= 1n << BigInt(bits)) { c >>= 1n; e++; }
-  // Exposant du mot haut : e + (dbl ? 48 : 0)
+  // Exponent of the upper word: e + (dbl ? 48 : 0)
   let eHigh = e + (dbl ? 48 : 0);
   if (ppos && ppos.given) {
     const target = -ppos.value;
@@ -237,11 +237,11 @@ function floatWords(num, den, dbl, ppos) {
     if (shift > 0) c >>= BigInt(shift);
     else if (shift < 0) {
       c <<= BigInt(-shift);
-      if (c >= 1n << BigInt(bits)) throw new AsmError('A', 'dépassement dû au point binaire');
+      if (c >= 1n << BigInt(bits)) throw new AsmError('A', 'overflow caused by the binary point');
     }
     eHigh = target;
   }
-  if (eHigh > 0o1777 || eHigh < -0o1777) throw new AsmError('A', 'exposant hors limites');
+  if (eHigh > 0o1777 || eHigh < -0o1777) throw new AsmError('A', 'exponent out of range');
   const mk = (coeff, exp) => {
     const be = exp >= 0 ? exp + 0o2000 : exp + 0o1777;
     if (be < 0 || be > 0o3777) return 0n;
@@ -253,7 +253,7 @@ function floatWords(num, den, dbl, ppos) {
   return [mk(hi, eHigh), mk(lo, eHigh - 48)];
 }
 
-/** Hexadécimal : après le pré-radix '#'. */
+/** Hexadecimal: after the '#' pre-radix. */
 function parseHex(cur) {
   let v = 0n;
   let n = 0;
@@ -261,7 +261,7 @@ function parseHex(cur) {
     v = (v << 4n) | BigInt(parseInt(cur.next(), 16));
     n++;
   }
-  // Modificateurs S (échelle) et P (ignoré)
+  // Modifiers S (scale) and P (ignored)
   for (;;) {
     const c = cur.peek();
     if (c === 'S') {
@@ -276,10 +276,10 @@ function parseHex(cur) {
   return v;
 }
 
-// --------------------------------------------------------- caractères
+// --------------------------------------------------------- characters
 
 /**
- * Chaîne de caractères -> valeur cadrée dans `fieldBits` bits (constante).
+ * Character string -> value justified in `fieldBits` bits (constant).
  */
 function charConstant(str, type, fieldBits, ctx) {
   const cb = charBits(ctx.code, ctx.wordBits);
@@ -292,13 +292,13 @@ function charConstant(str, type, fieldBits, ctx) {
   const left = type === 'H' || type === 'L' || type === 'C' || type === 'Z';
   if (n * cb > fieldBits) ctx.warn && ctx.warn('7');
   if (left) {
-    // cadré à gauche dans le champ : caractères puis remplissage
+    // left-justified in the field: characters, then fill
     let bitsUsed = 0;
     for (let k = 0; k < Math.min(n, slots); k++) { v = (v << BigInt(cb)) | vals[k]; bitsUsed += cb; }
     while (bitsUsed + cb <= fieldBits) { v = (v << BigInt(cb)) | fill; bitsUsed += cb; }
     v <<= BigInt(fieldBits - bitsUsed);
   } else {
-    // cadré à droite : remplissage puis caractères
+    // right-justified: fill, then characters
     const take = vals.slice(Math.max(0, n - slots));
     const pad = slots - take.length;
     for (let k = 0; k < pad; k++) v = (v << BigInt(cb)) | fill;
@@ -308,8 +308,8 @@ function charConstant(str, type, fieldBits, ctx) {
 }
 
 /**
- * Données caractère -> mots (DATA, LIT, littéraux).
- * @returns tableau de BigInt (mots de `ctx.wordBits` bits)
+ * Character data -> words (DATA, LIT, literals).
+ * @returns array of BigInt (words of `ctx.wordBits` bits)
  */
 export function charDataWords(str, type, ctx) {
   const wb = ctx.wordBits;
@@ -338,8 +338,8 @@ export function charDataWords(str, type, ctx) {
 }
 
 /**
- * Lit une donnée (item de DATA/LIT, ou littéral après '=').
- * @returns { words: BigInt[] (déjà en complément si signe -), kind }
+ * Reads a data item (DATA/LIT item, or literal after '=').
+ * @returns { words: BigInt[] (already complemented if sign -), kind }
  */
 export function parseDataItem(cur, ctx, { literal = false } = {}) {
   const wb = ctx.wordBits;
@@ -350,7 +350,7 @@ export function parseDataItem(cur, ctx, { literal = false } = {}) {
   let kind = 'int';
   const c = cur.peek();
   if (isDigit(c)) {
-    // nType… ou nombre ou 0#hex
+    // nType..., or number, or 0#hex
     let k = cur.i, n = '';
     while (isDigit(cur.s[k])) n += cur.s[k++];
     const t = cur.s[k];
@@ -390,10 +390,10 @@ export function parseDataItem(cur, ctx, { literal = false } = {}) {
   } else if (CHAR_TYPES.has(c)) {
     cur.next();
     const d = cur.next();
-    if (d === '' || d === ' ' || d === ',') throw new AsmError('A', 'délimiteur de chaîne manquant');
+    if (d === '' || d === ' ' || d === ',') throw new AsmError('A', 'missing string delimiter');
     let str = '';
     while (cur.peek() !== d) {
-      if (cur.eof()) throw new AsmError('A', 'délimiteur de fin de chaîne manquant');
+      if (cur.eof()) throw new AsmError('A', 'missing string end delimiter');
       str += cur.next();
     }
     cur.next();
@@ -402,7 +402,7 @@ export function parseDataItem(cur, ctx, { literal = false } = {}) {
   } else if (cur.atSubEnd()) {
     return { words: [], kind: 'empty' };
   } else {
-    throw new AsmError('A', `donnée incorrecte « ${c} »`);
+    throw new AsmError('A', `incorrect data item "${c}"`);
   }
   if (wb !== 60) {
     words = words.map((w) => {
@@ -413,19 +413,19 @@ export function parseDataItem(cur, ctx, { literal = false } = {}) {
     });
   }
   if (neg) words = words.map((w) => ~w & wmask);
-  if (literal && words.length === 0) throw new AsmError('A', 'littéral vide');
+  if (literal && words.length === 0) throw new AsmError('A', 'empty literal');
   return { words, kind };
 }
 
 // --------------------------------------------------------- expressions
 
 /**
- * Évalue une expression à partir du curseur, jusqu'à ',' ' ' ou fin.
- * ctx :
- *   asm        assembleur (symboles, compteurs, littéraux)
- *   fieldBits  taille du champ destination (constantes caractère)
- *   regs       true si les désignateurs de registre CPU sont reconnus
- *   stop       ensemble de caractères d'arrêt supplémentaires (ex. '/' pour VFD)
+ * Evaluates an expression from the cursor, up to ',' ' ' or end.
+ * ctx:
+ *   asm        assembler (symbols, counters, literals)
+ *   fieldBits  size of the destination field (character constants)
+ *   regs       true if CPU register designators are recognized
+ *   stop       set of additional stop characters (e.g. '/' for VFD)
  */
 export function parseExpression(cur, ctx) {
   const total = new Val(0n);
@@ -458,7 +458,7 @@ function combine(total, term, op, ctx) {
   if (term.literal) total.literal = true;
   if (op === '&') {
     if (term.isRelocatable() || term.isExternal() || total.isRelocatable() || total.isExternal()) {
-      throw new AsmError('A', 'OU exclusif sur une valeur relogeable');
+      throw new AsmError('A', 'exclusive OR on a relocatable value');
     }
     total.w = (total.w ^ term.w) & M60;
     return;
@@ -485,17 +485,17 @@ function parseTerm(cur, ctx, addop, firstTerm) {
     cur.next();
     const rhs = parseElement(cur, ctx, c);
     if (rhs.regs.length || acc.regs.length) {
-      // Registre combiné par * ou / avec un autre registre : forme BXi Xj*Xk
+      // Register combined by * or / with another register: form BXi Xj*Xk
       if (rhs.regs.length && !rhs.hasQ && acc.regs.length && !acc.hasQ) {
         acc.regs.push(...rhs.regs);
         continue;
       }
-      throw new AsmError('A', 'registre dans un produit');
+      throw new AsmError('A', 'register in a product');
     }
     const relA = acc.isRelocatable() || acc.isExternal();
     const relB = rhs.isRelocatable() || rhs.isExternal();
     if (c === '*') {
-      if (relA && relB) throw new AsmError('A', 'deux éléments relogeables dans un terme');
+      if (relA && relB) throw new AsmError('A', 'two relocatable elements in a term');
       const a = acc.signed(), b = rhs.signed();
       const r = new Val(to60(a * b));
       r.hasQ = acc.hasQ || rhs.hasQ;
@@ -509,7 +509,7 @@ function parseTerm(cur, ctx, addop, firstTerm) {
       if (acc.literal || rhs.literal) r.literal = true;
       acc = r;
     } else {
-      if (relA || relB) throw new AsmError('A', 'division d\'un élément relogeable');
+      if (relA || relB) throw new AsmError('A', 'division of a relocatable element');
       const a = acc.signed(), b = rhs.signed();
       const q = b === 0n ? 0n : a / b;
       const r = new Val(to60(q));
@@ -526,7 +526,7 @@ function mergeUndef(a, b) {
   return (a.undef || []).concat(b.undef || []);
 }
 
-/** Désignateur de registre en position courante, ou null. */
+/** Register designator at the current position, or null. */
 export function peekRegister(cur, ctx) {
   const c = cur.peek();
   if (!ctx.regs || (c !== 'A' && c !== 'B' && c !== 'X')) return null;
@@ -539,12 +539,12 @@ export function peekRegister(cur, ctx) {
 function parseElement(cur, ctx, op) {
   const c = cur.peek();
   const asm = ctx.asm;
-  // Élément vide
+  // Empty element
   if (c === '' || c === ' ' || c === ',' || c === '+' || c === '-' || c === '&' || (c === '/' && !isQualStart(cur)) || (ctx.stop && ctx.stop.has(c))) {
-    if (c === '*') return parseSpecial(cur, ctx); // jamais atteint
+    if (c === '*') return parseSpecial(cur, ctx); // never reached
     return new Val(0n);
   }
-  // Registre
+  // Register
   const reg = peekRegister(cur, ctx);
   if (reg) {
     let n = reg.n;
@@ -566,10 +566,10 @@ function parseElement(cur, ctx, op) {
   if (c === '=') {
     const p = cur.peek(1);
     if ((p === 'S' || p === 'X' || p === 'Y') && isSymbolChar(cur.peek(2)) && !(p === 'S' && false)) {
-      // =Ssym, =Xsym, =Ysym — mais « =X… » peut aussi être un littéral ? Non : X n'est pas un type.
+      // =Ssym, =Xsym, =Ysym - could "=X..." also be a literal? No: X is not a data type.
       cur.i += 2;
       const name = readSymbolName(cur);
-      if (!name) throw new AsmError('A', `pas de symbole après =${p}`);
+      if (!name) throw new AsmError('A', `no symbol after =${p}`);
       const v = asm.symbolValue(name, null, { defaultPrefix: p, ctx });
       v.hasQ = true;
       return v;
@@ -589,11 +589,11 @@ function parseElement(cur, ctx, op) {
     return v;
   }
   if (c === '/') {
-    // /qual/sym ou //sym
+    // /qual/sym or //sym
     cur.next();
     let q = '';
     while (cur.peek() !== '/' && isSymbolChar(cur.peek())) q += cur.next();
-    if (cur.peek() !== '/') throw new AsmError('A', 'qualificatif mal formé');
+    if (cur.peek() !== '/') throw new AsmError('A', 'malformed qualifier');
     cur.next();
     const name = readSymbolName(cur);
     const v = asm.symbolValue(name, q, { ctx });
@@ -602,16 +602,16 @@ function parseElement(cur, ctx, op) {
   }
   if (isSymbolChar(c) && c !== '$' && c !== '=' && c !== ':') {
     const name = readSymbolName(cur);
-    if (name.length > 8) throw new AsmError('A', `symbole trop long : ${name}`);
+    if (name.length > 8) throw new AsmError('A', `symbol too long: ${name}`);
     const v = asm.symbolValue(name, null, { ctx });
     v.hasQ = true;
     return v;
   }
-  throw new AsmError('A', `élément incorrect « ${c} »`);
+  throw new AsmError('A', `incorrect element "${c}"`);
 }
 
 function isQualStart(cur) {
-  // « /Q/SYM » ou « //SYM » en position d'élément
+  // "/Q/SYM" or "//SYM" in element position
   const s = cur.s;
   let k = cur.i + 1;
   while (isSymbolChar(s[k]) && s[k] !== '/') k++;
@@ -635,14 +635,14 @@ function parseSpecial(cur, ctx) {
 export function readSymbolName(cur) {
   let s = '';
   while (isSymbolChar(cur.peek())) {
-    // le / termine un symbole
+    // / ends a symbol
     if (cur.peek() === '/') break;
     s += cur.next();
   }
   return s;
 }
 
-/** Constante dans une expression (commence par un chiffre). */
+/** Constant in an expression (starts with a digit). */
 function parseConstant(cur, ctx) {
   let k = cur.i, n = '';
   while (isDigit(cur.s[k])) n += cur.s[k++];
@@ -663,7 +663,7 @@ function parseConstant(cur, ctx) {
     }
     const fb = ctx.fieldBits || 60;
     let w = charConstant(str, t === 'C' || t === 'Z' ? 'L' : t, fb, ctx);
-    // extension de signe à 60 bits depuis le champ
+    // sign extension to 60 bits from the field
     if (fb < 60 && (w >> BigInt(fb - 1)) & 1n) w |= M60 ^ ((1n << BigInt(fb)) - 1n);
     v = new Val(w);
   } else {
@@ -674,17 +674,17 @@ function parseConstant(cur, ctx) {
   return v;
 }
 
-/** La valeur tient-elle dans n bits (bits hauts tous à 0 ou tous à 1) ? */
+/** Does the value fit in n bits (upper bits all 0 or all 1)? */
 export function fitsBits(w, n) {
   if (n >= 60) return true;
   const hi = w >> BigInt(n);
   const all = M60 >> BigInt(n);
   if (hi === 0n || hi === all) return true;
-  // une valeur positive dont le bit n-1 vaut 1 est acceptée (ex. 777777B sur 18 bits)
+  // a positive value whose bit n-1 is 1 is accepted (e.g. 777777B in 18 bits)
   return false;
 }
 
-/** Tronque une valeur 60 bits à n bits. */
+/** Truncates a 60-bit value to n bits. */
 export function truncBits(w, n) {
   return w & ((1n << BigInt(n)) - 1n);
 }

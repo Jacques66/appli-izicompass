@@ -6,13 +6,13 @@ import { neg60, add60, sub60, M60, rotl60, sra60, mask60, popcount60 } from '../
 const f = fromNumber;
 const n = toNumber;
 
-test('représentation : 1.0 = 17204000000000000000B', () => {
+test('representation: 1.0 = 17204000000000000000B', () => {
   assert.equal(f(1).toString(8), '17204000000000000000');
   assert.equal(n(f(1)), 1);
   assert.equal(n(f(-2.5)), -2.5);
 });
 
-test('addition, soustraction', () => {
+test('addition, subtraction', () => {
   assert.equal(n(floatAdd(f(1), f(1))), 2);
   assert.equal(n(floatAdd(f(1.5), f(2.25))), 3.75);
   assert.equal(n(floatAdd(f(5), neg60(f(3)))), 2);
@@ -20,7 +20,7 @@ test('addition, soustraction', () => {
   assert.equal(n(floatAdd(f(1e10), f(-1e10))), 0);
 });
 
-test('multiplication et division', () => {
+test('multiplication and division', () => {
   assert.equal(n(floatMultiply(f(3), f(4))), 12);
   assert.equal(n(floatMultiply(f(-3), f(4))), -12);
   assert.equal(n(floatDivide(f(12), f(4))), 3);
@@ -29,28 +29,28 @@ test('multiplication et division', () => {
   assert.equal(floatDivide(0n, 0n), INDEFINITE);
 });
 
-test('multiplication entière (exposants nuls)', () => {
+test('integer multiplication (zero exponents)', () => {
   assert.equal(floatMultiply(6n, 7n, false, true), 42n);
   assert.equal(floatMultiply(neg60(6n), 7n, false, true), neg60(42n));
 });
 
-test('normalisation et paquetage', () => {
-  const x = pack(1n, 0); // coefficient 1, exposant 0
+test('normalization and packing', () => {
+  const x = pack(1n, 0); // coefficient 1, exponent 0
   const r = normalize(x);
   assert.equal(r.shift, 47);
   assert.equal(n(r.value), 1);
   const u = unpack(f(1));
   assert.equal(u.coeff, 1n << 47n);
-  assert.equal(u.exp, (0o777777 - 47 + 0) & 0o777777); // -47 en complément à un
+  assert.equal(u.exp, (0o777777 - 47 + 0) & 0o777777); // -47 in ones' complement
 });
 
-test('entiers 60 bits complément à un', () => {
-  assert.equal(add60(5n, neg60(5n)), 0n); // l'additionneur soustractif donne +0
+test('60-bit ones\' complement integers', () => {
+  assert.equal(add60(5n, neg60(5n)), 0n); // the subtractive adder yields +0
   assert.equal(add60(M60, M60), M60);     // -0 + -0 = -0
   assert.equal(sub60(3n, 5n), neg60(2n));
 });
 
-test('décalages, masques, population', () => {
+test('shifts, masks, population count', () => {
   assert.equal(rotl60(1n, 59), 1n << 59n);
   assert.equal(rotl60(1n << 59n, 1), 1n);
   assert.equal(sra60(1n << 59n, 59), M60);
@@ -58,7 +58,7 @@ test('décalages, masques, population', () => {
   assert.equal(popcount60(M60), 60);
 });
 
-test('propriétés : add/mul/div à moins d\'un ulp sur 20 000 tirages', () => {
+test('properties: add/mul/div within one ulp over 20,000 draws', () => {
   let seed = 12345;
   const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
   const val = () => (rnd() < 0.5 ? -1 : 1) * Math.exp((rnd() - 0.5) * 80);
@@ -78,7 +78,7 @@ test('propriétés : add/mul/div à moins d\'un ulp sur 20 000 tirages', () => {
   }
 });
 
-test('double précision : FX + DX donnent la somme exacte sur 96 bits', () => {
+test('double precision: FX + DX give the exact 96-bit sum', () => {
   const a = f(1), b = f(2 ** -60);
   const hi = floatAdd(a, b), lo = floatAdd(a, b, false, true);
   assert.equal(n(hi), 1);

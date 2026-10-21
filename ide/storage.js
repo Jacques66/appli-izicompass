@@ -1,6 +1,6 @@
-// Espace de travail : fichiers source (programmes et textes XTEXT) conservés
-// dans le localStorage du navigateur. Toute erreur de stockage (navigation
-// privée, quota, file://) est absorbée : l'espace reste alors en mémoire.
+// Workspace: source files (programs and XTEXT texts) kept in the browser's
+// localStorage. Any storage error (private browsing, quota, file://) is
+// absorbed: the workspace then stays in memory only.
 
 import { store } from './dom.js';
 
@@ -9,12 +9,12 @@ const KEY = 'cdc6600-ide/workspace/v1';
 let seq = 0;
 const newId = () => `f${Date.now().toString(36)}${(seq++).toString(36)}`;
 
-/** Nature d'un fichier d'après son extension. */
+/** Kind of a file, from its extension. */
 export function kindOf(name) {
   return /\.(txt|text|tex)$/i.test(name) ? 'text' : 'program';
 }
 
-/** Nom COMPASS d'un fichier : sans extension, en majuscules (DEFS6612.TXT -> DEFS6612). */
+/** COMPASS name of a file: no extension, uppercase (DEFS6612.TXT -> DEFS6612). */
 export function compassName(name) {
   return name.replace(/\.[^.]*$/, '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) || 'PROG';
 }
@@ -63,7 +63,7 @@ export class Workspace {
     return this.files.find((f) => f.name.toLowerCase() === n) || null;
   }
 
-  /** Nom libre dérivé de `name` (ajoute -2, -3...). */
+  /** Free name derived from `name` (appends -2, -3...). */
   uniqueName(name) {
     if (!this.byName(name)) return name;
     const m = /^(.*?)(\.[^.]*)?$/.exec(name);
@@ -86,7 +86,7 @@ export class Workspace {
   }
 
   sort() {
-    this.files.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name, 'fr') : a.kind === 'program' ? -1 : 1));
+    this.files.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name, 'en') : a.kind === 'program' ? -1 : 1));
   }
 
   rename(id, name) {
@@ -108,7 +108,7 @@ export class Workspace {
     this.emit();
   }
 
-  /** Brouillon (modifications non enregistrées), conservé entre deux sessions. */
+  /** Draft (unsaved changes), kept between sessions. */
   setDraft(id, text) {
     const f = this.get(id);
     if (!f) return;
@@ -140,7 +140,7 @@ export class Workspace {
     this.persist();
   }
 
-  /** Textes externes pour l'option `texts` de l'assembleur (XTEXT). */
+  /** External texts for the assembler's `texts` option (XTEXT). */
   texts(exceptId = null) {
     const out = {};
     for (const f of this.files) {

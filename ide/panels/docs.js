@@ -1,228 +1,117 @@
-// Documentation intégrée (en français) : prise en main de l'IDE, format
-// COMPASS, pseudo-instructions, instructions CPU et PP, code display,
-// périphériques. Les données viennent des spécifications docs/spec/*.md.
+// Integrated documentation: the Workbench itself (getting started,
+// shortcuts, display code, peripherals) and the complete COMPASS reference
+// (ide/ref/) with full-text search, cross-references, history and F1 help.
 
-import { h, esc, o } from '../dom.js';
+import { h, esc, o, icon, iconButton, clear } from '../dom.js';
 import { DISPLAY, DISPLAY_CDC, displayToExtBcd, EXT_BCD } from '../../src/common/charset.js';
-import { PP_TIMES } from '../../src/pp/pp.js';
-import { PP_MNEMONICS } from '../../src/pp/disasm.js';
+import { highlightLine, collectMacros } from '../highlight.js';
+import { SYSTEM_TEXTS } from '../../src/os/systext.js';
+import { PARTS, buildIndex, fold } from '../ref/index.js';
+import { T, c } from '../ref/fmt.js';
 
-const T = (rows, head, cls = '') => `<table class="grid-table doc-table ${cls}"><thead><tr>${head.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td${i === 0 ? ' class="mono strong"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-const code = (s) => `<code>${esc(s)}</code>`;
 const pre = (s) => `<pre class="doc-pre">${esc(s)}</pre>`;
 const kbd = (s) => s.split('+').map((k) => `<kbd>${esc(k)}</kbd>`).join('+');
 
-// ---------------------------------------------------------------- contenu
+// ------------------------------------------------------ "Workbench" part
 
 const IDE = `
-<p>L'<b>Atelier COMPASS</b> réunit un éditeur de source COMPASS 3, l'assembleur, un émulateur complet du
-CDC 6600 (CPU, 10 processeurs périphériques, 12 canaux) et ses périphériques d'origine : console 6612,
-lecteur de cartes 405, imprimante 1612, dérouleurs de bande 607 et horloge temps réel.</p>
-<h3>Cycle de travail</h3>
+<p>The <b>COMPASS Workbench</b> combines a COMPASS 3 source editor, the assembler, a complete emulator of the
+CDC 6600 (CPU, 10 peripheral processors, 12 channels) and its original peripherals: 6612 console, 405 card reader,
+1612 line printer, 607 tape units, 6603 disk and real-time clock.</p>
+<h4>Work cycle</h4>
 <ol>
-<li><b>Écrire</b> le programme dans l'éditeur (à gauche). Les colonnes conventionnelles 11, 18 et 30 sont marquées ;
-la touche ${kbd('Tab')} saute à la colonne suivante. Au-delà de la colonne 72 commence le champ de séquence, ignoré par l'assembleur.</li>
-<li><b>Assembler</b> avec ${kbd('F7')} ou ${kbd('Ctrl+B')}. Les erreurs sont marquées dans la gouttière (survolez la marque pour lire le message)
-et listées dans l'onglet <i>Problèmes</i> ; un clic mène à la ligne.</li>
-<li><b>Exécuter</b> avec ${kbd('F5')} : le programme est assemblé si besoin, chargé selon le mode d'exécution, puis lancé.
-${kbd('F6')} interrompt, ${kbd('F10')} exécute une instruction CPU, ${kbd('Maj+F10')} une instruction du PP courant.</li>
-<li><b>Observer</b> : registres CPU, désassemblage, mémoire centrale, PP, canaux, console, imprimante.</li>
+<li><b>Write</b> the program in the editor (on the left). The conventional columns 11, 18 and 30 are marked;
+${kbd('Tab')} moves to the next one. Beyond column 72 is the sequence field, ignored by the assembler.</li>
+<li><b>Assemble</b> with ${kbd('F7')} or ${kbd('Ctrl+B')}. Errors are marked in the gutter (hover the mark to read the message)
+and listed in the <i>Problems</i> tab; a click goes to the line.</li>
+<li><b>Run</b> with ${kbd('F5')}: the program is assembled if needed, loaded according to the run mode, then started.
+${kbd('F6')} pauses, ${kbd('F10')} executes one CPU instruction, ${kbd('Shift+F10')} one instruction of the current PP.</li>
+<li><b>Observe</b>: CPU registers, disassembly, central memory, PPs, channels, console, printer.</li>
 </ol>
-<h3>Modes d'exécution</h3>
+<h4>Help on the language</h4>
+<p>${kbd('F1')} in the editor opens the page of the operation under the cursor (machine instruction, pseudo instruction,
+system text macro); otherwise, a search for that word is started. The search box of this panel scans the whole
+reference (ignoring case and accents); every word typed must appear in a page. The ${c('⤢')} button enlarges the panel,
+${kbd('Alt+←')} and ${kbd('Alt+→')} walk through the history. The examples that show a <i>Try it</i> button assemble
+without errors (the project tests check them); the button copies the example into a new file.</p>
+<h4>Run modes</h4>
 ${T([
-  ['Automatique', 'Choisit « PP » pour un programme PP (PERIPH), « Système » pour un programme CPU relogeable, « CPU nu » pour un programme absolu (ABS).'],
-  ['Système', 'Le programme devient un travail du mini-système : chargé en RA = 2000B (+100B), moniteur MTR dans PP0, console DSD dans PP1. Il appelle le système par les macros du texte SYSTEXT (MESSAGE, ENDRUN, ABORT, READC, WRITEC, WRITER, CDD, COD, TIME, DATE…) ; le fichier OUTPUT est imprimé sur la 1612, INPUT est lu sur le lecteur 405. L’exécution s’arrête à la fin du travail ; l’onglet Journal montre le dayfile. DROP puis Entrée sur la console abandonne le travail.'],
-  ['Système (deadstart sur bande)', 'Comme « Système », mais la machine démarre par un vrai deadstart : une bande système est écrite sur l’unité 0 (chargeur DSL, images de la mémoire centrale, DSD, MTR) et le panneau de deadstart du système la lit (DCN 13B ; FNC 2000B,13B ; FNC 2020B,13B ; ACN 13B ; LDC 1000B ; IAM 7000B,13B ; LJM 7000B). La bande peut être exportée au format .tap depuis l’onglet Périphériques > Bandes.'],
-  ['CPU nu', 'Le programme absolu (ABS) est chargé en RA ; un programme relogeable est placé en RA+100B. Le CPU démarre à l\'adresse d\'entrée avec le mode de sortie choisi ; il s\'arrête sur PS ou sur une sortie d\'erreur. Les PP restent au repos.'],
-  ['PP', 'Le programme PP est chargé dans le PP choisi (PP0 par défaut) à son origine et démarré à son point d\'entrée. Les autres PP attendent un chargement sur leur canal, comme après un deadstart.'],
-  ['Deadstart', 'Séquence de démarrage réelle : les 16 mots du panneau (onglet Deadstart) sont chargés dans PP0 à partir de 1 et PP0 démarre en 1.'],
-], ['Mode', 'Effet'])}
-<h3>Points d'arrêt</h3>
-<p>Cliquez dans la gouttière de l'éditeur (ou ${kbd('F9')} sur la ligne courante). Le point d'arrêt est placé sur le mot qui contient
-la première parcelle de la ligne : le CPU s'arrête au début de ce mot. Dans les vues de désassemblage (CPU et PP), un clic
-sur la colonne d'adresse pose un point d'arrêt par adresse. Dans la vue mémoire, l'œil pose un point de surveillance :
-la machine s'arrête dès qu'un mot surveillé est écrit.</p>
-<h3>Console 6612</h3>
-<p>Cliquez sur un écran pour lui donner le clavier : les touches sont transmises à la console (lecture par le PP avec
-${code('FNC 7020B')} puis ${code('IAN')}). ${kbd('Entrée')} envoie la touche CR (60B), ${kbd('Retour arrière')} la touche BKSP (61B).
-Les écrans n'ont pas de mémoire : le programme doit les redessiner sans cesse ; un tracé non rafraîchi s'estompe (rémanence).</p>
-<h3>Fichiers</h3>
-<p>L'espace de travail est conservé dans le navigateur. Les fichiers <i>.txt</i> sont des textes utilisables par
-${code('XTEXT nom')} : l'assembleur reçoit tous les fichiers de l'espace, nommés sans extension et en majuscules.
-Les exemples fournis s'ouvrent par le panneau Fichiers.</p>`;
-
-const FORMAT = `
-<p>Une ligne source correspond à une carte : seules les colonnes 1 à 72 sont interprétées ; les colonnes 73 à 90 forment le champ de séquence.</p>
-${T([
-  ['1', 'blanc, <b>*</b> (ligne de commentaire) ou <b>,</b> (continuation de la ligne précédente, à partir de la colonne 2)'],
-  ['1–9', 'champ <b>location</b> : étiquette (symbole), ou + / − pour forcer le début de mot'],
-  ['11–16', 'champ <b>opération</b> : instruction machine, pseudo-instruction ou macro'],
-  ['18–29', 'champ <b>variable</b> : sous-champs séparés par des virgules, terminé par un blanc'],
-  ['30–72', 'champ <b>commentaire</b> (un commentaire peut commencer après le premier blanc qui suit le champ variable)'],
-  ['73–90', 'séquence (ignorée)'],
-], ['Colonnes', 'Contenu'])}
-<p>Le format est libre : la convention ci-dessus n'est pas obligatoire, mais tous les exemples du manuel la suivent.
-L'opération est vide si rien ne la précède avant la colonne 30 ; un symbole seul en location équivaut à ${code('BSSZ 1')}.</p>
-<h3>Données et constantes</h3>
-${T([
-  [code('77B'), 'octal (suffixe B)'], [code('100D'), 'décimal (suffixe D) ; base par défaut : décimale'],
-  [code('1.5E3'), 'flottant (point décimal), DATA uniquement'], [code('10HTEXTE'), 'caractères cadrés à gauche, complétés par des blancs (n caractères exactement)'],
-  [code('3LABC'), 'cadrés à gauche, complétés par des zéros'], [code('1R*'), 'cadrés à droite, complétés par des zéros'],
-  [code('H*A B*'), 'chaîne délimitée (DATA, LIT, littéraux)'], [code('=10HMESSAGE'), 'littéral : le mot est créé dans le bloc des littéraux'],
-  [code('*'), 'compteur d\'emplacement courant'], [code('"NOM"'), 'référence de micro (≠NOM≠ dans le jeu CDC), substituée avant l\'analyse'],
-], ['Notation', 'Signification'])}
-<h3>Registres (CPU)</h3>
-<p>${code('X0')}–${code('X7')} : 60 bits ; ${code('A0')}–${code('A7')} : 18 bits d'adresse (charger A1–A5 lit la mémoire dans X1–X5,
-charger A6–A7 écrit X6–X7) ; ${code('B0')}–${code('B7')} : 18 bits d'index (B0 vaut toujours 0).
-L'arithmétique est en complément à un.</p>`;
-
-const PSEUDO = [
-  ['IDENT', 'IDENT nom[,origine,entrée]', 'Début de sous-programme. Absolu : origine et adresse de lancement. PP : IDENT nom,origine.'],
-  ['END', 'END [symbole]', 'Fin de sous-programme (adresse de transfert en relogeable).'],
-  ['ABS', 'ABS', 'Programme CPU absolu.'],
-  ['PERIPH', 'PERIPH [J]', 'Programme PP 12 bits de la série 6000.'],
-  ['ORG', 'ORG expression', 'Fixe le compteur d\'origine (adresse d\'assemblage).'],
-  ['BSS', 'BSS n', 'Réserve n mots (non initialisés).'],
-  ['BSSZ', 'BSSZ n', 'Réserve n mots à zéro.'],
-  ['CON', 'CON e1,e2,…', 'Un mot par expression.'],
-  ['DATA', 'DATA d1,d2,…', 'Données : nombres, flottants, caractères.'],
-  ['DIS', 'DIS n,texte | DIS ,*texte*', 'Texte en code display ; le format délimité garantit 12 bits nuls en fin.'],
-  ['VFD', 'VFD n1/e1,n2/e2,…', 'Champs de tailles quelconques (en bits) placés bout à bout.'],
-  ['LIT', 'LIT d1,d2,…', 'Littéraux consécutifs.'],
-  ['EQU (=)', 'sym EQU expression', 'Définit un symbole (une seule fois).'],
-  ['SET', 'sym SET expression', 'Définit un symbole redéfinissable.'],
-  ['MICRO', 'nom MICRO n1,n2,*chaîne*', 'Définit un micro (sous-chaîne de n2 caractères à partir de n1).'],
-  ['BASE', 'BASE D|O|M', 'Base par défaut des nombres (décimal, octal, mixte).'],
-  ['USE', 'USE bloc', 'Change de bloc de mémoire.'],
-  ['ENTRY / EXT', 'ENTRY s1,… / EXT s1,…', 'Points d\'entrée et symboles externes (relogeable).'],
-  ['MACRO … ENDM', 'nom MACRO p1,p2,…', 'Définition de macro ; LOCAL déclare des symboles propres à chaque appel.'],
-  ['DUP … ENDD', 'DUP n[,compte]', 'Répète n fois une suite d\'instructions.'],
-  ['ECHO … ENDD', 'ECHO [compte],P=(a,b,…)', 'Répète en substituant P par chaque élément.'],
-  ['IFxx … ELSE … ENDIF', 'IFEQ e1,e2[,n]', 'Assemblage conditionnel (IFEQ, IFNE, IFGT, IFGE, IFLT, IFLE, IFPL, IFMI, IFC, IFCP, IFPP…).'],
-  ['XTEXT', 'XTEXT nom', 'Insère un texte externe (fichier de l\'espace de travail).'],
-  ['LIST / TITLE / EJECT / SPACE', '', 'Contrôle du listing.'],
-  ['ERR / ERRNZ / ERRMI…', 'ERRNZ expression', 'Erreur d\'assemblage conditionnelle.'],
-];
-
-// Instructions CPU : [octal, syntaxe, opération, unité, temps (cycles mineurs de 100 ns)]
-const CPU = [
-  ['00', 'PS', 'Arrêt du programme', 'branch', '—'],
-  ['0100', 'RJ K', 'Saut avec retour : écrit EQ P+1 en K, continue en K+1', 'branch', '14'],
-  ['011 / 012', 'RE Bj+K / WE Bj+K', 'Lecture / écriture de blocs en ECS (X0 = adresse ECS, A0 = adresse CM)', 'branch', 'selon ECS'],
-  ['013', 'XJ Bj+K', 'Exchange jump (CEJ/MEJ)', 'branch', '≈ 26'],
-  ['02', 'JP Bi+K', 'Saut à Bi+K (vide la pile)', 'branch', '14'],
-  ['030–037', 'ZR NZ PL NG IR OR DF ID Xj,K', 'Sauts sur Xj : nul, non nul, positif, négatif, dans/hors limites, défini/indéfini', 'branch', '9 / 14'],
-  ['04–07', 'EQ NE GE LT Bi,Bj,K', 'Sauts sur comparaison de Bi et Bj (EQ K : saut inconditionnel)', 'branch', '8 / 14'],
-  ['10–17', 'BXi Xj, Xj*Xk, Xj+Xk, Xj-Xk, -Xk…', 'Transfert, ET, OU, OU exclusif, complément', 'boolean', '3'],
-  ['20 / 21', 'LXi jk / AXi jk', 'Décalage circulaire à gauche / arithmétique à droite', 'shift', '3'],
-  ['22 / 23', 'LXi Bj,Xk / AXi Bj,Xk', 'Décalage de Xk de (Bj) positions', 'shift', '3'],
-  ['24 / 25', 'NXi Bj,Xk / ZXi Bj,Xk', 'Normalisation (arrondie pour ZX), nombre de décalages dans Bj', 'shift', '4'],
-  ['26 / 27', 'UXi Bj,Xk / PXi Bj,Xk', 'Décomposition / composition (coefficient, exposant)', 'shift', '3'],
-  ['30 / 31', 'FXi Xj+Xk / FXi Xj-Xk', 'Addition / soustraction flottante', 'add', '4'],
-  ['32 / 33', 'DXi Xj+Xk / DXi Xj-Xk', 'Idem, partie basse (double précision)', 'add', '4'],
-  ['34 / 35', 'RXi Xj+Xk / RXi Xj-Xk', 'Idem, arrondie', 'add', '4'],
-  ['36 / 37', 'IXi Xj+Xk / IXi Xj-Xk', 'Addition / soustraction entière 60 bits', 'long add', '3'],
-  ['40 / 41 / 42', 'FX / RX / DXi Xj*Xk', 'Multiplication flottante (DX : partie basse, produit entier)', 'multiply', '10'],
-  ['43', 'MXi jk', 'Masque de jk bits à gauche', 'shift', '3'],
-  ['44 / 45', 'FXi Xj/Xk / RXi Xj/Xk', 'Division flottante (RX : arrondie)', 'divide', '29'],
-  ['46', 'NO', 'Pas d\'opération (bourrage)', '—', '—'],
-  ['47', 'CXi Xk', 'Nombre de bits à 1 de Xk', 'divide', '8'],
-  ['50–57', 'SAi Aj+K, Bj+K, Xj+K, Xj+Bk, Aj±Bk, Bj±Bk', 'Positionne Ai (lecture de Xi pour i=1–5, écriture pour 6–7)', 'increment', '3 (+5 mémoire)'],
-  ['60–67', 'SBi …', 'Positionne Bi (mêmes formes)', 'increment', '3'],
-  ['70–77', 'SXi …', 'Positionne Xi (18 bits étendus en signe)', 'increment', '3'],
-];
-
-const PP_DESC = {
-  PSN: 'Pas d\'opération', LJM: 'Saut à m+(d)', RJM: 'Saut avec retour : [m+(d)] = P+2, P = m+(d)+1', UJN: 'Saut relatif inconditionnel',
-  ZJN: 'Saut relatif si A = 0', NJN: 'Saut relatif si A ≠ 0', PJN: 'Saut relatif si A ≥ 0', MJN: 'Saut relatif si A < 0',
-  SHN: 'Décalage de A (circulaire à gauche, à droite sans signe)', LMN: 'A = A ⊕ d', LPN: 'A = A ∧ d', SCN: 'Efface dans A les bits de d',
-  LDN: 'A = d', LCN: 'A = ¬d', ADN: 'A = A + d', SBN: 'A = A − d', LDC: 'A = c (18 bits)', ADC: 'A = A + c', LPC: 'A = A ∧ c', LMC: 'A = A ⊕ c',
-  EXN: 'Exchange jump du CPU vers (A)', RPN: 'A = P du CPU', LDD: 'A = (d)', ADD: 'A = A + (d)', SBD: 'A = A − (d)', LMD: 'A = A ⊕ (d)',
-  STD: '(d) = A', RAD: 'A = A + (d), (d) = A', AOD: 'A = (d) + 1, (d) = A', SOD: 'A = (d) − 1, (d) = A',
-  LDI: 'A = ((d))', ADI: 'A = A + ((d))', SBI: 'A = A − ((d))', LMI: 'A = A ⊕ ((d))', STI: '((d)) = A', RAI: 'A = A + ((d)), ((d)) = A',
-  AOI: 'A = ((d)) + 1, ((d)) = A', SOI: 'A = ((d)) − 1, ((d)) = A', LDM: 'A = (m+(d))', ADM: 'A = A + (m+(d))', SBM: 'A = A − (m+(d))',
-  LMM: 'A = A ⊕ (m+(d))', STM: '(m+(d)) = A', RAM: 'A = A + (m+(d)), (m+(d)) = A', AOM: 'A = (m+(d)) + 1, rangé', SOM: 'A = (m+(d)) − 1, rangé',
-  CRD: 'Lit le mot CM d\'adresse (A) dans d…d+4', CRM: 'Lit (d) mots CM à partir de (A) dans m…', CWD: 'Écrit d…d+4 en CM à (A)',
-  CWM: 'Écrit (d) mots de m… en CM à partir de (A)', AJM: 'Saut à m si le canal c est actif', IJM: 'Saut à m si le canal c est inactif',
-  FJM: 'Saut à m si le canal c est plein', EJM: 'Saut à m si le canal c est vide', IAN: 'A = mot lu sur le canal c', IAM: 'Lit (A) mots du canal c dans m…',
-  OAN: 'Écrit A sur le canal c', OAM: 'Écrit (A) mots de m… sur le canal c', ACN: 'Active le canal c', DCN: 'Désactive le canal c',
-  FAN: 'Envoie la fonction A au canal c', FNC: 'Envoie la fonction m au canal c',
-};
-const PP_SYNTAX = (mn, f) => {
-  if (['LJM', 'RJM', 'LDM', 'ADM', 'SBM', 'LMM', 'STM', 'RAM', 'AOM', 'SOM'].includes(mn)) return `${mn} m,d`;
-  if (['CRM', 'CWM'].includes(mn)) return `${mn} m,d`;
-  if (['AJM', 'IJM', 'FJM', 'EJM', 'IAM', 'OAM', 'FNC'].includes(mn)) return `${mn} m,c`;
-  if (['IAN', 'OAN', 'ACN', 'DCN', 'FAN'].includes(mn)) return `${mn} c`;
-  if (f >= 0o03 && f <= 0o07) return `${mn} r (±31)`;
-  if (f === 0o10) return 'SHN ±r';
-  if (f >= 0o20 && f <= 0o23) return `${mn} c`;
-  if (mn === 'PSN' || mn === 'RPN') return mn;
-  if (mn === 'EXN') return 'EXN';
-  return `${mn} d`;
-};
+  ['Automatic', 'Chooses "PP" for a PP program (PERIPH), "System" for a relocatable CPU program, "Bare CPU" for an absolute program (ABS).'],
+  ['System', 'The program becomes a job of the mini system: loaded at RA = 2000B (+100B), monitor MTR in PP0, console display DSD in PP1. It calls the system through the SYSTEXT macros (MESSAGE, ENDRUN, ABORT, READC, WRITEC, WRITER, CDD, COD, TIME, DATE…); file OUTPUT is printed on the 1612, INPUT is read from the 405 card reader. Execution stops at the end of the job; the Dayfile tab shows the dayfile. DROP then Enter on the console aborts the job.'],
+  ['System (tape deadstart)', 'As "System", but the machine starts with a real deadstart: a system tape is written on unit 0 (DSL loader, central memory images, DSD, MTR) and the system deadstart panel reads it (DCN 13B; FNC 2000B,13B; FNC 2020B,13B; ACN 13B; LDC 1000B; IAM 7000B,13B; LJM 7000B). The tape can be exported in .tap format from Peripherals > Tapes.'],
+  ['Bare CPU', 'The absolute program (ABS) is loaded at RA; a relocatable program is placed at RA+100B. The CPU starts at the entry address with the selected exit mode; it stops on PS or on an error exit. The PPs stay idle.'],
+  ['PP', 'The PP program is loaded into the selected PP (PP0 by default) at its origin and started at its entry point. The other PPs wait for a load on their channel, as after a deadstart.'],
+  ['Deadstart', 'Real startup sequence: the 16 words of the panel (Deadstart tab) are loaded into PP0 from address 1 and PP0 starts at 1.'],
+], ['Mode', 'Effect'])}
+<h4>Breakpoints</h4>
+<p>Click in the editor gutter (or press ${kbd('F9')} on the current line). The breakpoint is set on the word holding the
+first parcel of the line: the CPU stops at the start of that word. In the disassembly views (CPU and PP), a click on the
+address column sets a breakpoint by address. In the memory view, the eye sets a watchpoint: the machine stops as soon
+as a watched word is written.</p>
+<h4>6612 console</h4>
+<p>Click on a screen to give it the keyboard: keys are passed to the console (read by the PP with ${c('FNC 7020B')}
+then ${c('IAN')}). ${kbd('Enter')} sends the CR key (60B), ${kbd('Backspace')} the BKSP key (61B). The screens have no
+memory: the program must redraw them continuously; a trace that is not refreshed fades away (persistence).</p>
+<h4>Files</h4>
+<p>The workspace is kept in the browser. <i>.txt</i> files are texts usable by ${c('XTEXT name')}: the assembler receives
+every workspace file, named without extension and in uppercase. The supplied examples open from the Files panel.</p>`;
 
 const DEVICES = `
-<h3>Console 6612 (canal 10B)</h3>
+<h4>6612 console (channel 10B)</h4>
 ${T([
-  ['7000B / 7001B / 7002B', 'Écran gauche, caractères petits (64 par ligne), moyens (32), grands (16)'],
-  ['7010B', 'Écran gauche, mode points'],
-  ['7100B / 7101B / 7102B / 7110B', 'Mêmes choix pour l\'écran droit'],
-  ['7020B', 'Lecture du clavier : IAN rend le code display de la touche (0 si aucune)'],
-], ['Fonction', 'Effet'])}
-<p>Après ${code('FNC')} et ${code('ACN')}, les mots envoyés par ${code('OAM')} sont interprétés ainsi :
-${code('60xx')}–${code('67xx')} = coordonnée X (9 bits), ${code('70xx')}–${code('77xx')} = coordonnée Y (9 bits, Y croît vers le haut),
-sinon deux caractères display ; X avance de la largeur d'un caractère après chaque caractère.</p>
-${pre(`          FNC    7001B,10B     ECRAN GAUCHE, CARACTERES MOYENS
+  ['7000B / 7001B / 7002B', 'Left screen, small (64 per line), medium (32) or large (16) characters'],
+  ['7010B', 'Left screen, dot mode'],
+  ['7100B / 7101B / 7102B / 7110B', 'Same choices for the right screen'],
+  ['7020B', 'Keyboard input: IAN returns the display code of the key (0 if none)'],
+], ['Function', 'Effect'])}
+<p>After ${c('FNC')} and ${c('ACN')}, the words sent by ${c('OAM')} are interpreted as follows: ${c('60xx')}–${c('67xx')}
+= X coordinate (9 bits), ${c('70xx')}–${c('77xx')} = Y coordinate (9 bits, Y grows upward), otherwise two display
+characters; X advances by one character width after each character.</p>
+${pre(`          FNC    7001B,10B     LEFT SCREEN, MEDIUM CHARACTERS
           ACN    10B
-          LDN    N             NOMBRE DE MOTS
-          OAM    TEXTE,10B
+          LDN    N             WORD COUNT
+          OAM    TEXT,10B
           DCN    10B
-TEXTE     CON    6000B+100B,7000B+400B
-          DIS    4,BONJOUR`)}
-<h3>Lecteur de cartes 405 (canal 12B)</h3>
-<p>${code('FNC 702B,12B')} lance la lecture d'une carte, puis ${code('ACN 12B')} et ${code('IAM tampon,12B')} avec A = 80 :
-chaque colonne arrive en code Hollerith sur 12 bits (bit 11 = ligne 12, bit 10 = ligne 11, bit 9 = ligne 0, bits 8–0 = lignes 1–9).
-Le canal se déconnecte seul à la fin de la carte. Si le magasin est vide, l'IAM se termine avec A non nul.
-${code('704B')} demande l'état (0 = prêt).</p>
-<h3>Imprimante 1612 (canal 12B)</h3>
+TEXT      CON    6000B+100B,7000B+400B
+          DIS    4,HELLO`)}
+<h4>405 card reader (channel 12B)</h4>
+<p>${c('FNC 702B,12B')} starts reading a card, then ${c('ACN 12B')} and ${c('IAM buffer,12B')} with A = 80: each column
+arrives as 12-bit Hollerith code (bit 11 = row 12, bit 10 = row 11, bit 9 = row 0, bits 8–0 = rows 1–9). The channel
+disconnects by itself at the end of the card. If the hopper is empty, the IAM ends with A nonzero. ${c('704B')}
+requests the status (0 = ready).</p>
+<h4>1612 line printer (channel 12B)</h4>
 ${T([
-  ['600B', 'Sélection de l\'imprimante'], ['601B / 602B', 'Simple / double interligne'], ['604B', 'Saut de page'],
-  ['605B', 'Impression de la ligne reçue'], ['606B', 'Supprime l\'avance du papier'], ['607B', 'Demande d\'état'],
-], ['Fonction', 'Effet'])}
-<p>Les caractères sont envoyés un par mot, en BCD externe (6 bits bas), 136 au plus par ligne.</p>
-<h3>Bande 607 (canal 13B)</h3>
+  ['600B', 'Select the printer'], ['601B / 602B', 'Single / double space'], ['604B', 'Page eject'],
+  ['605B', 'Print the line received'], ['606B', 'Suppress paper advance'], ['607B', 'Status request'],
+], ['Function', 'Effect'])}
+<p>Characters are sent one per word, in external BCD (low 6 bits), 136 at most per line.</p>
+<h4>607 tape (channel 13B)</h4>
 ${T([
-  ['2000B+u', 'Sélection de l\'unité u'], ['2010B / 2020B', 'Écriture / lecture binaire d\'un enregistrement'], ['2030B', 'Retour d\'un enregistrement'],
-  ['2060B', 'Rembobinage'], ['2070B', 'Déchargement'], ['2100B', 'Demande d\'état'], ['2610B', 'Écriture d\'une marque de fichier'],
-], ['Fonction', 'Effet'])}
-<h3>Horloge temps réel (canal 14B)</h3>
-<p>Canal toujours actif et plein : ${code('IAN 14B')} rend le temps simulé en microsecondes, modulo 4096.</p>
-<h3>Panneau de deadstart (canal 0)</h3>
-<p>16 mots de 12 interrupteurs, chargés dans PP0 à partir de l'adresse 1 au deadstart ; PP0 démarre en 1.</p>`;
-
-const XPKG = `
-<p>Le paquet d'échange occupe 16 mots. L'instruction ${code('XJ')} (CPU) ou ${code('EXN')} (PP) échange tous les registres avec lui.</p>
+  ['2000B+u', 'Select unit u'], ['2010B / 2020B', 'Write / read one binary record'], ['2030B', 'Backspace one record'],
+  ['2060B', 'Rewind'], ['2070B', 'Unload'], ['2100B', 'Status request'], ['2610B', 'Write a file mark'],
+], ['Function', 'Effect'])}
+<h4>6603 disk (channel 13B)</h4>
 ${T([
-  ['0', 'P (bits 53–36), A0 (bits 35–18)'], ['1', 'RA (bits 59–36), A1, B1'], ['2', 'FL, A2, B2'], ['3', 'EM (mode de sortie), A3, B3'],
-  ['4', 'RAE (ECS), A4, B4'], ['5', 'FLE (ECS), A5, B5'], ['6', 'MA (adresse du moniteur), A6, B6'], ['7', 'réservé, A7, B7'],
-  ['10–17', 'X0 à X7'],
-], ['Mot', 'Contenu'])}
-<p>Mode de sortie (EM) : ${code('010000B')} adresse hors limites, ${code('020000B')} opérande infini, ${code('040000B')} opérande indéfini.
-Lors d'une sortie d'erreur, le CPU s'arrête et écrit en RA la condition (bits 59–48) et P+1 (bits 47–30).</p>
-<p>Un mot de 60 bits contient quatre parcelles de 15 bits ; une instruction fait 15 ou 30 bits et une instruction de
-30 bits ne peut pas commencer en parcelle 3. Un saut reprend toujours en parcelle 0 (début de mot).</p>`;
+  ['1000B+s', 'Read sector s'], ['1200B+s', 'Write sector s'], ['1400B+t', 'Select track t'],
+  ['1600B+h', 'Select head h'], ['1700B', 'Status: sector under the head'],
+], ['Function', 'Effect'])}
+<p>128 tracks, 8 heads, 128 or 100 sectors of 322 12-bit words.</p>
+<h4>Real-time clock (channel 14B)</h4>
+<p>Always active and full: ${c('IAN 14B')} returns the simulated time in microseconds, modulo 4096.</p>
+<h4>Deadstart panel (channel 0)</h4>
+<p>16 words of 12 switches, loaded into PP0 from address 1 at deadstart; PP0 starts at 1.</p>`;
 
 function displayTable() {
   let html = '<table class="grid-table doc-table display-table"><thead><tr><th></th>';
-  for (let c = 0; c < 8; c++) html += `<th>${c}</th>`;
+  for (let col = 0; col < 8; col++) html += `<th>${col}</th>`;
   html += '</tr></thead><tbody>';
   for (let r = 0; r < 8; r++) {
     html += `<tr><th>${r}x</th>`;
-    for (let c = 0; c < 8; c++) {
-      const code = r * 8 + c;
+    for (let col = 0; col < 8; col++) {
+      const code = r * 8 + col;
       const a = DISPLAY[code], g = DISPLAY_CDC[code];
       const bcd = displayToExtBcd(code);
-      html += `<td data-tip="${o(code, 2)}B : ${esc(g)}${g !== a ? ` (ASCII ${esc(a)})` : ''} · BCD externe ${o(bcd, 2)}B"><span class="dc-g">${esc(g === ' ' ? '␣' : g)}</span><span class="dc-a mono">${esc(a === ' ' ? '' : g !== a ? a : '')}</span></td>`;
+      html += `<td data-tip="${o(code, 2)}B: ${esc(g)}${g !== a ? ` (ASCII ${esc(a)})` : ''} · external BCD ${o(bcd, 2)}B"><span class="dc-g">${esc(g === ' ' ? '␣' : g)}</span><span class="dc-a mono">${esc(a === ' ' ? '' : g !== a ? a : '')}</span></td>`;
     }
     html += '</tr>';
   }
@@ -231,69 +120,246 @@ function displayTable() {
 }
 
 const SHORTCUTS = [
-  ['F7 / Ctrl+B', 'Assembler le fichier courant'], ['F5', 'Exécuter (assemble et charge si nécessaire)'], ['F6', 'Pause'],
-  ['F10', 'Pas à pas : une instruction CPU'], ['Maj+F10', 'Pas à pas : une instruction du PP courant'], ['Ctrl+Maj+F5', 'Recharger le programme (réinitialisation)'],
-  ['F9', 'Basculer le point d\'arrêt de la ligne courante'], ['Ctrl+S', 'Enregistrer le fichier'], ['Ctrl+F / Ctrl+H', 'Rechercher / remplacer'],
-  ['F3 / Maj+F3', 'Occurrence suivante / précédente'], ['Ctrl+G', 'Aller à la ligne'], ['Tab / Maj+Tab', 'Colonne conventionnelle suivante / précédente (11, 18, 30)'],
-  ['Ctrl+Z / Ctrl+Y', 'Annuler / rétablir'], ['Ctrl+N', 'Nouveau fichier'], ['F1', 'Aide des raccourcis'],
+  ['F7 / Ctrl+B', 'Assemble the current file'], ['F5', 'Run (assembles and loads if needed)'], ['F6', 'Pause'],
+  ['F10', 'Step: one CPU instruction'], ['Shift+F10', 'Step: one instruction of the current PP'], ['Ctrl+Shift+F5', 'Reload the program (reset)'],
+  ['F9', 'Toggle the breakpoint on the current line'], ['Ctrl+S', 'Save the file'], ['Ctrl+F / Ctrl+H', 'Find / replace'],
+  ['F3 / Shift+F3', 'Next / previous match'], ['Ctrl+G', 'Go to line'], ['Tab / Shift+Tab', 'Next / previous conventional column (11, 18, 30)'],
+  ['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+N', 'New file'],
+  ['F1', 'COMPASS reference: page of the operation under the cursor'], ['Shift+F1', 'List of shortcuts'],
+  ['Alt+← / Alt+→', 'Documentation: previous / next page in the history'],
 ];
 export { SHORTCUTS };
 
-// ------------------------------------------------------------------ panneau
+const WORKBENCH = {
+  id: 'workbench', title: 'Workbench',
+  chapters: [{
+    id: 'ide-ch', title: 'COMPASS Workbench',
+    entries: [
+      { id: 'ide-start', title: 'Getting started', keys: [], html: IDE },
+      { id: 'ide-shortcuts', title: 'Keyboard shortcuts', keys: [], html: T(SHORTCUTS.map(([k, d]) => [k.split(' / ').map(kbd).join(' / '), esc(d)]), ['Keys', 'Action']) },
+      { id: 'ide-display', title: 'Display code', keys: [], html: `<p>Set of 64 6-bit characters. Row = high-order octal digit, column = low-order digit. The original CDC glyphs are shown; their ASCII equivalent, used in source files, is shown in small type. See also <a class="ref-link" href="#ref-lang-charsets" data-ref="lang-charsets">Character sets</a>.</p>${displayTable()}` },
+      { id: 'ide-periph', title: 'Peripherals and channels', keys: [], html: DEVICES },
+    ],
+  }],
+};
+
+const ALL_PARTS = [WORKBENCH, ...PARTS];
+const SYSTEM_MACROS = collectMacros(Object.values(SYSTEM_TEXTS).join('\n'));
+const INDEX = buildIndex(ALL_PARTS);
+
+// ------------------------------------------------------------------ panel
 
 export class DocsPanel {
   constructor(ctx) {
     this.ctx = ctx;
-    const ppRows = PP_MNEMONICS.map((mn, f) => [f, mn]).filter(([f, mn]) => !(mn === 'PSN' && f !== 0))
-      .map(([f, mn]) => [`${o(f, 2)}`, code(PP_SYNTAX(mn, f)), esc(PP_DESC[mn] || ''), `${PP_TIMES[f]}`]);
-    this.sections = [
-      { id: 'ide', title: 'Prise en main', html: IDE },
-      { id: 'raccourcis', title: 'Raccourcis clavier', html: T(SHORTCUTS.map(([k, d]) => [kbd(k), esc(d)]), ['Touches', 'Action'], 'keys') },
-      { id: 'format', title: 'Format COMPASS', html: FORMAT },
-      { id: 'pseudo', title: 'Pseudo-instructions', html: T(PSEUDO.map(([a, b, c]) => [esc(a), b ? code(b) : '', esc(c)]), ['Nom', 'Forme', 'Rôle']) },
-      { id: 'cpu', title: 'Instructions CPU', html: `<p>Temps du 6600 en cycles mineurs (100 ns) ; le CPU émet au plus une instruction par cycle vers dix unités fonctionnelles indépendantes (tableau de marque). Sauts : temps court si la cible est dans la pile d'instructions (8 mots).</p>${T(CPU.map(([a, b, c, d, e]) => [a, code(b), esc(c), esc(d), e]), ['Code', 'Syntaxe', 'Opération', 'Unité', 'Temps'])}` },
-      { id: 'pp', title: 'Instructions PP', html: `<p>Instructions de 12 bits (f d) ou 24 bits (f d m). d : adresse directe (0–77B) ou opérande ; m : adresse ou constante de 12 bits ; c : canal. Temps en cycles majeurs (1 µs) ; les instructions de bloc durent en plus un cycle par mot.</p>${T(ppRows, ['Code', 'Syntaxe', 'Opération', 'µs'])}` },
-      { id: 'display', title: 'Code display', html: `<p>Jeu de 64 caractères de 6 bits. Ligne = chiffre octal de poids fort, colonne = chiffre de poids faible. Les graphies CDC d'origine sont affichées ; leur équivalent ASCII, utilisé dans les sources, est indiqué en petit.</p>${displayTable()}` },
-      { id: 'periph', title: 'Périphériques et canaux', html: DEVICES },
-      { id: 'echange', title: 'Paquet d\'échange', html: XPKG },
-    ];
+    this.index = INDEX;
+    this.history = [];
+    this.histPos = -1;
+    this.chapter = null;
+    this.terms = [];
+
+    this.search = h('input', { class: 'tinput doc-search', type: 'search', placeholder: `Search (${INDEX.count} pages)`, spellcheck: 'false' });
+    this.search.addEventListener('input', () => this.onSearch());
+    this.search.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { const first = this.results.querySelector('.ref-hit'); if (first) first.click(); }
+      if (e.key === 'Escape') { this.search.value = ''; this.onSearch(); }
+    });
+    this.backBtn = iconButton('arrowLeft', 'Previous page (Alt+←)', () => this.back(), { size: 14 });
+    this.fwdBtn = iconButton('arrowRight', 'Next page (Alt+→)', () => this.forward(), { size: 14 });
+    this.wideBtn = iconButton('maximize', 'Enlarge / restore the panel', () => this.toggleWide(), { size: 14 });
     this.toc = h('nav', { class: 'doc-toc' });
+    this.results = h('div', { class: 'ref-results hidden' });
     this.content = h('div', { class: 'doc-content' });
-    this.search = h('input', { class: 'tinput doc-search', type: 'search', placeholder: 'Rechercher dans l\'aide', spellcheck: 'false' });
-    this.search.addEventListener('input', () => this.filter(this.search.value));
-    for (const s of this.sections) {
-      const a = h('button', { class: 'toc-item', type: 'button', onclick: () => this.go(s.id) }, s.title);
-      s.toc = a;
-      this.toc.append(a);
-      s.el = h('section', { class: 'doc-sec', id: `doc-${s.id}` }, h('h2', null, s.title), h('div', { html: s.html }));
-      this.content.append(s.el);
-    }
+    this.buildToc();
+    this.content.addEventListener('click', (e) => this.onContentClick(e));
     this.content.addEventListener('scroll', () => this.spy());
-    this.el = h('div', { class: 'panel panel-docs' }, h('div', { class: 'doc-side' }, this.search, this.toc), this.content);
-    this.spy();
+    this.el = h('div', { class: 'panel panel-docs' },
+      h('div', { class: 'doc-side' },
+        h('div', { class: 'doc-searchrow' }, this.search),
+        h('div', { class: 'doc-navrow' }, this.backBtn, this.fwdBtn, h('span', { class: 'grow' }), this.wideBtn),
+        this.results, this.toc),
+      this.content);
+    this.el.addEventListener('keydown', (e) => {
+      if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); this.back(); }
+      if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); this.forward(); }
+      if (e.key === 'Escape' && this.el.classList.contains('wide')) this.toggleWide(false);
+    });
+    this.go('ide-start', { record: true });
   }
 
-  go(id) {
-    const s = this.sections.find((x) => x.id === id);
-    if (s) this.content.scrollTop = s.el.offsetTop - 8;
+  // ------------------------------------------------------------ contents
+
+  buildToc() {
+    clear(this.toc);
+    this.tocChapters = new Map();
+    for (const part of ALL_PARTS) {
+      this.toc.append(h('div', { class: 'toc-part' }, part.title));
+      for (const ch of part.chapters) {
+        const btn = h('button', { class: 'toc-item', type: 'button', onclick: () => this.go(ch.entries[0].id, { top: true }) }, ch.title);
+        const subs = h('div', { class: 'toc-subs hidden' });
+        for (const e of ch.entries) {
+          subs.append(h('button', { class: 'toc-sub', type: 'button', dataset: { id: e.id }, onclick: () => this.go(e.id) }, e.title));
+        }
+        this.tocChapters.set(ch.id, { btn, subs });
+        this.toc.append(btn, subs);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------- navigation
+
+  /** Shows a page (whole chapter, scrolled to the page). */
+  go(id, { record = true, top = false, terms = null } = {}) {
+    const rec = this.index.byId.get(id);
+    if (!rec) return false;
+    this.terms = terms || [];
+    if (this.chapter !== rec.chapter || terms) this.renderChapter(rec.chapter);
+    const el = this.content.querySelector(`#ref-${CSS.escape(id)}`);
+    if (top) this.content.scrollTop = 0;
+    else if (el) this.content.scrollTop = el.offsetTop - 6;
+    if (el && !top) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+    if (record) {
+      this.history = this.history.slice(0, this.histPos + 1);
+      if (this.history[this.histPos] !== id) this.history.push(id);
+      this.histPos = this.history.length - 1;
+    }
+    this.updateNav();
+    this.spy();
+    return true;
+  }
+
+  back() { if (this.histPos > 0) this.go(this.history[--this.histPos], { record: false }); }
+  forward() { if (this.histPos < this.history.length - 1) this.go(this.history[++this.histPos], { record: false }); }
+
+  updateNav() {
+    this.backBtn.disabled = this.histPos <= 0;
+    this.fwdBtn.disabled = this.histPos >= this.history.length - 1;
+  }
+
+  toggleWide(on = !this.el.classList.contains('wide')) {
+    this.el.classList.toggle('wide', on);
+    if (on) this.search.focus();
+  }
+
+  renderChapter(ch) {
+    this.chapter = ch;
+    const parts = [`<h2 class="ref-chapter">${esc(ch.title)}</h2>`];
+    if (ch.intro) parts.push(`<div class="ref-intro">${ch.intro}</div>`);
+    for (const e of ch.entries) {
+      const syn = (e.syntax || []).length
+        ? `<div class="ref-syntax">${e.syntax.map((s) => `<div>${esc(s)}</div>`).join('')}</div>` : '';
+      parts.push(`<article class="ref-entry" id="ref-${esc(e.id)}"><h3>${esc(e.title)}</h3>${syn}${e.html}</article>`);
+    }
+    this.content.innerHTML = parts.join('');
+    // verified examples: syntax coloring and "Try it" button
+    const pp = /PP|PERIPH/.test(ch.id) || ch.id.startsWith('pp-');
+    for (const preEl of this.content.querySelectorAll('pre.doc-ex')) {
+      const text = preEl.textContent;
+      const isPP = pp || /^\s+PERIPH\b/m.test(text);
+      preEl.innerHTML = text.split('\n').map((l) => highlightLine(l, { macros: SYSTEM_MACROS, pp: isPP })).join('\n');
+      const wrap = h('div', { class: 'ref-ex' });
+      preEl.replaceWith(wrap);
+      wrap.append(preEl, h('button', { class: 'tbtn ref-try', type: 'button', 'data-tip': 'Copy the example into a new file', onclick: () => this.tryExample(text, isPP) }, 'Try it'));
+    }
+    if (this.terms.length) this.markTerms();
+    for (const [id, t] of this.tocChapters) {
+      t.btn.classList.toggle('active', id === ch.id);
+      t.subs.classList.toggle('hidden', id !== ch.id);
+    }
+    const t = this.tocChapters.get(ch.id);
+    if (t) t.btn.scrollIntoView({ block: 'nearest' });
   }
 
   spy() {
-    const top = this.content.scrollTop + 30;
-    let cur = this.sections[0];
-    for (const s of this.sections) if (s.el.offsetTop <= top && !s.el.classList.contains('hidden')) cur = s;
-    for (const s of this.sections) s.toc.classList.toggle('active', s === cur);
+    if (!this.chapter) return;
+    const top = this.content.scrollTop + 40;
+    let cur = null;
+    for (const a of this.content.querySelectorAll('.ref-entry')) { if (a.offsetTop <= top) cur = a.id.slice(4); else break; }
+    const t = this.tocChapters.get(this.chapter.id);
+    if (!t) return;
+    for (const b of t.subs.children) b.classList.toggle('active', b.dataset.id === cur);
   }
 
-  filter(q) {
-    const t = q.trim().toLowerCase();
-    for (const s of this.sections) {
-      const hit = !t || s.el.textContent.toLowerCase().includes(t);
-      s.el.classList.toggle('hidden', !hit);
-      s.toc.classList.toggle('hidden', !hit);
-      for (const tr of s.el.querySelectorAll('tbody tr')) tr.classList.toggle('hidden', !!t && !tr.textContent.toLowerCase().includes(t) && !s.title.toLowerCase().includes(t));
+  onContentClick(e) {
+    const a = e.target.closest('a.ref-link');
+    if (!a) return;
+    e.preventDefault();
+    if (!this.go(a.dataset.ref)) this.ctx.log?.(`Page missing from the reference: ${a.dataset.ref}`, 'warn');
+  }
+
+  tryExample(text, pp) {
+    const body = /^\S*\s+IDENT\b/m.test(text) ? text
+      : pp ? `          IDENT  EXAMPLE,100B\n          PERIPH\n          ORG    100B\n${text}\n          END\n`
+        : `          IDENT  EXAMPLE\n${text}\n          END\n`;
+    if (this.ctx.openExample) this.ctx.openExample(body, pp ? 'example-pp.cmp' : 'example.cmp');
+  }
+
+  // -------------------------------------------------------------- search
+
+  onSearch() {
+    const q = this.search.value.trim();
+    clear(this.results);
+    if (!q) {
+      this.results.classList.add('hidden');
+      this.toc.classList.remove('hidden');
+      if (this.terms.length) { this.terms = []; if (this.chapter) { const st = this.content.scrollTop; this.renderChapter(this.chapter); this.content.scrollTop = st; } }
+      return;
     }
-    this.spy();
+    const hits = this.index.search(q);
+    const terms = fold(q).split(/\s+/).filter(Boolean);
+    this.results.classList.remove('hidden');
+    this.toc.classList.add('hidden');
+    this.results.append(h('div', { class: 'ref-count' }, hits.length ? `${hits.length}${hits.length >= 80 ? '+' : ''} page${hits.length > 1 ? 's' : ''}` : 'No page found'));
+    for (const r of hits) {
+      this.results.append(h('button', { class: 'ref-hit', type: 'button', onclick: () => this.go(r.entry.id, { terms }) },
+        h('span', { class: 'ref-hit-title' }, r.entry.title),
+        h('span', { class: 'ref-hit-ch' }, r.chapter.title),
+        h('span', { class: 'ref-hit-snip', html: markText(r.snippet, terms) })));
+    }
+  }
+
+  markTerms() {
+    const walker = document.createTreeWalker(this.content, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const n of nodes) {
+      const s = n.nodeValue;
+      const f = foldSameLength(s);
+      const ranges = [];
+      for (const t of this.terms) for (let p = f.indexOf(t); p >= 0; p = f.indexOf(t, p + t.length)) ranges.push([p, p + t.length]);
+      if (!ranges.length) continue;
+      ranges.sort((a, b) => a[0] - b[0]);
+      const frag = document.createDocumentFragment();
+      let at = 0;
+      for (const [a, b] of ranges) {
+        if (a < at) continue;
+        frag.append(s.slice(at, a), h('mark', null, s.slice(a, b)));
+        at = b;
+      }
+      frag.append(s.slice(at));
+      n.replaceWith(frag);
+    }
+  }
+
+  // ------------------------------------------------------------ help (F1)
+
+  /** Opens the page of one of the words (the first known one); otherwise searches for the first word. */
+  help(words) {
+    for (const w of words) {
+      const rec = this.index.lookup(w);
+      if (rec) {
+        this.search.value = '';
+        this.onSearch();
+        this.go(rec.entry.id);
+        return true;
+      }
+    }
+    if (words.length) {
+      this.search.value = words[0];
+      this.onSearch();
+    }
+    this.search.focus();
+    return false;
   }
 
   onShow() {}
@@ -301,4 +367,30 @@ export class DocsPanel {
   update() {}
 }
 
-export { EXT_BCD };
+/** Case and accent folding that keeps the length (to place the marks). */
+function foldSameLength(s) {
+  let out = '';
+  for (const ch of s) {
+    const f = fold(ch);
+    out += f.length === ch.length ? f : ch.toLowerCase().padEnd(ch.length).slice(0, ch.length);
+  }
+  return out;
+}
+
+/** Plain text to HTML, with the search terms marked. */
+function markText(text, terms) {
+  const f = foldSameLength(text);
+  const ranges = [];
+  for (const t of terms) for (let p = f.indexOf(t); p >= 0; p = f.indexOf(t, p + t.length)) ranges.push([p, p + t.length]);
+  ranges.sort((a, b) => a[0] - b[0]);
+  let out = '';
+  let at = 0;
+  for (const [a, b] of ranges) {
+    if (a < at) continue;
+    out += esc(text.slice(at, a)) + '<mark>' + esc(text.slice(a, b)) + '</mark>';
+    at = b;
+  }
+  return out + esc(text.slice(at));
+}
+
+export { EXT_BCD, INDEX, icon };

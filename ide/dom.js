@@ -1,9 +1,9 @@
-// Petits utilitaires DOM de l'IDE.
+// Small DOM utilities for the IDE.
 
 import { iconSvg } from './icons.js';
 
 /**
- * Crée un élément : h('div', { class: 'x', onclick: fn, dataset: {...}, style: {...} }, enfants...)
+ * Creates an element: h('div', { class: 'x', onclick: fn, dataset: {...}, style: {...} }, children...)
  */
 export function h(tag, attrs = null, ...children) {
   const el = document.createElement(tag);
@@ -32,14 +32,14 @@ function append(el, children) {
   }
 }
 
-/** Icône SVG sous forme d'élément. */
+/** SVG icon as an element. */
 export function icon(name, size = 16, cls = '') {
   const t = document.createElement('template');
   t.innerHTML = iconSvg(name, size, cls);
   return t.content.firstChild;
 }
 
-/** Bouton d'icône avec infobulle. */
+/** Icon button with a tooltip. */
 export function iconButton(name, tip, onclick, opts = {}) {
   const b = h('button', {
     class: `btn-icon ${opts.cls || ''}`, type: 'button', 'data-tip': tip, 'aria-label': tip, onclick,
@@ -66,7 +66,7 @@ export function debounce(fn, ms) {
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
 
-/** Téléchargement d'un texte ou d'octets. */
+/** Download of a text or of bytes. */
 export function download(name, data, mime = 'text/plain;charset=utf-8') {
   const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -76,7 +76,7 @@ export function download(name, data, mime = 'text/plain;charset=utf-8') {
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
 }
 
-/** Ouvre le sélecteur de fichiers ; résout avec [{ name, text | bytes }]. */
+/** Opens the file picker; resolves with [{ name, text | bytes }]. */
 export function pickFiles({ accept = '', multiple = false, binary = false } = {}) {
   return new Promise((resolve) => {
     const input = h('input', { type: 'file', accept, style: { display: 'none' } });
@@ -95,7 +95,7 @@ export function pickFiles({ accept = '', multiple = false, binary = false } = {}
   });
 }
 
-/** Lecture sûre du localStorage (navigation privée, file://...). */
+/** Safe localStorage access (private browsing, file://...). */
 export const store = {
   get(key, fallback = null) {
     try {
@@ -114,27 +114,27 @@ export const store = {
     }
   },
   remove(key) {
-    try { localStorage.removeItem(key); } catch { /* rien */ }
+    try { localStorage.removeItem(key); } catch { /* nothing */ }
   },
 };
 
-/** Octal sur n chiffres. */
+/** Octal on n digits. */
 export const o = (v, n = 0) => (typeof v === 'bigint' ? v.toString(8) : (v >>> 0).toString(8)).padStart(n, '0');
 
-/** Mot de 60 bits en 4 groupes de 5 chiffres octaux. */
+/** 60-bit word in 4 groups of 5 octal digits. */
 export const o60 = (w) => {
   const s = BigInt.asUintN(60, BigInt(w)).toString(8).padStart(20, '0');
   return `${s.slice(0, 5)} ${s.slice(5, 10)} ${s.slice(10, 15)} ${s.slice(15)}`;
 };
 
-/** Analyse une saisie octale (blancs ignorés, suffixe B toléré). */
+/** Parses an octal entry (blanks ignored, B suffix accepted). */
 export function parseOctal(text) {
   const t = String(text).replace(/[\s_]/g, '').replace(/B$/i, '');
   if (!/^[0-7]+$/.test(t)) return null;
   return BigInt('0o' + t);
 }
 
-/** Observe la visibilité d'un élément (onglet affiché ou non). */
+/** Checks whether an element is visible (tab shown or not). */
 export function isShown(el) {
   return !!(el && el.offsetParent !== null);
 }

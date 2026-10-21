@@ -1,18 +1,18 @@
-// Éditeur de code COMPASS écrit à la main.
+// Hand-written COMPASS code editor.
 //
-// Principe : une zone de texte (textarea) transparente, à la taille du contenu,
-// posée sur une couche <pre> colorée. Seules les lignes visibles sont colorées
-// et affichées (rendu « virtuel »), ce qui garde l'édition fluide sur des
-// fichiers de plusieurs milliers de lignes. L'annulation native du navigateur
-// est conservée : toutes les modifications passent par execCommand('insertText').
+// Principle: a transparent text area (textarea), sized to its content, laid
+// over a highlighted <pre> layer. Only the visible lines are highlighted and
+// displayed ("virtual" rendering), which keeps editing smooth on files of
+// several thousand lines. The browser's native undo is preserved: every
+// change goes through execCommand('insertText').
 
 import { h, icon, debounce } from './dom.js';
 import { highlightLine, collectMacros, opColumn, fieldAt, COMMENT_COL, LAST_COL } from './highlight.js';
 
-const PAD_L = 10;     // marge intérieure gauche (px)
-const PAD_T = 6;      // marge intérieure haute (px)
-const OVERSCAN = 6;   // lignes rendues hors écran
-const TAB_STOPS = [10, 17, 29, 35, 41, 47, 53, 59, 65, 71]; // colonnes 11, 18, 30, puis tous les 6
+const PAD_L = 10;     // left inner padding (px)
+const PAD_T = 6;      // top inner padding (px)
+const OVERSCAN = 6;   // lines rendered off screen
+const TAB_STOPS = [10, 17, 29, 35, 41, 47, 53, 59, 65, 71]; // columns 11, 18, 30, then every 6
 const GUIDE_COLS = [11, 18, 30];
 const MAX_MATCHES = 20000;
 
@@ -31,7 +31,7 @@ export class Editor {
     this.lineStarts = [0];
     this.maxLen = 0;
     this.breakpoints = new Set();
-    this.markers = new Map();      // ligne -> { fatal, items: [{ flag, message }] }
+    this.markers = new Map();      // line -> { fatal, items: [{ flag, message }] }
     this.execLine = null;
     this.execKind = 'exec';        // 'exec' | 'error'
     this.cache = new Map();
@@ -54,7 +54,7 @@ export class Editor {
   build() {
     this.ta = h('textarea', {
       class: 'ed-input', spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', autocorrect: 'off',
-      wrap: 'off', 'aria-label': 'Éditeur de source COMPASS',
+      wrap: 'off', 'aria-label': 'COMPASS source editor',
     });
     this.code = h('div', { class: 'ed-code' });
     this.hl = h('div', { class: 'ed-hl' });
@@ -128,7 +128,7 @@ export class Editor {
     return true;
   }
 
-  // ---------------------------------------------------------- contenu
+  // ---------------------------------------------------------- content
 
   getValue() {
     return this.ta.value;
@@ -154,7 +154,30 @@ export class Editor {
     return this.lines[n - 1] ?? '';
   }
 
-  /** Recalcule lignes, débuts de ligne, largeur max ; décale points d'arrêt et marques. */
+  /**
+   * Words for help (F1): the word under the cursor, then the operation
+   * field of the line. The characters = . are part of names (R=, CIO.).
+   */
+  helpWords() {
+    const { line, col } = this.cursor();
+    const text = this.getLine(line);
+    const isW = (ch) => /[A-Za-z0-9=.$%#]/.test(ch);
+    let a = col - 1;
+    let b = col - 1;
+    if (!isW(text[a] || '') && isW(text[a - 1] || '')) { a--; b--; }
+    while (a > 0 && isW(text[a - 1])) a--;
+    while (b < text.length && isW(text[b])) b++;
+    const words = [];
+    const w = text.slice(a, b).replace(/^[=.]+|[.,]+$/g, '');
+    if (w) words.push(w);
+    if (text[0] !== '*') {
+      const m = /^\S*\s+([^\s,]+)/.exec(text.slice(0, 72));
+      if (m && !words.includes(m[1])) words.push(m[1]);
+    }
+    return words;
+  }
+
+  /** Recomputes lines, line starts, max width; shifts breakpoints and markers. */
   textChanged(oldLines) {
     const text = this.ta.value;
     const lines = text.split('\n');
@@ -174,7 +197,7 @@ export class Editor {
     this.updateSize();
   }
 
-  /** Décale les annotations (points d'arrêt, marques d'erreur) après une édition. */
+  /** Shifts annotations (breakpoints, error markers) after an edit. */
   shiftAnnotations(oldL, newL) {
     const a = oldL.length, b = newL.length;
     let p = 0;
@@ -184,13 +207,13 @@ export class Editor {
     while (s < lim - p && oldL[a - 1 - s] === newL[b - 1 - s]) s++;
     const delta = b - a;
     if (delta === 0) return;
-    const oldEnd = a - s;      // lignes [p, oldEnd) modifiées (0-based)
+    const oldEnd = a - s;      // lines [p, oldEnd) changed (0-based)
     const newEnd = b - s;
     const map = (line) => {
       const i = line - 1;
       if (i < p) return line;
       if (i >= oldEnd) return line + delta;
-      return i < newEnd ? line : null; // ligne de la zone modifiée
+      return i < newEnd ? line : null; // line inside the changed area
     };
     const bps = new Set();
     for (const l of this.breakpoints) {
@@ -232,7 +255,7 @@ export class Editor {
     if (this.opts.onChange) this.opts.onChange(this);
   }
 
-  // ---------------------------------------------------------- géométrie
+  // ----------------------------------------------------------- geometry
 
   updateSize() {
     if (!this.metricsOk && !this.measureFont()) return;
@@ -296,7 +319,7 @@ export class Editor {
     return [first, last];
   }
 
-  // -------------------------------------------------------------- rendu
+  // ---------------------------------------------------------- rendering
 
   render() {
     if (!this.metricsOk) {
@@ -307,7 +330,7 @@ export class Editor {
     const lh = this.lh;
     const y0 = PAD_T + first * lh;
 
-    // Couche de texte coloré.
+    // Highlighted text layer.
     let html = '';
     for (let i = first; i <= last; i++) {
       const text = this.lines[i];
@@ -322,7 +345,7 @@ export class Editor {
     this.code.style.transform = `translateY(${y0}px)`;
     this.code.innerHTML = html;
 
-    // Couche de surlignage : ligne courante, ligne d'exécution, erreurs, recherche.
+    // Highlight layer: current line, execution line, errors, search.
     const cur = this.cursorLine();
     let hl = '';
     const W = '100%';
@@ -351,7 +374,7 @@ export class Editor {
     }
     this.hl.innerHTML = hl;
 
-    // Gouttière : numéros, points d'arrêt, marques.
+    // Gutter: numbers, breakpoints, markers.
     const st = this.scroller.scrollTop;
     let g = '';
     for (let i = first; i <= last; i++) {
@@ -372,7 +395,7 @@ export class Editor {
     this.gutterRows.style.transform = `translateY(${y0 - st}px)`;
     this.gutterRows.innerHTML = g;
 
-    // Règle des colonnes.
+    // Column ruler.
     this.rulerInner.style.transform = `translateX(${-this.scroller.scrollLeft}px)`;
     this.updateRulerCaret();
   }
@@ -383,7 +406,7 @@ export class Editor {
     this.rulerCaret.classList.toggle('beyond', col > LAST_COL);
   }
 
-  // ------------------------------------------------------------ curseur
+  // ------------------------------------------------------------- cursor
 
   lineOf(offset) {
     const s = this.lineStarts;
@@ -400,12 +423,12 @@ export class Editor {
     return ta.selectionDirection === 'backward' ? ta.selectionStart : ta.selectionEnd;
   }
 
-  /** Ligne (0-based) du curseur. */
+  /** Cursor line (0-based). */
   cursorLine() {
     return this.lineOf(this.activeOffset());
   }
 
-  /** { line, col } en base 1, plus la longueur de sélection. */
+  /** { line, col } 1-based, plus the selection length. */
   cursor() {
     const off = this.activeOffset();
     const li = this.lineOf(off);
@@ -442,7 +465,7 @@ export class Editor {
     this.ta.focus({ preventScroll: true });
   }
 
-  /** Place le curseur au début d'une ligne et la rend visible. */
+  /** Puts the cursor at the start of a line and makes it visible. */
   revealLine(line, { select = false, center = true, focus = true } = {}) {
     const i = Math.max(0, Math.min(this.lines.length - 1, line - 1));
     const start = this.lineStarts[i];
@@ -464,9 +487,9 @@ export class Editor {
     this.render();
   }
 
-  // ---------------------------------------------------------- édition
+  // ------------------------------------------------------------ editing
 
-  /** Insère du texte à la place de la sélection en conservant l'historique d'annulation. */
+  /** Inserts text in place of the selection, keeping the undo history. */
   insertText(text) {
     const ta = this.ta;
     if (document.activeElement !== ta) ta.focus({ preventScroll: true });
@@ -482,7 +505,7 @@ export class Editor {
     }
   }
 
-  /** Remplace une plage [start, end) par du texte. */
+  /** Replaces a range [start, end) with text. */
   replaceRange(start, end, text) {
     this.ta.setSelectionRange(start, end);
     this.insertText(text);
@@ -526,7 +549,7 @@ export class Editor {
     }
   }
 
-  /** Majuscules automatiques : hors commentaire, le texte saisi passe en majuscules. */
+  /** Automatic uppercase: outside comments, typed text is converted to uppercase. */
   onBeforeInput(e) {
     if (!this.autoUpper || e.inputType !== 'insertText' || !e.data || !/[a-zà-ÿ]/.test(e.data) || this.upperBusy) return;
     const off = this.ta.selectionStart;
@@ -572,7 +595,7 @@ export class Editor {
     }
   }
 
-  /** Entrée : nouvelle ligne indentée à la colonne d'opération de la ligne courante. */
+  /** Enter: new line indented to the operation column of the current line. */
   newline() {
     const off = this.ta.selectionStart;
     const li = this.lineOf(off);
@@ -607,7 +630,7 @@ export class Editor {
     this.cursorMoved(true);
   }
 
-  // ------------------------------------------------------ gouttière
+  // --------------------------------------------------------- gutter
 
   onGutterDown(e) {
     const row = e.target.closest('.g-row');
@@ -632,7 +655,7 @@ export class Editor {
     this.render();
   }
 
-  /** Marques d'erreurs : [{ line, fatal, flag, message }] */
+  /** Error markers: [{ line, fatal, flag, message }] */
   setMarkers(errors) {
     const m = new Map();
     for (const e of errors) {
@@ -646,7 +669,7 @@ export class Editor {
     this.render();
   }
 
-  /** Ligne d'exécution courante (null pour effacer). kind : 'exec' | 'error' */
+  /** Current execution line (null to clear). kind: 'exec' | 'error' */
   setExecLine(line, { reveal = true, kind = 'exec' } = {}) {
     this.execLine = line || null;
     this.execKind = kind;
@@ -654,23 +677,23 @@ export class Editor {
     this.render();
   }
 
-  // ---------------------------------------------------- recherche
+  // --------------------------------------------------------- search
 
   buildFindBar() {
     const mk = (cls, tip, label, onclick) => h('button', { class: `fb-btn ${cls}`, type: 'button', 'data-tip': tip, onclick }, label);
-    this.fInput = h('input', { class: 'fb-input', type: 'text', placeholder: 'Rechercher', spellcheck: 'false' });
-    this.rInput = h('input', { class: 'fb-input', type: 'text', placeholder: 'Remplacer par', spellcheck: 'false' });
+    this.fInput = h('input', { class: 'fb-input', type: 'text', placeholder: 'Find', spellcheck: 'false' });
+    this.rInput = h('input', { class: 'fb-input', type: 'text', placeholder: 'Replace with', spellcheck: 'false' });
     this.fCount = h('span', { class: 'fb-count' }, '');
-    this.fCase = mk('fb-toggle', 'Respecter la casse', 'Aa', () => { this.find.caseSensitive = !this.find.caseSensitive; this.fCase.classList.toggle('on', this.find.caseSensitive); this.computeMatches(); this.render(); });
-    this.fRegex = mk('fb-toggle', 'Expression régulière', '.*', () => { this.find.regex = !this.find.regex; this.fRegex.classList.toggle('on', this.find.regex); this.computeMatches(); this.render(); });
-    this.fExpand = h('button', { class: 'fb-btn fb-expand', type: 'button', 'data-tip': 'Afficher le remplacement (Ctrl+H)', onclick: () => this.setReplaceVisible(!this.findBar.classList.contains('with-replace')) }, icon('chevronRight', 14));
+    this.fCase = mk('fb-toggle', 'Match case', 'Aa', () => { this.find.caseSensitive = !this.find.caseSensitive; this.fCase.classList.toggle('on', this.find.caseSensitive); this.computeMatches(); this.render(); });
+    this.fRegex = mk('fb-toggle', 'Regular expression', '.*', () => { this.find.regex = !this.find.regex; this.fRegex.classList.toggle('on', this.find.regex); this.computeMatches(); this.render(); });
+    this.fExpand = h('button', { class: 'fb-btn fb-expand', type: 'button', 'data-tip': 'Show replace (Ctrl+H)', onclick: () => this.setReplaceVisible(!this.findBar.classList.contains('with-replace')) }, icon('chevronRight', 14));
     const rowFind = h('div', { class: 'fb-row' }, this.fInput, this.fCase, this.fRegex, this.fCount,
-      h('button', { class: 'fb-btn', type: 'button', 'data-tip': 'Précédent (Maj+Entrée)', onclick: () => this.findStep(-1) }, icon('chevronUp', 14)),
-      h('button', { class: 'fb-btn', type: 'button', 'data-tip': 'Suivant (Entrée)', onclick: () => this.findStep(1) }, icon('chevronDown', 14)),
-      h('button', { class: 'fb-btn', type: 'button', 'data-tip': 'Fermer (Échap)', onclick: () => this.closeFind() }, icon('close', 14)));
+      h('button', { class: 'fb-btn', type: 'button', 'data-tip': 'Previous (Shift+Enter)', onclick: () => this.findStep(-1) }, icon('chevronUp', 14)),
+      h('button', { class: 'fb-btn', type: 'button', 'data-tip': 'Next (Enter)', onclick: () => this.findStep(1) }, icon('chevronDown', 14)),
+      h('button', { class: 'fb-btn', type: 'button', 'data-tip': 'Close (Esc)', onclick: () => this.closeFind() }, icon('close', 14)));
     const rowRep = h('div', { class: 'fb-row fb-replace' }, this.rInput,
-      h('button', { class: 'fb-text', type: 'button', onclick: () => this.replaceOne() }, 'Remplacer'),
-      h('button', { class: 'fb-text', type: 'button', onclick: () => this.replaceAll() }, 'Tout'));
+      h('button', { class: 'fb-text', type: 'button', onclick: () => this.replaceOne() }, 'Replace'),
+      h('button', { class: 'fb-text', type: 'button', onclick: () => this.replaceAll() }, 'All'));
     const bar = h('div', { class: 'ed-find' }, this.fExpand, h('div', { class: 'fb-rows' }, rowFind, rowRep));
     this.fInput.addEventListener('input', () => { this.find.query = this.fInput.value; this.computeMatches(true); this.render(); });
     this.rInput.addEventListener('input', () => { this.find.replace = this.rInput.value; });
@@ -752,7 +775,7 @@ export class Editor {
 
   updateFindCount() {
     const n = this.find.matches.length;
-    this.fCount.textContent = this.find.error ? 'erreur' : !this.find.query ? '' : n ? `${this.find.index + 1} / ${n}${n >= MAX_MATCHES ? '+' : ''}` : 'aucun';
+    this.fCount.textContent = this.find.error ? 'error' : !this.find.query ? '' : n ? `${this.find.index + 1} / ${n}${n >= MAX_MATCHES ? '+' : ''}` : 'none';
     this.fCount.classList.toggle('none', !!this.find.query && !n);
   }
 
@@ -823,7 +846,7 @@ export class Editor {
   }
 }
 
-/** Premier indice k tel que ms[k].start >= pos. */
+/** First index k such that ms[k].start >= pos. */
 function lowerBound(ms, pos) {
   let lo = 0, hi = ms.length;
   while (lo < hi) {

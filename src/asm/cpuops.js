@@ -1,23 +1,23 @@
-// Instructions CPU : table « syntaxique » de COMPASS.
+// CPU instructions: the COMPASS "syntactic" table.
 //
-// Chaque instruction est identifiée par une clé de syntaxe, comme pour OPDEF :
-// deux caractères de mnémonique (le second vaut A, B ou X si le champ
-// opération porte un registre, ex. « SA » pour SA1) suivis des descripteurs
-// des sous-champs séparés par des virgules : registres (A, B, X) reliés par
-// leurs opérateurs, « Q » pour une expression. Ex. : SA7 X3+B1 -> « SAX+B »,
-// EQ B1,B2,K -> « EQB,B,Q », LX1 B2,X3 -> « LXB,X ».
+// Each instruction is identified by a syntax key, as for OPDEF: two
+// mnemonic characters (the second is A, B or X when the operation field
+// carries a register, e.g. "SA" for SA1) followed by the descriptors of the
+// subfields separated by commas: registers (A, B, X) joined by their
+// operators, "Q" for an expression. E.g.: SA7 X3+B1 -> "SAX+B",
+// EQ B1,B2,K -> "EQB,B,Q", LX1 B2,X3 -> "LXB,X".
 //
-// Codage (identique à CPOP) : val = fm et i sur 9 bits ; reg = 3 chiffres
-// donnant la source des champs i, j, k : 1 = registre du champ opération,
-// 2 = second registre (ou registre unique) du champ variable, 3 = premier de
-// deux registres, 0 = valeur de val (i) ou zéro.
+// Encoding (same as CPOP): val = fm and i on 9 bits; reg = 3 digits giving
+// the source of the i, j, k fields: 1 = operation field register,
+// 2 = second register (or only register) of the variable field, 3 = first of
+// two registers, 0 = value of val (i) or zero.
 
 export const CPU_SYNTAX = new Map();
 
 /**
- * @param len 15 ou 30
- * @param flags 'b' force en début de mot avant, 'a' force après, 'j' Q dans jk,
- *              'n' Q dans les 9 bits ijk (NO n), '7' 7600 seulement, '8' 8xx
+ * @param len 15 or 30
+ * @param flags 'b' force upper before, 'a' force upper after, 'j' Q in jk,
+ *              'n' Q in the 9 ijk bits (NO n), '7' 7600 only, '8' 8xx
  */
 function def(key, len, val, reg, flags = '') {
   CPU_SYNTAX.set(key, { key, len, val, reg, before: flags.includes('b'), after: flags.includes('a'),
@@ -25,7 +25,7 @@ function def(key, len, val, reg, flags = '') {
     builtin: true });
 }
 
-// --- 00-01 : arrêt, saut de retour, ECS, échange
+// --- 00-01: stop, return jump, ECS, exchange
 def('PS', 30, 0o000, '000', 'ba');
 def('PSQ', 30, 0o000, '000', 'ba');
 def('RJQ', 30, 0o010, '000', 'a');
@@ -51,17 +51,17 @@ def('IBB', 15, 0o016, '012', '7');
 def('ROB', 15, 0o017, '002', '7');
 def('OBB', 15, 0o017, '012', '7');
 
-// --- 02 : JP
+// --- 02: JP
 def('JPQ', 30, 0o020, '000', 'a');
 def('JPB', 30, 0o020, '220', 'a');
 def('JPBQ', 30, 0o020, '220', 'a');
 
-// --- 03 : branchements sur X
+// --- 03: branches on X
 for (const [mn, f] of [['ZR', 0], ['NZ', 1], ['PL', 2], ['NG', 3], ['MI', 3], ['IR', 4], ['OR', 5], ['DF', 6], ['ID', 7]]) {
   def(mn + 'X,Q', 30, 0o030 | f, '020');
 }
 
-// --- 04-07 : branchements sur B
+// --- 04-07: branches on B
 def('EQQ', 30, 0o040, '000', 'a');
 def('ZRQ', 30, 0o040, '000', 'a');
 for (const mn of ['EQ', 'ZR']) def(mn + 'B,Q', 30, 0o040, '200');
@@ -77,7 +77,7 @@ def('LTB,B,Q', 30, 0o070, '320');
 def('GTB,B,Q', 30, 0o070, '230');
 def('GTB,Q', 30, 0o070, '020');
 
-// --- 10-17 : booléennes
+// --- 10-17: Boolean
 def('BXX', 15, 0o100, '122');
 def('BXX*X', 15, 0o110, '132');
 def('BXX+X', 15, 0o120, '132');
@@ -87,7 +87,7 @@ def('BX-X*X', 15, 0o150, '123');
 def('BX-X+X', 15, 0o160, '123');
 def('BX-X-X', 15, 0o170, '123');
 
-// --- 20-27 : décalages, normalisation, paquetage
+// --- 20-27: shifts, normalize, pack
 def('LXQ', 15, 0o200, '100', 'j');
 def('AXQ', 15, 0o210, '100', 'j');
 for (const [mn, pos, neg] of [['LX', 0o220, 0o230], ['AX', 0o230, 0o220]]) {
@@ -107,7 +107,7 @@ for (const [mn, v] of [['NX', 0o240], ['ZX', 0o250], ['UX', 0o260], ['PX', 0o270
   def(mn + 'B', 15, v, '121');
 }
 
-// --- 30-47 : arithmétique
+// --- 30-47: arithmetic
 for (const [key, v] of [
   ['FXX+X', 0o300], ['FXX-X', 0o310], ['DXX+X', 0o320], ['DXX-X', 0o330], ['RXX+X', 0o340],
   ['RXX-X', 0o350], ['IXX+X', 0o360], ['IXX-X', 0o370], ['FXX*X', 0o400], ['RXX*X', 0o410],
@@ -121,7 +121,7 @@ def('IMQ', 30, 0o464, '000', 'ba');
 def('IMB', 30, 0o464, '020', 'ba');
 def('IMBQ', 30, 0o464, '020', 'ba');
 
-// --- 50-77 : incrémentation (SA, SB, SX)
+// --- 50-77: increment (SA, SB, SX)
 for (const [mn, base] of [['SA', 0o500], ['SB', 0o600], ['SX', 0o700]]) {
   def(mn + 'Q', 30, base | 0o10, '100');
   def(mn + 'AQ', 30, base, '120');
@@ -144,12 +144,12 @@ for (const [mn, base] of [['SA', 0o500], ['SB', 0o600], ['SX', 0o700]]) {
 def('CRX,X', 15, 0o660, '032', '8');
 def('CWX,X', 15, 0o670, '032', '8');
 
-/** Mnémoniques de deux lettres reconnus syntaxiquement (pour IF MAC, coloration). */
+/** Two-letter mnemonics recognized syntactically (for IF MAC, highlighting). */
 export const CPU_MNEMONICS = new Set([...CPU_SYNTAX.keys()].map((k) => k.slice(0, 2)));
 
 /**
- * Construit la clé de syntaxe à partir des sous-champs analysés.
- * @param mnem deux caractères ; opReg true si le 2e caractère désigne un registre
+ * Builds the syntax key from the parsed subfields.
+ * @param mnem two characters; opReg true if the 2nd character designates a register
  * @param subs [{ regs: [{type, n, op}], hasQ }]
  */
 export function syntaxKey(mnem, subs) {
@@ -162,7 +162,7 @@ export function syntaxKey(mnem, subs) {
     if (s.hasQ) d += 'Q';
     return d;
   });
-  // la forme « EQ K » s'écrit EQQ (Q collé au mnémonique s'il n'y a qu'un descripteur)
+  // the form "EQ K" is keyed EQQ (Q appended to the mnemonic when there is only one descriptor)
   if (parts.length === 0) return mnem;
   if (parts.length === 1) return mnem + parts[0];
   return mnem + parts[0] + (parts.length > 1 ? ',' + parts.slice(1).join(',') : '');

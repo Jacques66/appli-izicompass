@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// compass : assembleur COMPASS en ligne de commande.
+// compass: command-line COMPASS assembler.
 //
 //   node cli/compass.js SOURCE [options]
-//     -l FICHIER   écrire le listing dans FICHIER (sinon sortie standard)
-//     -b FICHIER   écrire le binaire (tables du chargeur, mots de 60 bits en octal)
-//     -x DIR       répertoire des textes externes (XTEXT) : DIR/NOM ou DIR/NOM.cmp
-//     -S NOM       texte système (défaut SYSTEXT ; « 0 » pour aucun)
-//     -q           ne pas afficher le listing
-// Code de sortie : 0 sans erreur fatale, 1 sinon.
+//     -l FILE      write the listing to FILE (otherwise standard output)
+//     -b FILE      write the binary (loader tables, 60-bit words in octal)
+//     -x DIR       directory of external texts (XTEXT): DIR/NAME or DIR/NAME.cmp
+//     -S NAME      system text (default SYSTEXT; "0" for none)
+//     -q           do not print the listing
+// Exit code: 0 with no fatal error, 1 otherwise.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { basename, join, extname } from 'node:path';
@@ -15,7 +15,7 @@ import { assemble } from '../src/asm/compass.js';
 
 const args = process.argv.slice(2);
 if (!args.length || args.includes('-h') || args.includes('--help')) {
-  console.log('usage : compass SOURCE [-l listing] [-b binaire] [-x dir] [-S texte] [-q]');
+  console.log('usage: compass SOURCE [-l listing] [-b binary] [-x dir] [-S text] [-q]');
   process.exit(0);
 }
 let source = null, listFile = null, binFile = null, xdir = null, sys, quiet = false;
@@ -53,7 +53,7 @@ if (binFile) {
 let fatal = 0;
 for (const e of r.errors) {
   if (e.fatal) fatal++;
-  process.stderr.write(`${e.file}:${e.line}: ${e.fatal ? 'erreur' : 'avertissement'} ${e.flag} ${e.message}\n`);
+  process.stderr.write(`${e.file}:${e.line}: ${e.fatal ? 'error' : 'warning'} ${e.flag} ${e.message}\n`);
 }
-process.stderr.write(` ${fatal ? 'ASSEMBLY ERRORS' : 'ASSEMBLY COMPLETE'}. ${r.programs.map((p) => `${p.name} (${p.type}, ${p.length.toString(8)}B mots)`).join(', ')}\n`);
+process.stderr.write(` ${fatal ? 'ASSEMBLY ERRORS' : 'ASSEMBLY COMPLETE'}. ${r.programs.map((p) => `${p.name} (${p.type}, ${p.length.toString(8)}B words)`).join(', ')}\n`);
 process.exit(fatal ? 1 : 0);

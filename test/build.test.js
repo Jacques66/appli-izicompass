@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { buildHtml } from '../tools/build.js';
 
-test('paquet autonome : l\'IDE s\'évalue hors navigateur et fait tourner un exemple', async () => {
+test('self-contained bundle: the IDE evaluates outside a browser and runs an example', async () => {
   const { html, order } = buildHtml();
   assert.ok(order.includes('ide/app.js') && order.includes('src/machine.js') && order.includes('src/asm/compass.js'));
   assert.ok(!/<script type="module"/.test(html));
@@ -18,7 +18,7 @@ test('paquet autonome : l\'IDE s\'évalue hors navigateur et fait tourner un exe
   const { assemble } = mods['src/asm/compass.js'];
   const { Machine } = mods['src/machine.js'];
   const { Runner } = mods['src/runtime/runner.js'];
-  const r = assemble(ex.files['cpu-somme.cmp'], { fileName: 'CPUSOMME' });
+  const r = assemble(ex.files['cpu-sum.cmp'], { fileName: 'CPUSUM' });
   assert.equal(r.errors.length, 0);
   const m = new Machine({ ecsWords: 0 });
   const run = new Runner(m, { em: 0 });
@@ -26,7 +26,7 @@ test('paquet autonome : l\'IDE s\'évalue hors navigateur et fait tourner un exe
   assert.equal(res.ok, true);
   const stop = m.run(10000, { stopOnCpuStop: true });
   assert.equal(stop.reason, 'cpustop');
-  const somme = r.symbols.find((s) => s.name === 'SOMME').value;
-  assert.equal(m.cm[somme], 55n);
+  const sum = r.symbols.find((s) => s.name === 'SUM').value;
+  assert.equal(m.cm[sum], 55n);
   assert.equal(typeof mods['ide/app.js'].start, 'function');
 });

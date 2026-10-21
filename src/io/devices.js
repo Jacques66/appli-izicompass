@@ -1,6 +1,6 @@
-// Périphériques d'origine de la série 6000 :
-// panneau de deadstart, console 6612, lecteur de cartes 405, imprimante 1612,
-// dérouleur de bande 607, horloge temps réel (canal 14).
+// Original 6000 series peripherals:
+// deadstart panel, 6612 console, 405 card reader, 1612 line printer,
+// 607 tape unit, real-time clock (channel 14).
 
 import { Device, FC_ACCEPTED, FC_DECLINED, FC_PROCESSED } from './channel.js';
 import { DISPLAY, displayToExtBcd, EXT_BCD, lineToCard, CARD_EOR, CARD_EOF, toDisplay } from '../common/charset.js';
@@ -9,7 +9,7 @@ const M12 = 0o7777;
 
 // ------------------------------------------------------------ deadstart
 
-/** Panneau de deadstart : envoie ses mots (12 interrupteurs chacun) sur le canal 0. */
+/** Deadstart panel: sends its words (12 switches each) on channel 0. */
 export class DeadstartPanel extends Device {
   constructor(words) {
     super('deadstart');
@@ -38,10 +38,10 @@ export const FC6612 = {
 };
 
 /**
- * Console à deux écrans 6612. Le PP rafraîchit les écrans en permanence :
- * mots 60xx-67xx = coordonnée X, 70xx-77xx = coordonnée Y (9 bits),
- * sinon deux caractères display. Chaque caractère tracé est conservé avec la
- * date de son tracé ; l'IDE n'affiche que les tracés récents (rémanence du CRT).
+ * 6612 dual-screen console. The PP refreshes the screens continuously:
+ * words 60xx-67xx = X coordinate, 70xx-77xx = Y coordinate (9 bits),
+ * otherwise two display characters. Each plotted character is kept with the
+ * time it was plotted; the IDE shows only recent plots (CRT persistence).
  */
 export class Console6612 extends Device {
   constructor() {
@@ -49,11 +49,11 @@ export class Console6612 extends Device {
     this.reset();
   }
   reset() {
-    this.screen = 0;      // 0 gauche, 1 droite
-    this.size = 0;        // 0 petit (64 car./ligne), 1 moyen (32), 2 grand (16), 3 points
+    this.screen = 0;      // 0 left, 1 right
+    this.size = 0;        // 0 small (64 char./line), 1 medium (32), 2 large (16), 3 dots
     this.x = 0;
     this.y = 0;
-    this.keys = [];       // file des touches (codes display)
+    this.keys = [];       // key queue (display codes)
     this.trace = [];      // { s, sz, x, y, c, t }
     this.maxTrace = 20000;
     this.fcode = 0;
@@ -110,37 +110,37 @@ export class Console6612 extends Device {
     }
     ch.full = false;
   }
-  /** Frappe clavier (caractère ASCII ou code spécial). */
+  /** Keystroke (ASCII character or special code). */
   keyPress(ch) {
     let code;
-    if (ch === '\n' || ch === 'Enter') code = 0o60;        // touche CR
-    else if (ch === '\b' || ch === 'Backspace') code = 0o61; // touche BKSP
+    if (ch === '\n' || ch === 'Enter') code = 0o60;        // CR key
+    else if (ch === '\b' || ch === 'Backspace') code = 0o61; // BKSP key
     else code = toDisplay(ch.toUpperCase());
     if (code > 0) this.keys.push(code);
   }
-  /** Tracés visibles (rémanence en µs simulées). */
+  /** Visible plots (persistence in simulated µs). */
   visible(now, persistence = 50000) {
     return this.trace.filter((e) => now - e.t <= persistence);
   }
 }
 
-// ------------------------------------------------------ lecteur 405
+// -------------------------------------------------- card reader 405
 
 export const FC405 = { DESELECT: 0o700, GATE_SECONDARY: 0o701, READ: 0o702, STATUS: 0o704 };
 export const ST405 = { READY: 0, NOT_READY: 1, EOF: 2, COMPARE_ERROR: 4 };
 
-/** Lecteur de cartes 405 : chaque carte = 80 colonnes de 12 bits (Hollerith). */
+/** 405 card reader: each card = 80 columns of 12 bits (Hollerith). */
 export class CardReader405 extends Device {
   constructor() {
-    super('lecteur 405');
-    this.hopper = [];   // cartes en attente (Uint16Array(80))
+    super('card reader 405');
+    this.hopper = [];   // cards waiting (Uint16Array(80))
     this.card = null;
     this.col = 0;
     this.cardsRead = 0;
     this.delay = 0;
     this.code = '029';
   }
-  /** Charge un paquet de cartes depuis du texte. Lignes « 7/8/9 » et « 6/7/8/9 » = cartes de contrôle. */
+  /** Loads a card deck from text. Lines "7/8/9" and "6/7/8/9" = control cards. */
   loadDeck(text, code = this.code) {
     for (const raw of text.replace(/\r/g, '').split('\n')) {
       const line = raw.trimEnd();
@@ -198,26 +198,26 @@ export class CardReader405 extends Device {
       if (this.col >= 80) {
         this.card = null;
         this.col = 0;
-        ch.discAfterInput = true; // fin de carte : le canal se déconnecte
+        ch.discAfterInput = true; // end of card: the channel disconnects
       }
     }
   }
 }
 
-// --------------------------------------------------- imprimante 1612
+// ------------------------------------------------- line printer 1612
 
 export const FC1612 = {
   SELECT: 0o600, SINGLE: 0o601, DOUBLE: 0o602, CHANNEL7: 0o603, EJECT: 0o604, PRINT: 0o605,
   NOSPACE: 0o606, STATUS: 0o607, CLEAR_FORMAT: 0o610,
 };
 
-/** Imprimante 1612 (120 colonnes, BCD externe). */
+/** 1612 line printer (120 columns, external BCD). */
 export class LinePrinter1612 extends Device {
   constructor() {
-    super('imprimante 1612');
+    super('line printer 1612');
     this.line = [];
-    this.output = [];     // lignes imprimées
-    this.pending = '';    // avance papier avant la prochaine impression
+    this.output = [];     // printed lines
+    this.pending = '';    // paper advance before the next print
     this.suppress = false;
     this.pages = 1;
     this.onLine = null;
@@ -265,7 +265,7 @@ export class LinePrinter1612 extends Device {
   }
 }
 
-// ------------------------------------------------------- bande 607
+// ---------------------------------------------------- tape unit 607
 
 export const FC607 = {
   SELECT: 0o2000, WRITE_BINARY: 0o2010, READ_BINARY: 0o2020, BACKSPACE: 0o2030,
@@ -274,14 +274,14 @@ export const FC607 = {
 };
 export const ST607 = { READY: 0, NOT_READY: 1, PARITY: 2, LOAD_POINT: 4, EOT: 0o10, FILE_MARK: 0o20, WRITE_LOCK: 0o40 };
 
-/** Bande magnétique : suite d'enregistrements (tableaux de mots 12 bits) ou marques de fichier (null). */
+/** Magnetic tape: sequence of records (arrays of 12-bit words) or file marks (null). */
 export class Tape {
   constructor(records = []) {
     this.records = records;
     this.pos = 0;
     this.writeLock = false;
   }
-  /** Lit une image .tap (longueur 32 bits LE, 2 mots de 12 bits par 3 octets). */
+  /** Reads a .tap image (32-bit LE length, 2 12-bit words per 3 bytes). */
   static fromTap(bytes) {
     const recs = [];
     let i = 0;
@@ -324,10 +324,10 @@ export class Tape {
   }
 }
 
-/** Dérouleur 607 (jusqu'à 8 unités). */
+/** 607 tape unit (up to 8 units). */
 export class TapeDrive607 extends Device {
   constructor() {
-    super('bande 607');
+    super('tape unit 607');
     this.units = new Array(8).fill(null);
     this.unit = 0;
     this.status = ST607.READY;
@@ -433,12 +433,12 @@ export class TapeDrive607 extends Device {
   }
 }
 
-// --------------------------------------------------- horloge temps réel
+// ---------------------------------------------------- real-time clock
 
-/** Horloge temps réel : canal toujours actif et plein, compteur 12 bits en µs. */
+/** Real-time clock: channel always active and full, 12-bit counter in µs. */
 export class RealTimeClock extends Device {
   constructor(machine) {
-    super('horloge');
+    super('clock');
     this.machine = machine;
   }
   attachTo(ch) {
@@ -457,19 +457,19 @@ export class RealTimeClock extends Device {
 
 export { DISPLAY, displayToExtBcd };
 
-// ------------------------------------------------------- disque 6603
+// --------------------------------------------------------- disk 6603
 
 export const FC6603 = { READ: 0o1000, WRITE: 0o1200, TRACK: 0o1400, HEAD: 0o1600, STATUS: 0o1700 };
 
 /**
- * Disque 6603 : 128 pistes, 8 têtes, 128 secteurs (pistes externes) ou 100
- * (pistes internes) de 322 mots de 12 bits. Fonctions : 1000B+s lecture du
- * secteur s, 1200B+s écriture, 1400B+t sélection de piste, 1600B+h sélection
- * de tête, 1700B état (secteur passant sous la tête).
+ * 6603 disk: 128 tracks, 8 heads, 128 sectors (outer tracks) or 100
+ * (inner tracks) of 322 12-bit words. Functions: 1000B+s read sector s,
+ * 1200B+s write, 1400B+t select track, 1600B+h select head,
+ * 1700B status (sector passing under the head).
  */
 export class Disk6603 extends Device {
   constructor() {
-    super('disque 6603');
+    super('disk 6603');
     this.sectors = new Map();
     this.track = 0;
     this.head = 0;

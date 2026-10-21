@@ -1,14 +1,14 @@
-// Mini-système d'exploitation : mise en place d'un travail et des PP système.
+// Mini operating system: setup of a job and of the system PPs.
 //
-// Carte mémoire centrale (absolue) :
-//   20B  indice du journal      21B  état du travail (1 en cours, 2 fin, 3 abandon)
-//   22B  RA du travail          23B  FL du travail
-//   24B  heure ' HH.MM.SS.'     25B  date ' AA/MM/JJ.'
-//   26B  millisecondes          27B  nom du travail
-//   30B-33B dernier message     100B paquet d'échange du travail
-//   120B paquet d'échange de repos (P = 0, RA = 140B : instruction PS)
-//   200B-377B journal (32 lignes de 4 mots)
-//   2000B  RA du travail (programme à RA+100B, comme sous NOS)
+// Central memory map (absolute):
+//   20B  dayfile index          21B  job status (1 running, 2 ended, 3 aborted)
+//   22B  job RA                 23B  job FL
+//   24B  time ' HH.MM.SS.'      25B  date ' YY/MM/DD.'
+//   26B  milliseconds           27B  job name
+//   30B-33B last message        100B job exchange package
+//   120B idle exchange package (P = 0, RA = 140B: PS instruction)
+//   200B-377B dayfile (32 lines of 4 words)
+//   2000B  job RA (program at RA+100B, as under NOS)
 
 import { assemble } from '../asm/compass.js';
 import { linkAndLoad, loadPP } from '../loader/loader.js';
@@ -24,7 +24,7 @@ export const CM = {
 
 let cache = null;
 
-/** Programmes PP du système (assemblés une fois). */
+/** System PP programs (assembled once). */
 export function systemPrograms() {
   if (cache) return cache;
   const mtr = assemble(MTR, { fileName: 'MTR' });
@@ -45,8 +45,8 @@ function pkg(machine, addr, { P = 0, RA = 0, FL = 0, EM = 0, MA = 0 }) {
 }
 
 /**
- * Lance un travail sous le mini-système.
- * @param programs programmes CPU assemblés (absolus ou relogeables)
+ * Starts a job under the mini-system.
+ * @param programs assembled CPU programs (absolute or relocatable)
  * @param options { name, ra, em, date }
  * @returns { ok, errors, entry, fl, map }
  */
@@ -54,7 +54,7 @@ export function startJob(machine, programs, options = {}) {
   const sys = systemPrograms();
   const st = prepareJob(machine, programs, options);
   if (!st.ok) return st;
-  // PP : MTR dans PP0, DSD dans PP1 (console), les autres arrêtés
+  // PPs: MTR in PP0, DSD in PP1 (console), the others stopped
   for (let n = 0; n < machine.pps.length; n++) machine.stopPP(n);
   const mtr = sys.mtr.programs[0];
   loadPP(machine, mtr, 0);
@@ -66,8 +66,8 @@ export function startJob(machine, programs, options = {}) {
 }
 
 /**
- * Lance un travail par un vrai deadstart : la bande 0 reçoit le chargeur DSL,
- * la mémoire centrale préparée, DSD (PP1) et MTR (PP0) ; le panneau lit DSL.
+ * Starts a job through a real deadstart: tape 0 receives the DSL loader,
+ * the prepared central memory, DSD (PP1) and MTR (PP0); the panel reads DSL.
  */
 export function deadstartJob(machine, programs, options = {}) {
   const sys = systemPrograms();
@@ -97,11 +97,11 @@ export function deadstartJob(machine, programs, options = {}) {
   return { ...st, tape };
 }
 
-/** Prépare la mémoire centrale d'un travail (programme, paquets d'échange, constantes). */
+/** Prepares the central memory of a job (program, exchange packages, constants). */
 export function prepareJob(machine, programs, { name = 'JOB', ra = CM.RA, em = 0o070000, date = new Date() } = {}) {
   const sys = systemPrograms();
   const errs = [...sys.mtr.errors, ...sys.dsd.errors, ...sys.dsl.errors].filter((e) => e.fatal);
-  if (errs.length) return { ok: false, errors: errs.map((e) => `système : ligne ${e.line} ${e.flag} ${e.message}`) };
+  if (errs.length) return { ok: false, errors: errs.map((e) => `system: line ${e.line} ${e.flag} ${e.message}`) };
   machine.cpu.reset();
   for (let a = 0; a < 0o400; a++) machine.writeCM(a, 0n);
   const ld = linkAndLoad(machine, programs, { ra });
@@ -120,13 +120,13 @@ export function prepareJob(machine, programs, { name = 'JOB', ra = CM.RA, em = 0
   return { ok: true, errors: [], entry: ld.entry, fl, ra, map: ld.map };
 }
 
-/** État du travail : 'run' | 'end' | 'abort' | 'none'. */
+/** Job status: 'run' | 'end' | 'abort' | 'none'. */
 export function jobStatus(machine) {
   const s = Number(machine.cm[CM.STAT]);
   return s === 1 ? 'run' : s === 2 ? 'end' : s === 3 ? 'abort' : 'none';
 }
 
-/** Lignes du journal (dayfile), dans l'ordre. */
+/** Dayfile lines, in order. */
 export function dayfile(machine) {
   const n = Number(machine.cm[CM.DAYP] & 0o37n);
   const out = [];

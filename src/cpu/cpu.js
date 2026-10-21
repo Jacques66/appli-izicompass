@@ -1,10 +1,10 @@
-// Unité centrale CDC 6600 (et variantes 6400, Cyber 70/170).
+// CDC 6600 central processor (and the 6400, Cyber 70/170 variants).
 //
-// Registres : X0-X7 (60 bits, BigInt), A0-A7 (18 bits), B0-B7 (18 bits, B0 = 0),
-// P (18 bits). RA/FL délimitent la mémoire du programme, RAE/FLE celle de l'ECS.
-// Charger A1-A5 lit la mémoire dans X1-X5 ; charger A6-A7 écrit X6-X7.
-// Les instructions font 15 ou 30 bits, 4 parcelles de 15 bits par mot ;
-// une instruction de 30 bits ne peut pas commencer en parcelle 3.
+// Registers: X0-X7 (60 bits, BigInt), A0-A7 (18 bits), B0-B7 (18 bits, B0 = 0),
+// P (18 bits). RA/FL bound the program's memory, RAE/FLE bound its ECS.
+// Setting A1-A5 reads memory into X1-X5; setting A6-A7 stores X6-X7.
+// Instructions are 15 or 30 bits, 4 parcels of 15 bits per word;
+// a 30-bit instruction cannot start in parcel 3.
 
 import {
   M60, M48, SIGN60, M18, SIGN18, add18, sub18, add60, sub60, neg60, sext18to60,
@@ -13,17 +13,17 @@ import {
 import { floatAdd, floatMultiply, floatDivide, normalize, unpack, pack, classify } from './float.js';
 import { Scoreboard } from './scoreboard.js';
 
-// Conditions de sortie (bits 50-48 du mot écrit en RA lors d'une sortie d'erreur).
+// Exit conditions (bits 50-48 of the word stored at RA on an error exit).
 export const EC_ADDRESS = 0o1;
 export const EC_OPERAND = 0o2;
 export const EC_INDEFINITE = 0o4;
-// Sélection de mode de sortie (champ EM du paquet d'échange, 24 bits).
+// Exit mode selection (EM field of the exchange package, 24 bits).
 export const EM_ADDRESS = 0o010000;
 export const EM_OPERAND = 0o020000;
 export const EM_INDEFINITE = 0o040000;
 export const EM_STACK_PURGE = 0o200000;
 
-/** Caractéristiques des modèles de machine. */
+/** Machine model characteristics. */
 export const MODELS = {
   '6400': { name: 'CDC 6400', stackWords: 0, cejMej: false, cmu: false, float175: false, scoreboard: false },
   '6500': { name: 'CDC 6500', stackWords: 0, cejMej: false, cmu: false, float175: false, scoreboard: false },
@@ -34,23 +34,23 @@ export const MODELS = {
   'cyber175': { name: 'CYBER 175', stackWords: 12, cejMej: true, cmu: false, float175: true, scoreboard: true },
 };
 
-// Longueur des instructions (15 ou 30), indexée par fm ; 01 dépend de i.
+// Instruction length (15 or 30), indexed by fm; 01 depends on i.
 const LONG = new Uint8Array(64);
 for (const fm of [0o02, 0o03, 0o04, 0o05, 0o06, 0o07, 0o50, 0o51, 0o52, 0o60, 0o61, 0o62, 0o70, 0o71, 0o72]) LONG[fm] = 1;
 const LONG01 = [1, 1, 1, 1, 0, 0, 0, 1];
 
-/** Longueur en bits d'une instruction d'après sa première parcelle. */
+/** Length in bits of an instruction, from its first parcel. */
 export function instructionLength(parcel, cmu = false) {
   const fm = parcel >> 9;
   if (fm === 0o01) return LONG01[(parcel >> 6) & 7] ? 30 : 15;
-  if (cmu && fm === 0o46 && ((parcel >> 6) & 7) >= 4) return 30; // CMU (mot entier)
+  if (cmu && fm === 0o46 && ((parcel >> 6) & 7) >= 4) return 30; // CMU (full word)
   return LONG[fm] ? 30 : 15;
 }
 
 export class Cpu {
   /**
-   * @param machine objet fournissant cm (BigUint64Array), cmSize, ecs, ecsSize
-   * @param model clé de MODELS
+   * @param machine object providing cm (BigUint64Array), cmSize, ecs, ecsSize
+   * @param model key into MODELS
    */
   constructor(machine, model = '6600') {
     this.m = machine;
@@ -63,7 +63,7 @@ export class Cpu {
 
   setModel(model) {
     const f = MODELS[model];
-    if (!f) throw new Error(`modèle inconnu : ${model}`);
+    if (!f) throw new Error(`unknown model: ${model}`);
     this.model = model;
     this.features = { ...f };
   }
@@ -83,36 +83,36 @@ export class Cpu {
     this.exitCondition = 0;
     this.stopped = true;
     this.monitorMode = false;
-    this.word = 0n;          // mot d'instructions courant
+    this.word = 0n;          // current instruction word
     this.parcels = [0, 0, 0, 0];
-    this.parcel = 0;         // prochaine parcelle à exécuter
-    this.wordValid = false;  // le mot courant a été lu
+    this.parcel = 0;         // next parcel to execute
+    this.wordValid = false;  // the current word has been read
     this.pendingExchange = null; // { address, changeMode, pp }
     this.errorExitPending = false;
-    this.lastError = null;   // description de la dernière sortie d'erreur
-    this.instructions = 0;   // compteur d'instructions exécutées
-    this.cycles = 0;         // cycles mineurs (100 ns) écoulés
-    this.stack = [];         // pile d'instructions : [{ addr, word }]
+    this.lastError = null;   // description of the last error exit
+    this.instructions = 0;   // count of instructions executed
+    this.cycles = 0;         // minor cycles (100 ns) elapsed
+    this.stack = [];         // instruction stack: [{ addr, word }]
     this.stackHits = 0;
     this.stackMisses = 0;
     this.scoreboard = new Scoreboard();
     this.lastInstr = null;
   }
 
-  // ------------------------------------------------------------------ mémoire
+  // ------------------------------------------------------------------- memory
 
-  /** Adresse absolue = RA + adresse relative (additionneur 18 bits). */
+  /** Absolute address = RA + relative address (18-bit adder). */
   absolute(addr) {
     return add18(this.RA, addr) % this.m.cmSize;
   }
 
-  /** Lecture mémoire relative. Retourne null si sortie d'erreur déclenchée. */
+  /** Relative memory read. Returns null if an error exit was taken. */
   readRel(addr) {
     addr &= M18;
     if (addr >= this.FL) {
       this.exitCondition |= EC_ADDRESS;
       if (this.EM & EM_ADDRESS) {
-        this.errorExit(`lecture hors limites ${addr.toString(8)}B (FL=${this.FL.toString(8)}B)`);
+        this.errorExit(`read out of range ${addr.toString(8)}B (FL=${this.FL.toString(8)}B)`);
         return null;
       }
       return 0n;
@@ -120,13 +120,13 @@ export class Cpu {
     return this.m.readCM(this.absolute(addr));
   }
 
-  /** Écriture mémoire relative. Retourne false si sortie d'erreur déclenchée. */
+  /** Relative memory write. Returns false if an error exit was taken. */
   writeRel(addr, value) {
     addr &= M18;
     if (addr >= this.FL) {
       this.exitCondition |= EC_ADDRESS;
       if (this.EM & EM_ADDRESS) {
-        this.errorExit(`écriture hors limites ${addr.toString(8)}B (FL=${this.FL.toString(8)}B)`);
+        this.errorExit(`write out of range ${addr.toString(8)}B (FL=${this.FL.toString(8)}B)`);
         return false;
       }
       return true;
@@ -135,20 +135,20 @@ export class Cpu {
     return true;
   }
 
-  // ------------------------------------------------------- lecture d'instructions
+  // -------------------------------------------------------- instruction fetch
 
-  /** Lit le mot d'instructions en P (en passant par la pile d'instructions). */
+  /** Reads the instruction word at P (through the instruction stack). */
   fetch() {
     const p = this.P;
     if (p >= this.FL) {
-      // Pour la lecture d'instructions le mode de sortie est toujours sélectionné.
+      // For instruction fetch the exit mode is always selected.
       this.exitCondition |= EC_ADDRESS;
       this.stopped = true;
       if (this.EM & EM_ADDRESS) {
         this.m.writeCM(this.RA % this.m.cmSize,
           (BigInt(this.exitCondition) << 48n) | (BigInt(p) << 30n));
       }
-      this.lastError = `lecture d'instruction hors limites P=${p.toString(8)}B`;
+      this.lastError = `instruction fetch out of range P=${p.toString(8)}B`;
       this.P = 0;
       this.setErrorExitPending();
       this.wordValid = false;
@@ -183,12 +183,12 @@ export class Cpu {
     return true;
   }
 
-  /** Vide la pile d'instructions. */
+  /** Voids the instruction stack. */
   voidStack() {
     this.stack.length = 0;
   }
 
-  /** Branchement : vide la pile sauf si la cible y est (branchement « dans la pile »). */
+  /** Branch: voids the stack unless the target is in it ("in-stack" branch). */
   branchTo(addr) {
     addr &= M18;
     if (this.features.stackWords) {
@@ -202,19 +202,19 @@ export class Cpu {
     this.parcel = 0;
   }
 
-  // -------------------------------------------------------- sorties d'erreur
+  // -------------------------------------------------------------- error exits
 
   setErrorExitPending() {
     if (this.features.cejMej && !this.monitorMode) this.errorExitPending = true;
   }
 
   /**
-   * Sortie d'erreur : arrêt, écriture en RA de la condition et de P,
-   * puis (CEJ/MEJ) échange vers MA.
+   * Error exit: stop, store the exit condition and P at RA,
+   * then (CEJ/MEJ) exchange to MA.
    */
   errorExit(reason) {
     this.stopped = true;
-    this.lastError = reason || 'sortie d\'erreur';
+    this.lastError = reason || 'error exit';
     const word = (BigInt(this.exitCondition & 0o7777) << 48n) | (BigInt((this.P + 1) & M18) << 30n);
     if (this.RA < this.m.cmSize) this.m.writeCM(this.RA, word);
     this.P = 0;
@@ -222,7 +222,7 @@ export class Cpu {
     this.setErrorExitPending();
   }
 
-  /** Teste un opérande flottant et positionne la condition de sortie. */
+  /** Tests a floating-point operand and sets the exit condition. */
   floatCheck(v) {
     const c = classify(v);
     if (c === 'infinite') { this.exitCondition |= EC_OPERAND; this.floatException = true; }
@@ -233,7 +233,7 @@ export class Cpu {
     if (this.floatException) {
       this.floatException = false;
       if (this.EM & (this.exitCondition << 12)) {
-        this.errorExit(this.exitCondition & EC_INDEFINITE ? 'opérande indéfini' : 'opérande hors limites (infini)');
+        this.errorExit(this.exitCondition & EC_INDEFINITE ? 'indefinite operand' : 'out-of-range operand (infinite)');
       }
     }
   }
@@ -241,13 +241,13 @@ export class Cpu {
   // ------------------------------------------------------------ exchange jump
 
   /**
-   * Échange les registres avec le paquet d'échange de 16 mots en `address`
-   * (adresse absolue).
+   * Exchanges the registers with the 16-word exchange package at `address`
+   * (absolute address).
    */
   exchange(address, changeMode) {
     const m = this.m;
     address &= M18;
-    if (address + 0o20 > m.cmSize) return; // paquet hors mémoire : ignoré
+    if (address + 0o20 > m.cmSize) return; // package outside memory: ignored
     const old = this.packageWords();
     const w = [];
     for (let i = 0; i < 16; i++) w.push(m.readCM(address + i));
@@ -279,7 +279,7 @@ export class Cpu {
     if (m.onExchange) m.onExchange(address, old);
   }
 
-  /** Paquet d'échange correspondant à l'état courant (16 mots). */
+  /** Exchange package for the current state (16 words). */
   packageWords() {
     const b = (v, s) => BigInt(v) << BigInt(s);
     const w = new Array(16);
@@ -296,16 +296,16 @@ export class Cpu {
     return w;
   }
 
-  /** Demande d'échange par un PP (EXN/MXN/MAN), traitée en limite de mot. */
+  /** Exchange request from a PP (EXN/MXN/MAN), honored at a word boundary. */
   requestExchange(address, changeMode, pp) {
     if (this.pendingExchange) return false;
     this.pendingExchange = { address, changeMode, pp };
     return true;
   }
 
-  // -------------------------------------------------------------- exécution
+  // ---------------------------------------------------------------- execution
 
-  /** Exécute une instruction. Retourne false si le CPU est arrêté. */
+  /** Executes one instruction. Returns false if the CPU is stopped. */
   step() {
     if (this.pendingExchange && (this.stopped || this.parcel === 0)) {
       const { address, changeMode } = this.pendingExchange;
@@ -332,10 +332,10 @@ export class Cpu {
     if (long) {
       if (this.parcel === 3) {
         if (!this.features.wrapParcel3) {
-          this.errorExit('instruction de 30 bits en parcelle 3');
+          this.errorExit('30-bit instruction in parcel 3');
           return this.afterInstruction();
         }
-        // 6600 : la seconde parcelle est prise en parcelle 0 du même mot.
+        // 6600: the second parcel is taken from parcel 0 of the same word.
         K = ((p0 & 7) << 15) | this.parcels[0];
         this.parcel = 4;
       } else {
@@ -385,14 +385,14 @@ export class Cpu {
     return true;
   }
 
-  /** Va au mot suivant (sortie normale des instructions ECS/CMU). */
+  /** Advances to the next word (normal exit of the ECS/CMU instructions). */
   nextWord() {
     this.P = (this.P + 1) & M18;
     this.wordValid = false;
     this.parcel = 0;
   }
 
-  /** Charge A[i] et applique la sémantique lecture (1-5) / écriture (6-7). */
+  /** Sets A[i] and applies the read (1-5) / write (6-7) semantics. */
   setA(i, value) {
     this.A[i] = value & M18;
     if (i === 0) return;
@@ -408,13 +408,13 @@ export class Cpu {
   execute(fm, i, j, k, K, parcelAtStart) {
     const X = this.X, A = this.A, B = this.B;
     switch (fm) {
-      case 0o00: // PS - arrêt du programme (ou sortie d'erreur avec CEJ/MEJ)
+      case 0o00: // PS - program stop (or error exit with CEJ/MEJ)
         if (!this.features.cejMej || this.monitorMode) {
           this.stopped = true;
           this.lastError = null;
           this.stopReason = 'PS';
         } else {
-          this.errorExit('PS en mode programme');
+          this.errorExit('PS in program mode');
         }
         return;
 
@@ -425,7 +425,7 @@ export class Cpu {
             if (!this.writeRel(K, w)) return;
             this.voidStack();
             this.P = K;
-            this.parcel = 4; // reprise en K+1
+            this.parcel = 4; // resume at K+1
             return;
           }
           case 1: // RE Bj+K
@@ -437,7 +437,7 @@ export class Cpu {
             return;
           case 3: { // XJ Bj+K
             if (!this.features.cejMej || parcelAtStart !== 0) {
-              this.errorExit('XJ illégal (CEJ/MEJ absent ou instruction hors parcelle 0)');
+              this.errorExit('illegal XJ (no CEJ/MEJ, or instruction not in parcel 0)');
               return;
             }
             this.P = (this.P + 1) & M18;
@@ -446,7 +446,7 @@ export class Cpu {
             return;
           }
           default:
-            this.errorExit(`instruction 01${i} illégale sur ce modèle`);
+            this.errorExit(`instruction 01${i} illegal on this model`);
             return;
         }
 
@@ -557,7 +557,7 @@ export class Cpu {
         this.floatExceptionHandler();
         return;
       }
-      case 0o46: // NO (passe) / CMU
+      case 0o46: // NO (pass) / CMU
         if (i >= 4) this.cmu(i, j, K, parcelAtStart);
         return;
       case 0o47: X[i] = BigInt(popcount60(X[k])); return;             // CXi Xk
@@ -594,14 +594,14 @@ export class Cpu {
   // ------------------------------------------------------------- ECS (RE/WE)
 
   /**
-   * Transfert de bloc avec la mémoire étendue (ECS).
-   * Mot count = Bj+K, adresse ECS relative = X0 (bits 23-0), adresse CM = A0.
-   * Sortie normale : mot suivant ; sortie d'erreur : parcelles basses du mot.
+   * Block transfer with extended core storage (ECS).
+   * Word count = Bj+K, relative ECS address = X0 (bits 23-0), CM address = A0.
+   * Normal exit: next word; error exit: lower parcels of the word.
    */
   ecsTransfer(write, j, K, parcelAtStart) {
     const m = this.m;
     if (!m.ecsSize || parcelAtStart !== 0) {
-      this.errorExit('RE/WE : ECS absente ou instruction hors parcelle 0');
+      this.errorExit('RE/WE: no ECS, or instruction not in parcel 0');
       return;
     }
     let count = add18(this.B[j], K);
@@ -610,7 +610,7 @@ export class Cpu {
     const cmRel = this.A[0];
     if ((count & SIGN18) || this.FL < cmRel + count || this.FLE < ecsRel + count) {
       this.exitCondition |= EC_ADDRESS;
-      if (this.EM & EM_ADDRESS) this.errorExit('RE/WE hors limites');
+      if (this.EM & EM_ADDRESS) this.errorExit('RE/WE out of range');
       else this.nextWord();
       return;
     }
@@ -629,27 +629,27 @@ export class Cpu {
       }
       cmAbs = (cmAbs + 1) % m.cmSize;
     }
-    this.cycles += 10 + count; // ~10 mots/µs
+    this.cycles += 10 + count; // ~10 words/µs
     this.scoreboard.t += 10 + count;
     if (!failed) this.nextWord();
-    // sinon : poursuite avec les 30 bits bas (traitement d'erreur)
+    // otherwise: continue with the lower 30 bits (error handling)
   }
 
   // ------------------------------------------------------------ CMU (Cyber 70)
 
   cmu(i, j, K, parcelAtStart) {
     if (!this.features.cmu) {
-      this.errorExit('instruction CMU absente sur ce modèle');
+      this.errorExit('no CMU instructions on this model');
       return;
     }
     if (parcelAtStart !== 0) {
-      this.errorExit('instruction CMU hors parcelle 0');
+      this.errorExit('CMU instruction not in parcel 0');
       return;
     }
     const w = this.word;
     let desc;
     let maxLenBits = 7;
-    if (i === 4) { // IM : descripteur indirect en Bj+K
+    if (i === 4) { // IM: indirect descriptor at Bj+K
       const d = this.readRel(add18(this.B[j], Number((w >> 30n) & 0o777777n)));
       if (d === null) return;
       desc = d;
@@ -668,7 +668,7 @@ export class Cpu {
     if (i === 6 && (collTable >= this.FL)) bad = true;
     if (bad) {
       this.exitCondition |= EC_ADDRESS;
-      if (this.EM & EM_ADDRESS) { this.errorExit('CMU : position de caractère invalide'); return; }
+      if (this.EM & EM_ADDRESS) { this.errorExit('CMU: invalid character position'); return; }
       ll = 0;
     }
     const getByte = (addr, pos) => {
@@ -712,7 +712,7 @@ export class Cpu {
   }
 }
 
-/** Comparaison de deux valeurs 18 bits en complément à un (GE/LT). */
+/** Compares two 18-bit ones' complement values (GE/LT). */
 function compareB(a, b) {
   const sa = a & SIGN18, sb = b & SIGN18;
   if (sa !== sb) return sa ? -1 : 1;
@@ -723,7 +723,7 @@ function compareB(a, b) {
   return r & SIGN18 ? -1 : 1;
 }
 
-/** Décalage par la valeur de Bj (instructions 22 et 23). */
+/** Shift by the value of Bj (instructions 22 and 23). */
 function shiftByB(x, b, left) {
   b &= M18;
   if (left) {

@@ -1,87 +1,87 @@
 [
   {
-    "file": "sys-bonjour.cmp",
-    "title": "Bonjour (mini-système)",
+    "file": "sys-hello.cmp",
+    "title": "Hello (mini-system)",
     "kind": "program",
     "mode": "SYS",
-    "description": "Travail relogeable : MESSAGE au journal, WRITEC sur l’imprimante, CDD, ENDRUN."
+    "description": "Relocatable job: MESSAGE to the dayfile, WRITEC to the line printer, CDD, ENDRUN."
   },
   {
-    "file": "sys-copie.cmp",
-    "title": "Copie de cartes (mini-système)",
+    "file": "sys-copy.cmp",
+    "title": "Card copy (mini-system)",
     "kind": "program",
     "mode": "SYS",
-    "description": "READC sur INPUT (lecteur 405), WRITEC sur OUTPUT (imprimante) ; le paquet est fourni.",
-    "cards": "PREMIERE CARTE\nDEUXIEME CARTE AVEC DES CHIFFRES 0123456789\n  TROISIEME (+-*/=,.$)\n7/8/9\n"
+    "description": "READC on INPUT (405 card reader), WRITEC on OUTPUT (line printer); the deck is supplied.",
+    "cards": "FIRST CARD\nSECOND CARD WITH DIGITS 0123456789\n  THIRD (+-*/=,.$)\n7/8/9\n"
   },
   {
-    "file": "cpu-somme.cmp",
-    "title": "Somme et factorielle",
+    "file": "cpu-sum.cmp",
+    "title": "Sum and factorial",
     "kind": "program",
     "mode": "CPU",
-    "description": "Boucle sur un registre B, arithmétique entière 60 bits, rangement des résultats."
+    "description": "Loop on a B register, 60-bit integer arithmetic, storing the results."
   },
   {
-    "file": "cpu-flottant.cmp",
-    "title": "Calcul flottant",
+    "file": "cpu-float.cmp",
+    "title": "Floating-point arithmetic",
     "kind": "program",
     "mode": "CPU",
-    "description": "Racine carrée de 2 par Newton et série 1/k² : instructions FX, RX, NX, PX."
+    "description": "Square root of 2 by Newton method and the 1/k² series: FX, RX, NX, PX instructions."
   },
   {
-    "file": "cpu-texte.cmp",
-    "title": "Texte en code display",
+    "file": "cpu-text.cmp",
+    "title": "Display code text",
     "kind": "program",
     "mode": "CPU",
-    "description": "DIS, rotations LX et masques MX pour compter les lettres d’un message."
+    "description": "DIS, LX rotations and MX masks to count the letters of a message."
   },
   {
-    "file": "cpu-tri.cmp",
-    "title": "Tri par insertion",
+    "file": "cpu-sort.cmp",
+    "title": "Insertion sort",
     "kind": "program",
     "mode": "CPU",
-    "description": "Table CON, indexation par B, comparaisons par soustraction entière."
+    "description": "CON table, B indexing, comparisons by integer subtraction."
   },
   {
     "file": "macros.cmp",
     "title": "Macros, micros, IF, DUP, ECHO",
     "kind": "program",
     "mode": "CPU",
-    "description": "Démonstration du macro-assembleur : MACRO/LOCAL, MICRO, IFGE/ELSE, DUP, ECHO."
+    "description": "Macro assembler demonstration: MACRO/LOCAL, MICRO, IFGE/ELSE, DUP, ECHO."
   },
   {
     "file": "pp-console.cmp",
-    "title": "Console 6612 et clavier",
+    "title": "6612 console and keyboard",
     "kind": "program",
     "mode": "PP",
-    "description": "Boucle de rafraîchissement des deux écrans (FNC/ACN/OAM/DCN) et lecture du clavier (IAN)."
+    "description": "Refresh loop for both screens (FNC/ACN/OAM/DCN) and keyboard input (IAN)."
   },
   {
-    "file": "pp-imprimante.cmp",
-    "title": "Imprimante 1612",
+    "file": "pp-printer.cmp",
+    "title": "1612 line printer",
     "kind": "program",
     "mode": "PP",
-    "description": "Conversion display → BCD externe par table, sous-programmes RJM, impression ligne à ligne."
+    "description": "Display → external BCD conversion by table, RJM subroutines, line-by-line printing."
   },
   {
-    "file": "pp-cartes.cmp",
-    "title": "Lecteur de cartes 405",
+    "file": "pp-cards.cmp",
+    "title": "405 card reader",
     "kind": "program",
     "mode": "PP",
-    "description": "Lecture IAM de cartes Hollerith, conversion en code display, affichage sur la console."
+    "description": "IAM input of Hollerith cards, conversion to display code, display on the console."
   },
   {
-    "file": "pp-horloge.cmp",
-    "title": "Horloge temps réel",
+    "file": "pp-clock.cmp",
+    "title": "Real-time clock",
     "kind": "program",
     "mode": "PP",
-    "description": "Canal 14B de l’horloge, cumul sur 24 bits, affichage octal ; utilise XTEXT DEFS6612."
+    "description": "Clock channel 14B, 24-bit accumulation, octal display; uses XTEXT DEFS6612."
   },
   {
     "file": "defs6612.txt",
-    "title": "Texte DEFS6612",
+    "title": "DEFS6612 text",
     "kind": "text",
     "mode": "XTEXT",
-    "description": "Définitions de la console 6612 et macro AFFICHE, appelées par XTEXT."
+    "description": "6612 console definitions and the SHOW macro, called by XTEXT."
   }
 ]

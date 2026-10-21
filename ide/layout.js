@@ -1,10 +1,10 @@
-// Mise en page : groupes d'onglets et séparateurs redimensionnables.
+// Layout: tab groups and resizable splitters.
 
 import { h, icon, store } from './dom.js';
 
 /**
- * Groupe d'onglets. Chaque onglet : { id, label, icon, panel } où panel
- * possède `el` et, éventuellement, onShow() / onHide().
+ * Tab group. Each tab: { id, label, icon, panel } where panel
+ * has `el` and, optionally, onShow() / onHide().
  */
 export class Tabs {
   constructor(host, { key, cls = '', actions = null } = {}) {
@@ -61,7 +61,7 @@ export class Tabs {
     if (!silent && this.onChange) this.onChange(id);
   }
 
-  /** Pastille sur un onglet (nombre d'erreurs, activité...). */
+  /** Badge on a tab (error count, activity...). */
   setBadge(id, text, kind = '') {
     const t = this.tabs.get(id);
     if (!t) return;
@@ -76,9 +76,9 @@ export class Tabs {
 }
 
 /**
- * Séparateur redimensionnable.
- * @param el      l'élément séparateur
- * @param target  l'élément dont on règle la taille
+ * Resizable splitter.
+ * @param el      the splitter element
+ * @param target  the element whose size is adjusted
  * @param opts    { axis: 'x'|'y', invert, min, max, key, onResize }
  */
 export function makeSplitter(el, target, { axis = 'x', invert = false, min = 120, max = 2000, key = null, onResize = null } = {}) {

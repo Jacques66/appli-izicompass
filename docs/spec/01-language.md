@@ -1,1441 +1,1430 @@
-# 01 — Structure du langage COMPASS 3
+# 01 — COMPASS 3 Language Structure
 
-Source : *COMPASS Version 3 Reference Manual*, CDC 60492600 rév. M (1986) —
-chapitre 1 (Introduction), chapitre 2 (Language Structure), chapitre 3
-(Program Structure), annexe A (Character Sets), annexe D (Hints), carte de
-référence finale. Quelques renvois ponctuels aux chapitres 4, 5, 7 et 11
-quand ils précisent une règle de langage (BASE, CODE, CHAR, COL, USE, DATA,
-VFD, LOCAL, micros, répertoire d'erreurs).
+Source: *COMPASS Version 3 Reference Manual*, CDC 60492600 rev. M (1986) —
+chapter 1 (Introduction), chapter 2 (Language Structure), chapter 3
+(Program Structure), appendix A (Character Sets), appendix D (Hints), final
+reference card. A few specific references to chapters 4, 5, 7 and 11
+where they clarify a language rule (BASE, CODE, CHAR, COL, USE, DATA,
+VFD, LOCAL, micros, error directory).
 
-Conventions de ce document :
+Conventions in this document:
 
-- Les nombres suffixés `B` sont en octal (`57B` = 47 décimal), comme dans
-  COMPASS. Les colonnes sont numérotées à partir de 1.
-- **[INFÉRENCE]** marque une règle déduite (exemples du manuel, OCR
-  dégradé, connaissance du matériel CDC) et non écrite en toutes lettres.
-- **[AMBIGU]** marque un point que le manuel ne tranche pas ; une
-  recommandation d'implémentation est donnée.
-- « Caractère CDC » = glyphe du jeu 64 caractères CDC ; « équivalent
-  ASCII » = glyphe du sous-ensemble ASCII 64 caractères (voir §11). Dans un
-  source ASCII (le cas de notre implémentation JS), on écrit l'équivalent
-  ASCII.
+- Numbers with a `B` suffix are octal (`57B` = 47 decimal), as in
+  COMPASS. Columns are numbered from 1.
+- **[INFER]** marks a rule that is deduced (manual examples, damaged
+  OCR, knowledge of CDC hardware) and not stated explicitly.
+- **[AMBIG]** marks a point that the manual does not settle; an
+  implementation recommendation is given.
+- "CDC character" = glyph of the CDC 64-character set; "ASCII
+  equivalent" = glyph of the 64-character ASCII subset (see §11). In an
+  ASCII source (the case of this JS implementation), the ASCII
+  equivalent is written.
 
-Caractères spéciaux du langage (récapitulatif, détaillés plus loin) :
+Special characters of the language (summary, detailed later):
 
-| Rôle | Code display | Glyphe CDC | Équivalent ASCII |
+| Role | Display code | CDC glyph | ASCII equivalent |
 |---|---|---|---|
-| Marque de concaténation | 65B | → | `_` |
-| Marque de micro | 64B | ≠ | `"` |
-| OU exclusif (opérateur) | 67B | ∧ | `&` |
-| Pré-radix hexadécimal | 60B | ≡ | `#` |
-| Commentaire (colonne 1) | 47B | `*` | `*` |
-| Continuation (colonne 1) | 56B | `,` | `,` |
-| Drapeau de paramètre substituable (macros, ch. 5) | 77B | `;` | `;` |
+| Concatenation mark | 65B | → | `_` |
+| Micro mark | 64B | ≠ | `"` |
+| Exclusive OR (operator) | 67B | ∧ | `&` |
+| Hexadecimal pre-radix | 60B | ≡ | `#` |
+| Comment (column 1) | 47B | `*` | `*` |
+| Continuation (column 1) | 56B | `,` | `,` |
+| Substitutable parameter flag (macros, ch. 5) | 77B | `;` | `;` |
 
-(Le manuel OCR rend → par « r- »/« r+ », ≠ par « rl »/« ;t! », ∧ par
-« /\ ». L'identification → = 65B est confirmée par la carte de référence,
-où 65B a pour équivalent ASCII « _ (underline) », et par le listing qui
-note les changements de CODE sous la forme `c1→c2`.)
+(The manual OCR renders → as "r-"/"r+", ≠ as "rl"/";t!", ∧ as
+"/\". The identification → = 65B is confirmed by the reference card,
+where 65B has the ASCII equivalent "_ (underline)", and by the listing,
+which shows CODE changes in the form `c1→c2`.)
 
 ---
 
-## 1. Vue d'ensemble (chapitre 1)
+## 1. Overview (chapter 1)
 
-- Un programme COMPASS = un ou plusieurs **sous-programmes**. Chaque
-  sous-programme commence par `IDENT` et se termine par `END`. Un fichier
-  source peut contenir plusieurs sous-programmes à la suite ; ils sont
-  assemblés l'un après l'autre.
-- Deux sortes d'instructions source : instructions machine symboliques
-  (une instruction machine chacune, CPU ch. 8 ou PP ch. 9) et
-  pseudo-instructions (contrôle de l'assemblage : allocation, définition
-  de symboles, liaison, listing, macros…).
-- Sortie CPU : binaire **absolu ou relogeable**. Sortie PP : **toujours
-  absolue**.
-- Assemblage en **deux passes** par sous-programme :
-  - passe 1 : lecture de chaque instruction, expansion et édition des
-    séquences appelées (macros, DUP, ECHO, RMT…), interprétation du code
-    opération, attribution des emplacements (compteurs) ;
-  - passe 2 : attribution des origines de blocs, placement des littéraux,
-    calcul de toutes les valeurs de symboles, production du listing et du
-    binaire, table des références symboliques ; puis réinitialisation pour
-    le sous-programme suivant.
-  - La passe 2 d'un **groupe de blocs** est déclenchée par chaque `IDENT`
-    (non premier) ou `END` (voir §10.1).
-- Tout traitement imbriqué (macros, définitions…) utilise une pile unique ;
-  **profondeur maximale d'imbrication : 400**.
-- Jusqu'à **255** zones (blocs) désignables par le programmeur et le
-  système (voir §10.1).
-- Le chargement/exécution n'a normalement pas lieu si l'assembleur a
-  détecté des erreurs fatales (les erreurs à lettre suppriment le binaire,
+- A COMPASS program = one or more **subprograms**. Each subprogram
+  begins with `IDENT` and ends with `END`. A source file may contain
+  several subprograms in sequence; they are assembled one after the
+  other.
+- Two kinds of source statements: symbolic machine instructions
+  (one machine instruction each, CPU ch. 8 or PP ch. 9) and
+  pseudo instructions (assembly control: allocation, symbol definition,
+  linkage, listing, macros...).
+- CPU output: **absolute or relocatable** binary. PP output: **always
+  absolute**.
+- **Two-pass** assembly per subprogram:
+  - pass 1: reading of each statement, expansion and editing of called
+    sequences (macros, DUP, ECHO, RMT...), interpretation of the operation
+    code, assignment of locations (counters);
+  - pass 2: assignment of block origins, placement of literals,
+    computation of all symbol values, production of the listing and the
+    binary, symbolic reference table; then reinitialization for the next
+    subprogram.
+  - Pass 2 of a **block group** is triggered by each `IDENT`
+    (other than the first) or `END` (see §10.1).
+- All nested processing (macros, definitions...) uses a single stack;
+  **maximum nesting depth: 400**.
+- Up to **255** areas (blocks) designatable by the programmer and the
+  system (see §10.1).
+- Load/execution normally does not take place if the assembler has
+  detected fatal errors (letter errors suppress the binary,
   §12).
 
 ---
 
-## 2. Format des instructions (§2.1)
+## 2. Statement format (§2.1)
 
-### 2.1 Ligne physique
+### 2.1 Physical line
 
-- Une carte = une ligne. **Seules les colonnes 1 à 72 sont interprétées.**
-  Les colonnes 73–80 servent aux commentaires/séquencement, les colonnes
-  81–90 au séquencement des programmes de maintenance de bibliothèque ; les
-  colonnes 73–90 apparaissent au listing (champ « Sequence ») mais ne sont
-  pas interprétées. (Annexe B : un enregistrement source peut faire
-  jusqu'à 160 caractères, mais seuls les 90 premiers sont reproduits au
-  listing.)
-- Implémentation : une ligne plus courte que 72 colonnes est **complétée
-  par des blancs jusqu'à la colonne 72** (important pour la continuation,
-  §2.4). Au-delà de 90 : ignoré.
-- Une ligne contenant deux « deux-points » consécutifs ou plus peut être
-  lue/imprimée comme deux lignes (convention du système d'exploitation :
-  12 bits nuls en fin de mot = fin de ligne, et `:` = code 00 dans le jeu
-  64 caractères). Effet d'environnement, **à ne pas émuler** dans
-  l'assembleur ; au plus à signaler.
-- [INFÉRENCE] Le source original est en code display 6 bits, donc **en
-  majuscules uniquement**. Pour un source ASCII : les minuscules sont
-  repliées en majuscules (annexe A, note 3) ; tout caractère ASCII absent
-  du tableau du §11 devient le blanc (55B) (note 4). Les tabulations
-  n'existent pas sur CDC : recommandation, les développer en blancs
-  (colonnes multiples de 8 ou taquets 11/18/30) en option d'entrée,
-  clairement documentée comme extension.
+- One card = one line. **Only columns 1 to 72 are interpreted.**
+  Columns 73–80 are used for comments/sequencing, columns 81–90 for
+  sequencing by library maintenance programs; columns 73–90 appear in
+  the listing ("Sequence" field) but are not interpreted. (Appendix B:
+  a source record may be up to 160 characters long, but only the first
+  90 are reproduced in the listing.)
+- Implementation: a line shorter than 72 columns is **padded with blanks
+  up to column 72** (important for continuation, §2.4). Beyond 90:
+  ignored.
+- A line containing two or more consecutive colons may be read/printed
+  as two lines (operating system convention: 12 zero bits at the end of
+  a word = end of line, and `:` = code 00 in the 64-character set).
+  Environment effect, **not to be emulated** in the assembler; at most
+  to be reported.
+- [INFER] The original source is in 6-bit display code, hence
+  **uppercase only**. For an ASCII source: lowercase letters are folded
+  to uppercase (appendix A, note 3); any ASCII character absent from the
+  table in §11 becomes a blank (55B) (note 4). Tabs do not exist on CDC:
+  recommendation, expand them to blanks (columns that are multiples of 8,
+  or tab stops 11/18/30) as an input option, clearly documented as an
+  extension.
 
-### 2.2 Première colonne
+### 2.2 First column
 
-| Colonne 1 | Signification |
+| Column 1 | Meaning |
 |---|---|
-| `,` (virgule) | Ligne de **continuation** de la ligne précédente |
-| `*` (astérisque) | Ligne de **commentaire** |
-| autre (y compris blanc) | Début d'une nouvelle instruction |
+| `,` (comma) | **Continuation** line of the previous line |
+| `*` (asterisk) | **Comment** line |
+| other (including blank) | Start of a new statement |
 
-### 2.3 Les champs
+### 2.3 The fields
 
-Toute instruction (hors lignes commentaires) a quatre champs : **location**
-(étiquette), **operation**, **variable**, **comments**. Chaque champ est
-terminé par **un ou plusieurs blancs**. Exceptions : un blanc **à
-l'intérieur** d'une donnée caractère (ex. `10HERROR IN P`, `H*A B*`), d'un
-paramètre de macro entre parenthèses, ou du champ commentaire ne termine
-pas le champ. La taille du champ variable n'est limitée que par la taille
-maximale d'une instruction. Le format est essentiellement libre.
+Every statement (other than comment lines) has four fields: **location**
+(label), **operation**, **variable**, **comments**. Each field is
+terminated by **one or more blanks**. Exceptions: a blank **inside** a
+character data item (e.g. `10HERROR IN P`, `H*A B*`), inside a
+parenthesized macro parameter, or inside the comments field does not
+terminate the field. The size of the variable field is limited only by
+the maximum size of a statement. The format is essentially free.
 
-**Champ location** (§2.1.2)
+**Location field** (§2.1.2)
 
-- Commence en colonne 1 **ou 2** d'une ligne d'instruction et se termine
-  par un blanc.
-- Si les colonnes 1 **et** 2 sont blanches, il n'y a pas de location.
-- Donc : colonne 1 non blanche → location commence en colonne 1 ;
-  colonne 1 blanche et colonne 2 non blanche → location commence en
-  colonne 2.
-- Contenu (selon le code opération) : un symbole, un nom, `+` ou `-`
-  (contrôle du forçage en début de mot, §10.4). Généralement facultatif.
+- Begins in column 1 **or 2** of a statement line and is terminated by
+  a blank.
+- If columns 1 **and** 2 are blank, there is no location.
+- Therefore: column 1 nonblank → location begins in column 1;
+  column 1 blank and column 2 nonblank → location begins in
+  column 2.
+- Contents (depending on the operation code): a symbol, a name, `+` or
+  `-` (force upper control, §10.4). Generally optional.
 
-**Champ operation** (§2.1.3)
+**Operation field** (§2.1.3)
 
-- Si la location est vide, l'opération peut commencer en colonne 3
-  (premier non-blanc à partir de la colonne 3).
-- Si la location est présente, l'opération commence au premier non-blanc
-  qui suit la location ; elle se termine par un ou plusieurs blancs.
-- **L'opération est vide s'il n'y a aucun non-blanc entre la fin de la
-  location et la colonne 30** (colonne de commentaire, modifiable par
-  `COL`) : ce qui suit est alors du commentaire.
-- Contenus légaux : mnémonique CPU (avec éventuellement des
-  sous-champs variables, chacun précédé d'une virgule — syntaxe détaillée
-  au ch. 8, ex. formes `SB.SUM`), mnémonique PP, pseudo-instruction, nom
-  de macro, ou vide.
-- Une instruction avec un **symbole en location et une opération vide**
-  équivaut à `BSSZ 1` (un mot à zéro réservé, ch. 4 §4.8.1).
+- If the location is empty, the operation may begin in column 3
+  (first nonblank from column 3 on).
+- If the location is present, the operation begins at the first
+  nonblank following the location; it is terminated by one or more
+  blanks.
+- **The operation is blank if there is no nonblank between the end of
+  the location and column 30** (comments column, changeable with
+  `COL`): what follows is then a comment.
+- Legal contents: CPU mnemonic (possibly with variable subfields, each
+  preceded by a comma — syntax detailed in ch. 8, e.g. forms
+  `SB.SUM`), PP mnemonic, pseudo instruction, macro name, or blank.
+- A statement with a **symbol in the location and a blank operation**
+  is equivalent to `BSSZ 1` (one zero word reserved, ch. 4 §4.8.1).
 
-**Champ variable** (§2.1.4)
+**Variable field** (§2.1.4)
 
-- Contient zéro, un ou plusieurs **sous-champs séparés par des virgules**.
-- Commence au premier non-blanc après l'opération et se termine par un
-  ou plusieurs blancs (hors exceptions ci-dessus).
-- **Il est vide s'il n'y a aucun non-blanc entre la fin de l'opération et
-  la colonne de commentaire (30 par défaut).**
-- Un sous-champ contient : donnée (data item), expression, désignateur de
-  registre, nom, élément spécial, ou une entrée propre à l'instruction.
+- Contains zero, one or more **subfields separated by commas**.
+- Begins at the first nonblank after the operation and is terminated by
+  one or more blanks (except for the exceptions above).
+- **It is blank if there is no nonblank between the end of the
+  operation and the comments column (30 by default).**
+- A subfield contains: a data item, an expression, a register
+  designator, a name, a special element, or an entry specific to the
+  instruction.
 
-**Champ comments** (§2.1.5)
+**Comments field** (§2.1.5)
 
-- Commence au premier non-blanc après le champ variable ; si le champ
-  variable est absent, **pas avant la colonne 30** (ou la colonne fixée
-  par `COL`).
+- Begins at the first nonblank after the variable field; if the
+  variable field is absent, **not before column 30** (or the column set
+  by `COL`).
 
-**Pseudo `COL n`** (ch. 4 §4.4.6) — résumé utile à l'analyse :
+**Pseudo `COL n`** (ch. 4 §4.4.6) — summary useful for parsing:
 
-- Fixe la colonne à partir de laquelle un commentaire peut commencer
-  quand le champ variable est vide. Défaut : 30.
-- `n` : expression absolue évaluable, décimale si BASE M. `n < 12` → 12 ;
-  `n` nul ou blanc → 30. Symbole en location ignoré.
-- Si le champ opération de l'instruction courante **s'étend jusqu'à ou
-  au-delà** de la colonne de commentaire, COMPASS utilise, **pour cette
-  instruction seulement**, une colonne de commentaire « très grande » :
-  tout non-blanc après l'opération est alors le champ variable (un
-  commentaire exige alors un champ variable présent).
-- Le listing affiche la nouvelle colonne dans le champ « octal code ».
+- Sets the column from which a comment may begin when the variable
+  field is blank. Default: 30.
+- `n`: evaluable absolute expression, decimal if BASE M. `n < 12` → 12;
+  `n` zero or blank → 30. Location symbol ignored.
+- If the operation field of the current statement **extends to or
+  beyond** the comments column, COMPASS uses, **for that statement
+  only**, a "very large" comments column: any nonblank after the
+  operation is then the variable field (a comment then requires a
+  variable field to be present).
+- The listing shows the new column in the "octal code" field.
 
 ### 2.4 Continuation (§2.1.7)
 
-- Normalement, la colonne 72 termine une instruction non encore terminée.
-- Une instruction plus longue se continue sur la ligne suivante en
-  mettant **`,` en colonne 1** et en poursuivant en **colonne 2**.
-- **Au plus 9 lignes de continuation** (instruction = 10 lignes au plus).
-- La coupure peut tomber n'importe où, **même au milieu d'un symbole**.
-  Implémentation : image de l'instruction = colonnes 1–72 de la première
-  ligne (complétées à blanc) + colonnes 2–72 de chaque continuation
-  (complétées à blanc), concaténées sans séparateur. Longueur maximale :
-  72 + 9×71 = **711 caractères**.
-- Les lignes de continuation au-delà de la 9e, et les lignes de
-  continuation qui suivent une instruction **terminée**, sont traitées
-  comme des **lignes de commentaire**.
-  [AMBIGU] « instruction terminée » n'est pas défini. Recommandation : une
-  continuation qui suit une ligne commentaire (`*` en colonne 1), ou qui
-  suit la 10e ligne, est un commentaire ; dans tous les autres cas elle
-  est rattachée.
-- L'édition (micros) peut allonger l'image : si la colonne 72 de la
-  dernière ligne est dépassée, l'assembleur crée jusqu'à 9 cartes de
-  continuation au total ; l'excédent est **perdu sans avertissement** (voir
-  §3.3). Donc la longueur éditée est aussi plafonnée à 711 caractères
-  [INFÉRENCE : le plafond est le même].
+- Normally, column 72 terminates a statement that is not yet
+  terminated.
+- A longer statement is continued on the next line by putting
+  **`,` in column 1** and continuing in **column 2**.
+- **At most 9 continuation lines** (statement = 10 lines at most).
+- The break may fall anywhere, **even in the middle of a symbol**.
+  Implementation: statement image = columns 1–72 of the first line
+  (blank-padded) + columns 2–72 of each continuation (blank-padded),
+  concatenated without a separator. Maximum length:
+  72 + 9×71 = **711 characters**.
+- Continuation lines beyond the 9th, and continuation lines that follow
+  a **terminated** statement, are processed as **comment lines**.
+  [AMBIG] "terminated statement" is not defined. Recommendation: a
+  continuation that follows a comment line (`*` in column 1), or that
+  follows the 10th line, is a comment; in all other cases it is
+  attached.
+- Editing (micros) may lengthen the image: if column 72 of the last
+  line is exceeded, the assembler creates up to 9 continuation cards in
+  total; the excess is **lost without warning** (see §3.3). Therefore
+  the edited length is also capped at 711 characters
+  [INFER: the cap is the same].
 
-### 2.5 Lignes commentaire (§2.1.6)
+### 2.5 Comment lines (§2.1.6)
 
-Deux formes :
+Two forms:
 
-1. `*` en colonne 1. Listée, sans autre effet. **Non comptée** dans les
-   comptes de lignes du saut IF (§4.9) ni dans les définitions (ch. 5), et
-   **non sauvegardée** dans les définitions (macros, DUP…). Annexe D : dans
-   une macro, préférer `*` aux autres commentaires, qui eux sont
-   sauvegardés.
-2. Colonnes 1 à 29 blanches (une ligne entièrement blanche en fait
-   partie). **Comptée** dans les comptes de lignes.
-   [INFÉRENCE] La limite « 1–29 » suit la colonne de commentaire (30 par
-   défaut, modifiable par `COL`) : la règle générale est « location vide
-   et aucun non-blanc avant la colonne de commentaire ».
+1. `*` in column 1. Listed, with no other effect. **Not counted** in the
+   line counts of IF skipping (§4.9) or in definitions (ch. 5), and
+   **not saved** in definitions (macros, DUP...). Appendix D: in a
+   macro, prefer `*` over the other comments, which are saved.
+2. Columns 1 to 29 blank (an entirely blank line is one of these).
+   **Counted** in line counts.
+   [INFER] The "1–29" limit follows the comments column (30 by default,
+   changeable with `COL`): the general rule is "blank location and no
+   nonblank before the comments column".
 
-### 2.6 Convention de codage (§2.1.8, formulaire COMPASS)
+### 2.6 Coding convention (§2.1.8, COMPASS coding form)
 
-| Colonnes | Contenu |
+| Columns | Contents |
 |---|---|
-| 1 | blanc, `*` ou `,` |
-| 2–9 | location (ou `+`/`-`), cadrée à gauche |
-| 10 | blanc |
-| 11–16 | opération, cadrée à gauche |
-| 17 | blanc |
-| 18–29 | variable, cadrée à gauche |
-| 30– | commentaires |
+| 1 | blank, `*` or `,` |
+| 2–9 | location (or `+`/`-`), left-justified |
+| 10 | blank |
+| 11–16 | operation, left-justified |
+| 17 | blank |
+| 18–29 | variable, left-justified |
+| 30– | comments |
 
-Tous les exemples du manuel suivent cette convention ; elle n'est **pas
-obligatoire** (format libre). Le listing (ch. 11) reproduit l'image
-source colonnes 1–72 ; le désassembleur/générateur de code devrait
-produire ce format (location en colonne 1 pour un symbole tel que dans
-les exemples du manuel, opération en 11, variable en 18, commentaire en
-30).
+All manual examples follow this convention; it is **not mandatory**
+(free format). The listing (ch. 11) reproduces the source image,
+columns 1–72; the disassembler/code generator should produce this
+format (location in column 1 for a symbol as in the manual examples,
+operation in 11, variable in 18, comment in 30).
 
-### 2.7 Algorithme de découpage (référence d'implémentation)
+### 2.7 Splitting algorithm (implementation reference)
 
 ```
-lire ligne → img = col 1..72 (padding blancs) ; seq = col 73..90
-si img[1] == '*' : COMMENTAIRE(*) ; fin
-si img[1] == ',' : continuation orpheline → COMMENTAIRE (voir §2.4)
-tant que ligne suivante a ',' en col 1 et nb_cont < 9 :
-    img += col 2..72 de cette ligne (padding)
-éditer img (§3) sauf si la ligne est sauvegardée dans une définition
-cc = colonne de commentaire courante (COL, défaut 30)
+read line → img = col 1..72 (blank padding) ; seq = col 73..90
+if img[1] == '*' : COMMENT(*) ; done
+if img[1] == ',' : orphan continuation → COMMENT (see §2.4)
+while next line has ',' in col 1 and n_cont < 9 :
+    img += col 2..72 of that line (padding)
+edit img (§3) unless the line is saved in a definition
+cc = current comments column (COL, default 30)
 i = 1
-si img[1] != ' ' ou img[2] != ' ' :
-    loc = premier mot non blanc à partir de col 1 (ou 2) ; i = fin de loc
-sinon loc = vide ; i = 3
-sauter blancs → j
-si j >= cc (ou fin) : op vide ; reste = commentaire
-   (si loc vide aussi → COMMENTAIRE(compté) ; si loc = symbole → BSSZ 1)
-op = mot à partir de j ; k = fin de op
-cc_eff = (k >= cc) ? ∞ : cc            -- règle COL
-sauter blancs → m
-si m >= cc_eff ou fin : variable vide ; reste = commentaire
-sinon variable = analysée par le parseur des sous-champs (voir ci-dessous)
-reste après le premier blanc terminal = commentaire
+if img[1] != ' ' or img[2] != ' ' :
+    loc = first nonblank word from col 1 (or 2) ; i = end of loc
+else loc = empty ; i = 3
+skip blanks → j
+if j >= cc (or end) : op blank ; rest = comment
+   (if loc also empty → COMMENT(counted) ; if loc = symbol → BSSZ 1)
+op = word starting at j ; k = end of op
+cc_eff = (k >= cc) ? ∞ : cc            -- COL rule
+skip blanks → m
+if m >= cc_eff or end : variable blank ; rest = comment
+else variable = parsed by the subfield parser (see below)
+rest after the first terminating blank = comment
 ```
 
-Le **champ variable ne peut pas être découpé naïvement au premier
-blanc** : les données caractère à compte (`nHxxx`, `nRxxx`…, qui
-consomment exactement n caractères, blancs compris), les chaînes
-délimitées (`H*A B*`) et les paramètres de macro entre parenthèses
-contiennent des blancs. Recommandation : laisser le parseur de
-sous-champs (expressions / données / paramètres de macro) consommer le
-champ et s'arrêter sur le premier blanc **hors** de ces constructions.
+The **variable field cannot be split naively at the first blank**:
+counted character data (`nHxxx`, `nRxxx`..., which consume exactly n
+characters, blanks included), delimited strings (`H*A B*`) and
+parenthesized macro parameters contain blanks. Recommendation: let the
+subfield parser (expressions / data / macro parameters) consume the
+field and stop at the first blank **outside** these constructs.
 
 ---
 
-## 3. Édition des instructions (§2.2, ch. 7)
+## 3. Statement editing (§2.2, ch. 7)
 
-### 3.1 Quand l'édition a lieu
+### 3.1 When editing takes place
 
-COMPASS lit les instructions en séquence et **édite puis interprète
-immédiatement** chacune, sauf :
+COMPASS reads statements in sequence and **edits, then immediately
+interprets** each one, except:
 
-1. les lignes commentaire `*` en colonne 1 ;
-2. les lignes faisant partie d'une **définition** : entre un en-tête
-   `MACRO`/`MACROE`/`OPDEF` et `ENDM`, entre `DUP` ou `ECHO` et `ENDD`, ou
-   entre une paire `RMT`. Ces lignes sont sauvegardées **non éditées**
-   (avec leurs marques de micro et de concaténation, ch. 5 : stockage
-   compressé) et éditées **à chaque** référence/expansion. `ENDD` et `ENDM`
-   font partie de la définition qu'ils terminent et ne sont **pas** édités
-   (exemple ch. 5 : en définition, la location de l'en-tête MACRO édité est
-   `T1` tandis que celle de l'ENDM non édité reste `T→1`).
+1. comment lines with `*` in column 1;
+2. lines that are part of a **definition**: between a `MACRO`/`MACROE`/
+   `OPDEF` header and `ENDM`, between `DUP` or `ECHO` and `ENDD`, or
+   between a pair of `RMT`. These lines are saved **unedited** (with
+   their micro and concatenation marks, ch. 5: compressed storage) and
+   edited **on each** reference/expansion. `ENDD` and `ENDM` are part of
+   the definition they terminate and are **not** edited (example ch. 5:
+   in a definition, the location of the edited MACRO header is `T1`,
+   while that of the unedited ENDM remains `T→1`).
 
-Les lignes situées dans la portée d'un **IF** sont éditées **même
-lorsqu'elles sont sautées**.
+Lines within the range of an **IF** are edited **even when they are
+skipped**.
 
-Deux sortes d'édition : **concaténation** et **substitution de micros**.
+Two kinds of editing: **concatenation** and **micro substitution**.
 
-Option de listing `A` (ch. 4) : sans `A`, une ligne contenant des marques
-est listée telle que lue ; avec `A`, la ligne est listée avant **et**
-après édition.
+Listing option `A` (ch. 4): without `A`, a line containing marks is
+listed as read; with `A`, the line is listed before **and** after
+editing.
 
-### 3.2 Concaténation (§2.2.1)
+### 3.2 Concatenation (§2.2.1)
 
-- COMPASS cherche le caractère de concaténation **→ (65B, ASCII `_`)** et
-  le **supprime de tout champ** de l'instruction : les deux colonnes
-  adjacentes sont soudées.
-- Usage principal : délimiter un nom de paramètre substituable dans une
-  définition de macro quand aucun autre délimiteur n'est présent (ex.
-  `P1→X` : après substitution de P1, le → est supprimé).
-- Chaque suppression **décale le reste de l'instruction d'une colonne à
-  gauche**. Conséquence : avec un champ variable vide, des commentaires
-  peuvent glisser à gauche de la colonne 30 et être pris pour un champ
-  variable.
-- → ne peut pas servir de délimiteur de chaîne (§8.2) ni apparaître dans
-  un symbole.
+- COMPASS searches for the concatenation character **→ (65B, ASCII `_`)**
+  and **removes it from every field** of the statement: the two
+  adjacent columns are joined.
+- Main use: delimiting a substitutable parameter name in a macro
+  definition when no other delimiter is present (e.g. `P1→X`: after
+  substitution of P1, the → is removed).
+- Each removal **shifts the rest of the statement one column to the
+  left**. Consequence: with a blank variable field, comments may slide
+  to the left of column 30 and be taken as a variable field.
+- → cannot be used as a string delimiter (§8.2) or appear in a symbol.
 
-### 3.3 Substitution de micros (§2.2.2, §7.1)
+### 3.3 Micro substitution (§2.2.2, §7.1)
 
-- COMPASS cherche des **paires de marques de micro ≠ (64B, ASCII `"`)**
-  qui délimitent une référence de micro (`≠NOM≠`) et remplace la
-  référence **marques comprises** par la chaîne du micro.
-- La chaîne de remplacement peut avoir une longueur différente : le reste
-  de l'instruction est décalé à droite ou à gauche.
-- Dépassement de la colonne 72 de la dernière ligne lue : création de
-  cartes de continuation, **au plus 9** au total ; l'excédent est
-  **supprimé sans notification**.
-- **Pas de remplacement** si le nom de micro est inconnu ou si une des
-  deux marques manque : marques et nom restent dans la ligne. Nom inconnu
-  → **erreur non fatale 9** (« MICRO SUBSTITUTION ERROR. NO
-  SUBSTITUTION. »).
-- Une **marque isolée** n'est pas illégale et ne produit pas d'erreur
-  (elle peut figurer dans une chaîne de caractères).
-- **Nom nul** (deux marques adjacentes `≠≠`) : les deux marques sont
-  supprimées, pas d'erreur. (Annexe D : utile comme « substitution
-  nulle ».)
-- Le décalage peut repousser l'opération ou le variable au-delà de la
-  colonne 30, ou ramener un commentaire dans un champ vide.
-- Micros prédéfinis (système) : `DATE`, `JDATE`, `TIME`, `BASE`, `CODE`,
-  `QUAL`, `SEQUENCE`, `MODLEVEL`, `PCOMMENT` (carte de référence ; ch. 7).
-- La substitution ne s'applique pas aux lignes commentaire `*`.
+- COMPASS searches for **pairs of micro marks ≠ (64B, ASCII `"`)** that
+  delimit a micro reference (`≠NAME≠`) and replaces the reference,
+  **marks included**, with the micro's string.
+- The replacement string may have a different length: the rest of the
+  statement is shifted right or left.
+- Overflow of column 72 of the last line read: continuation cards are
+  created, **at most 9** in total; the excess is **deleted without
+  notification**.
+- **No replacement** if the micro name is unknown or if one of the two
+  marks is missing: marks and name remain in the line. Unknown name
+  → **nonfatal error 9** ("MICRO SUBSTITUTION ERROR. NO
+  SUBSTITUTION.").
+- An **isolated mark** is not illegal and produces no error (it may
+  appear in a character string).
+- **Null name** (two adjacent marks `≠≠`): both marks are deleted, no
+  error. (Appendix D: useful as a "null substitution".)
+- The shift may push the operation or the variable field beyond
+  column 30, or bring a comment back into a blank field.
+- Predefined (system) micros: `DATE`, `JDATE`, `TIME`, `BASE`, `CODE`,
+  `QUAL`, `SEQUENCE`, `MODLEVEL`, `PCOMMENT` (reference card; ch. 7).
+- Substitution does not apply to `*` comment lines.
 
-**Ordre et ré-analyse.** [AMBIGU] Le manuel présente la concaténation
-puis les micros, et dit que « les marques de concaténation et les paires
-de marques de micro sont supprimées avant l'analyse d'un nom/symbole/
-chaîne ». Il ne dit pas si un texte substitué est ré-examiné.
-Recommandation : un balayage gauche→droite unique de l'image : sur →,
-supprimer ; sur ≠, chercher le ≠ suivant ; si le texte entre les deux est
-un nom de micro connu (ou vide), remplacer et **reprendre le balayage
-après le texte inséré** (pas de re-substitution du résultat, ce qui
-évite toute récursion) ; sinon laisser le ≠ et continuer juste après lui.
-Les → contenus dans un texte de micro inséré sont donc conservés.
-(Conséquence pratique identique dans tous les usages du manuel.)
+**Order and rescanning.** [AMBIG] The manual presents concatenation
+first, then micros, and says that "concatenation marks and pairs of
+micro marks are removed before a name/symbol/string is analyzed". It
+does not say whether substituted text is rescanned.
+Recommendation: a single left-to-right scan of the image: on →,
+remove; on ≠, look for the next ≠; if the text between the two is a
+known micro name (or empty), replace and **resume the scan after the
+inserted text** (no re-substitution of the result, which avoids any
+recursion); otherwise leave the ≠ and continue just after it.
+→ characters contained in inserted micro text are therefore kept.
+(Same practical result in every use found in the manual.)
 
 ---
 
-## 4. Noms (§2.3)
+## 4. Names (§2.3)
 
-Un **nom** identifie : un sous-programme ou un overlay, un bloc, une
-définition de macro, une définition remote (RMT), une séquence dupliquée
-(DUP/ECHO), une séquence IF, un micro.
+A **name** identifies: a subprogram or an overlay, a block, a macro
+definition, a remote definition (RMT), a duplicated sequence
+(DUP/ECHO), an IF sequence, a micro.
 
-- Un nom est terminé par une **virgule ou un blanc**. Marques de
-  concaténation et paires de marques de micro sont supprimées avant.
-- **Nom de sous-programme ou d'overlay CPU** (sert à la liaison) : commence
-  par une lettre A–Z, **7 caractères au plus**. Les conventions du système
-  peuvent restreindre d'autres caractères.
-- **Nom de sous-programme/overlay PP** : pas de restriction sur le premier
-  caractère ; longueur max : 7 (CYBER 70/76, 7600), 4 (CYBER 180), 3
-  (CYBER 170, CYBER 70 modèles 72/73/74, série 6000 — **notre cas : 3**).
-- Dans tous les cas, le dernier caractère d'un nom de sous-programme ou
-  d'overlay ne peut pas être `:`.
-- **Tout autre nom : 1 à 8 caractères.** (Blocs : voir §10.2 pour les
-  règles propres à `USE`.)
-- Un nom **n'a ni valeur ni attributs** et ne peut pas figurer dans une
+- A name is terminated by a **comma or a blank**. Concatenation marks and
+  pairs of micro marks are removed beforehand.
+- **CPU subprogram or overlay name** (used for linkage): begins with a
+  letter A–Z, **7 characters at most**. System conventions may restrict
+  other characters.
+- **PP subprogram/overlay name**: no restriction on the first character;
+  maximum length: 7 (CYBER 70/76, 7600), 4 (CYBER 180), 3 (CYBER 170,
+  CYBER 70 models 72/73/74, 6000 series — **this implementation: 3**).
+- In all cases, the last character of a subprogram or overlay name cannot
+  be `:`.
+- **Any other name: 1 to 8 characters.** (Blocks: see §10.2 for the rules
+  specific to `USE`.)
+- A name **has no value and no attributes** and cannot appear in an
   expression.
-- Les différents types de noms **ne se gênent pas** : un micro peut porter
-  le nom d'une macro, un sous-programme celui d'un bloc, etc. (espaces de
-  noms séparés). Les noms sont aussi distincts des symboles.
-- Nom ou symbole de plus de 8 caractères → erreur fatale **A**.
+- The different kinds of names **do not conflict**: a micro may have the
+  name of a macro, a subprogram the name of a block, and so on (separate
+  name spaces). Names are also distinct from symbols.
+- A name or symbol longer than 8 characters → fatal error **A**.
 
 ---
 
-## 5. Symboles (§2.4)
+## 5. Symbols (§2.4)
 
-### 5.1 Symboles ordinaires
+### 5.1 Ordinary symbols
 
-- Ensemble de caractères qui identifie une **valeur** et ses
-  **attributs**.
-- **1 à 8 caractères.**
-- Premier caractère : **ni `$`, ni `=`, ni `:`, ni un chiffre**.
-- Caractères interdits partout : `+ - * / blank , → ∧` (∧ = `&` ASCII ;
-  → = `_` ASCII).
-- Les autres caractères spéciaux sont permis mais « à utiliser avec
-  précaution » (ECHO, macros). Exemples permis : `.`, `(`, `)`, `$` (hors
-  1re position), `=` (hors 1re position), `[`, `]`, `#`… [INFÉRENCE :
-  conséquence directe de la règle d'exclusion ; l'annexe D recommande
-  `.1`, `.2` comme symboles dans les macros, donc `.` en tête est légal.]
-- Exemples légaux : `P`, `R3`, `PROGRAM`. Illégaux : `5A` (chiffre en
-  tête), `ABCEDEFGHI` (> 8), `ABE+15` (`+`), `=.11` (`=` en tête).
-- **CPU seulement** : un symbole ne peut normalement pas avoir la forme
-  d'un désignateur de registre `An`, `Bn`, `Xn` (n chiffre 0–7) ni `A.x`,
-  `B.x`, `X.x` (x est alors pris pour une donnée). Un tel symbole est
-  utilisable si **chaque** usage est préfixé par `=S`, `=X` ou `=Y` ; un
-  **avertissement** est émis lors de sa définition. Ce préfixe est
-  interdit dans la location des instructions machine, des pseudos de
-  définition de symbole, de génération de données et de `BSS`, et dans le
-  champ variable de `ENTRY`, `EXT`, `SST` (on y écrit le symbole nu).
-- En **PP**, les registres n'existent pas : `A1`, `X3`… sont des symboles
-  ordinaires.
-- Nombre de références à un symbole : illimité.
+- A set of characters that identifies a **value** and its **attributes**.
+- **1 to 8 characters.**
+- First character: **not `$`, not `=`, not `:`, not a digit**.
+- Characters forbidden everywhere: `+ - * / blank , → ∧` (∧ = ASCII `&`;
+  → = ASCII `_`).
+- The other special characters are allowed but are "to be used with
+  caution" (ECHO, macros). Allowed examples: `.`, `(`, `)`, `$` (not in
+  1st position), `=` (not in 1st position), `[`, `]`, `#`… [INFER: direct
+  consequence of the exclusion rule; appendix D recommends `.1`, `.2` as
+  symbols in macros, so a leading `.` is legal.]
+- Legal examples: `P`, `R3`, `PROGRAM`. Illegal: `5A` (leading digit),
+  `ABCEDEFGHI` (> 8), `ABE+15` (`+`), `=.11` (leading `=`).
+- **CPU only**: a symbol normally cannot have the form of a register
+  designator `An`, `Bn`, `Xn` (n a digit 0–7), nor `A.x`, `B.x`, `X.x` (x
+  is then taken as data). Such a symbol can be used if **every** use is
+  prefixed by `=S`, `=X` or `=Y`; a **warning** is issued when it is
+  defined. This prefix is forbidden in the location field of machine
+  instructions, symbol-definition pseudos, data-generation pseudos and
+  `BSS`, and in the variable field of `ENTRY`, `EXT`, `SST` (the bare
+  symbol is written there).
+- In **PP** code, registers do not exist: `A1`, `X3`… are ordinary
+  symbols.
+- Number of references to a symbol: unlimited.
 
-### 5.2 Définition d'un symbole — cinq manières
+### 5.2 Defining a symbol — five ways
 
-1. **Symbole en location** d'une instruction machine ou de certaines
-   pseudos (DATA, BSS, BSSZ, CON, DIS, VFD…) : défini comme **adresse**
-   = valeur courante du **compteur location** (après forçage en début de
-   mot éventuel), avec l'attribut :
-   - **absolu** pour le bloc absolu ;
-   - **common** pour les blocs common nommés ou blanc (assemblages
-     relogeables seulement) ;
-   - **relogeable** pour les blocs locaux autres que l'absolu, en passe 1 ;
-   - **absolu** pour les blocs locaux en passe 2 d'un assemblage absolu.
-2. **Pseudos de définition** (`EQU`, `=`, `SET`, `MAX`, `MIN`, `MICCNT`,
-   ch. 4 §4.6) : valeur et attributs d'une expression du champ variable.
-   `EQU` et `=` définissent définitivement ; `SET`, `MAX`, `MIN`, `MICCNT`
-   donnent l'attribut **redéfinissable**. Une seconde définition d'un
-   symbole non redéfinissable avec une **valeur différente** → erreur
-   fatale **D** (« DOUBLY DEFINED SYMBOL. THE FIRST DEFINITION HOLDS »).
-   [INFÉRENCE : redéfinition avec la même valeur et les mêmes attributs =
-   pas d'erreur, comme l'indique « with a different value ».]
-3. **Symbole externe** : défini hors du sous-programme, déclaré externe
-   (`EXT`, ou par défaut `=X`/`=Y`), ou défini relativement à un symbole
-   externe (`SYM EQU EXTSYM+3`). Attribut **external** ; sa vraie valeur
-   n'est pas connue du sous-programme (valeur 0 pour l'assembleur, plus
-   l'éventuel décalage, §9.6).
-4. **Symboles système** : définitions faites hors du programme et
-   importées par `SST` (textes système). COMPASS utilise les vraies
-   définitions et ajoute l'attribut **systems symbol**.
-5. **Par défaut** : référence précédée de `=S` à un symbole non défini
-   autrement (§5.4).
+1. **Symbol in the location field** of a machine instruction or of
+   certain pseudos (DATA, BSS, BSSZ, CON, DIS, VFD…): defined as an
+   **address** = current value of the **location counter** (after any
+   force upper), with the attribute:
+   - **absolute** for the absolute block;
+   - **common** for named or blank common blocks (relocatable assemblies
+     only);
+   - **relocatable** for local blocks other than the absolute block, in
+     pass 1;
+   - **absolute** for local blocks in pass 2 of an absolute assembly.
+2. **Definition pseudos** (`EQU`, `=`, `SET`, `MAX`, `MIN`, `MICCNT`,
+   ch. 4 §4.6): value and attributes of an expression in the variable
+   field. `EQU` and `=` define permanently; `SET`, `MAX`, `MIN`, `MICCNT`
+   give the **redefinable** attribute. A second definition of a
+   non-redefinable symbol with a **different value** → fatal error **D**
+   ("DOUBLY DEFINED SYMBOL. THE FIRST DEFINITION HOLDS").
+   [INFER: a redefinition with the same value and the same attributes =
+   no error, as "with a different value" implies.]
+3. **External symbol**: defined outside the subprogram, declared external
+   (`EXT`, or by default `=X`/`=Y`), or defined relative to an external
+   symbol (`SYM EQU EXTSYM+3`). Attribute **external**; its true value is
+   not known to the subprogram (value 0 for the assembler, plus any
+   offset, §9.6).
+4. **System symbols**: definitions made outside the program and imported
+   by `SST` (system texts). COMPASS uses the actual definitions and adds
+   the **systems symbol** attribute.
+5. **By default**: a reference prefixed by `=S` to a symbol not otherwise
+   defined (§5.4).
 
-**Largeur de valeur** : les pseudos de définition assignent des valeurs
-**sur 21 bits** (ch. 4 §4.6 ; §2.8.2 : « pour une pseudo de définition de
-symbole, la valeur de l'expression, y compris les constantes caractère,
-est justifiée dans un champ de 21 bits »). Les quantités 21 bits
-(compteurs, adresses, symboles) sont **étendues en signe** à 60 bits
-quand elles entrent dans une expression. Un registre n'est pas autorisé
-dans l'expression d'une pseudo de définition.
+**Value width**: the definition pseudos assign values **on 21 bits**
+(ch. 4 §4.6; §2.8.2: "for a symbol-definition pseudo, the value of the
+expression, including character constants, is justified in a 21-bit
+field"). 21-bit quantities (counters, addresses, symbols) are **sign
+extended** to 60 bits when they enter an expression. A register is not
+allowed in the expression of a definition pseudo.
 
-### 5.3 Symboles de liaison (§2.4.1)
+### 5.3 Linkage symbols (§2.4.1)
 
-- Deux types : **externes** et **points d'entrée**.
-- **7 caractères au plus**, premier caractère lettre A–Z, dernier
-  caractère différent de `:`.
-- Un symbole déclaré point d'entrée dans un autre module peut être
-  déclaré externe ici, et réciproquement.
-- Un externe a la **valeur zéro** et l'attribut external. Déclaration par
-  `EXT` ou par défaut (`=X`, `=Y`).
-- Externe **fort** (strong) : le chargeur cherche et charge un module ayant
-  le point d'entrée ; échec = erreur non fatale du chargeur. Externe
-  **faible** (weak) : pas de recherche ; lié seulement si un module
-  correspondant est chargé pour une autre raison ; non résolu en fin de
-  chargement = pas d'erreur.
-- On peut définir un symbole relatif à un externe déclaré par `EXT` au
-  moyen d'une pseudo de définition : si l'expression se réduit à
-  « externe ± entier », le symbole a une valeur entière (le décalage) et
-  l'attribut external.
-- Les points d'entrée et les externes **ne sont pas qualifiés** (QUAL sans
-  effet sur eux).
+- Two kinds: **externals** and **entry points**.
+- **7 characters at most**, first character a letter A–Z, last character
+  other than `:`.
+- A symbol declared as an entry point in another module may be declared
+  external here, and vice versa.
+- An external has the **value zero** and the external attribute.
+  Declaration by `EXT` or by default (`=X`, `=Y`).
+- **Strong** external: the loader searches for and loads a module that
+  has the entry point; failure = nonfatal loader error. **Weak** external:
+  no search; linked only if a matching module is loaded for another
+  reason; unresolved at the end of loading = no error.
+- A symbol can be defined relative to an external declared by `EXT` with
+  a definition pseudo: if the expression reduces to "external ± integer",
+  the symbol has an integer value (the offset) and the external
+  attribute.
+- Entry points and externals **are not qualified** (QUAL has no effect on
+  them).
 
-### 5.4 Symboles par défaut (§2.4.2)
+### 5.4 Default symbols (§2.4.2)
 
-Préfixes d'une **référence** (jamais d'une définition) : `=S`, `=X`, `=Y`.
-Si le symbole n'est pas défini dans le sous-programme, COMPASS le définit
-ou le déclare **en fin d'assemblage**. `=X` et `=Y` ne fonctionnent par
-défaut qu'en assemblage **relogeable**.
+Prefixes of a **reference** (never of a definition): `=S`, `=X`, `=Y`.
+If the symbol is not defined in the subprogram, COMPASS defines or
+declares it **at the end of assembly**. `=X` and `=Y` work by default
+only in a **relocatable** assembly.
 
-| Forme | Si non défini conventionnellement |
+| Form | If not conventionally defined |
 |---|---|
-| `=Ssym` | COMPASS lui attribue **un mot à la fin du bloc zéro** ; toutes les références (avec ou sans `=S`) désignent ce mot. |
-| `=Xsym` | **externe fort**, comme déclaré par `EXT`. Doit respecter les règles des symboles externes. |
-| `=Ysym` | **externe faible**, à condition que le symbole ne soit référencé ailleurs ni avec `=X` ni avec `=S`, ni déclaré par `EXT`. Doit respecter les règles des externes. |
+| `=Ssym` | COMPASS assigns it **one word at the end of block zero**; all references (with or without `=S`) designate this word. |
+| `=Xsym` | **strong external**, as if declared by `EXT`. Must follow the rules for external symbols. |
+| `=Ysym` | **weak external**, provided that the symbol is not referenced elsewhere with `=X` or `=S`, nor declared by `EXT`. Must follow the rules for externals. |
 
-- Si le symbole est défini conventionnellement (n'importe où, avant ou
-  après), COMPASS utilise cette définition et ne fait rien d'autre.
-- Un symbole par défaut **ne peut pas** être utilisé là où un symbole
-  « préalablement défini » est exigé (ex. `EQU` : l'expression ne peut
-  contenir de symboles préfixés `=S`/`=X`/`=Y` que s'ils sont aussi
-  définis conventionnellement).
-- **Erreur** (pas de définition par défaut) si un symbole est préfixé à la
-  fois par `=S` et `=X`, ou s'il est préfixé `=X` ou `=Y` dans un
-  assemblage **absolu** sans définition conventionnelle. [INFÉRENCE :
-  lettre **U** (symbole non défini) dans le cas absolu ; **A** pour le
-  conflit =S/=X.]
-- `=S`, `=X` ou `=Y` sans symbole derrière → erreur **A**.
-- Les symboles par défaut sont **qualifiés** par le qualificatif en vigueur
-  au moment de la référence `=S`.
-- Les mots des symboles `=S` sont listés (option D) dans « DEFAULT SYMBOLS
-  DEFINED BY COMPASS », juste avant le contenu du bloc des littéraux.
-  [INFÉRENCE : chaque mot est initialisé à zéro.] L'ordre d'attribution des
-  mots n'est pas précisé : recommandation, ordre de première référence.
-- Dans un programme absolu, le bloc zéro n'existe que s'il y a des
-  symboles par défaut (§10.2).
+- If the symbol is conventionally defined (anywhere, before or after),
+  COMPASS uses that definition and does nothing else.
+- A default symbol **cannot** be used where a "previously defined" symbol
+  is required (e.g. `EQU`: the expression can contain symbols prefixed
+  `=S`/`=X`/`=Y` only if they are also conventionally defined).
+- **Error** (no default definition) if a symbol is prefixed by both `=S`
+  and `=X`, or if it is prefixed `=X` or `=Y` in an **absolute** assembly
+  without a conventional definition. [INFER: flag **U** (undefined
+  symbol) in the absolute case; **A** for the =S/=X conflict.]
+- `=S`, `=X` or `=Y` with no symbol after it → error **A**.
+- Default symbols are **qualified** by the qualifier in effect at the
+  time of the `=S` reference.
+- The words of `=S` symbols are listed (option D) under "DEFAULT SYMBOLS
+  DEFINED BY COMPASS", just before the contents of the literals block.
+  [INFER: each word is initialized to zero.] The order in which words are
+  assigned is not specified: recommendation, order of first reference.
+- In an absolute program, block zero exists only if there are default
+  symbols (§10.2).
 
-### 5.5 Symboles préalablement définis, évaluables, non définis
+### 5.5 Previously defined, evaluable, undefined symbols
 
-- **Préalablement défini** (§2.4.3) : défini dans une instruction
-  *antérieure* (en ordre source de la passe 1) à celle qui l'utilise.
-  Certaines pseudos l'exigent (EQU, BSS, ORG, IF…, comptes de lignes…).
-- **Expression évaluable** (§2.8.1) : ne contient aucun symbole encore non
-  défini.
-- **Non défini** (§2.4.4) : symbole jamais défini, même par défaut → drapeau
-  **U** à gauche de l'instruction qui le référence ; valeur supposée 0
-  (« UNDEFINED SYMBOL. VALUE ASSUMED 0 »). U couvre aussi : compte de
-  lignes d'un IF, compte de mots de DIS, attribut non reconnu dans un IF,
-  qualificatif non défini.
+- **Previously defined** (§2.4.3): defined in a statement *preceding*
+  (in pass 1 source order) the one that uses it. Some pseudos require it
+  (EQU, BSS, ORG, IF…, line counts…).
+- **Evaluable expression** (§2.8.1): contains no symbol that is still
+  undefined.
+- **Undefined** (§2.4.4): a symbol never defined, not even by default →
+  flag **U** to the left of the statement that references it; value
+  assumed 0 ("UNDEFINED SYMBOL. VALUE ASSUMED 0"). U also covers: line
+  count of an IF, word count of DIS, unrecognized attribute in an IF,
+  undefined qualifier.
 
-### 5.6 Symboles qualifiés (§2.4.5, QUAL ch. 4 §4.4.4)
+### 5.6 Qualified symbols (§2.4.5, QUAL ch. 4 §4.4.4)
 
-- Un symbole défini pendant qu'un qualificatif est en vigueur (`QUAL nom`)
-  est **qualifié** par ce nom. À l'intérieur de la séquence, on le
-  référence nu ; à l'extérieur, par **`/qualificatif/symbole`**.
-- Un symbole **non qualifié** est **global** et se référence sans
-  qualificatif — sauf si un qualificatif est en vigueur **et** qu'un
-  symbole de même nom qualifié par ce qualificatif existe : le global se
-  référence alors **`//symbole`**.
-- Qualificatif + symbole = identifiant unique de **16 caractères** au plus
+- A symbol defined while a qualifier is in effect (`QUAL name`) is
+  **qualified** by that name. Inside the sequence it is referenced bare;
+  outside, as **`/qualifier/symbol`**.
+- An **unqualified** symbol is **global** and is referenced without a
+  qualifier — except when a qualifier is in effect **and** a symbol of the
+  same name qualified by that qualifier exists: the global symbol is then
+  referenced as **`//symbol`**.
+- Qualifier + symbol = unique identifier of **16 characters** at most
   (8 + 8).
-- Les symboles de liaison ne sont pas qualifiés.
-- Résolution d'une référence nue `S` (recommandation conforme) : si un
-  qualificatif Q est en vigueur et `Q.S` existe → `Q.S` ; sinon global `S`.
-  [AMBIGU] En cas de référence en avant (S défini plus tard, qualifié), la
-  résolution doit se faire en passe 2 avec le qualificatif mémorisé au
-  moment de la référence.
-- Les symboles inventés pour les LOCAL de macro sont qualifiés s'ils sont
-  définis dans un bloc QUAL.
+- Linkage symbols are not qualified.
+- Resolution of a bare reference `S` (recommendation consistent with the
+  manual): if a qualifier Q is in effect and `Q.S` exists → `Q.S`;
+  otherwise global `S`. [AMBIG] For a forward reference (S defined later,
+  qualified), resolution must be done in pass 2 with the qualifier saved
+  at the time of the reference.
+- Symbols invented for macro LOCALs are qualified if they are defined in
+  a QUAL block.
 
-### 5.7 Symboles locaux (macros) — renvoi
+### 5.7 Local symbols (macros) — cross-reference
 
-`LOCAL` (ch. 5 §5.4.8) : dans une définition MACRO/MACROE/OPDEF, liste de
-symboles locaux (chacun commence par une lettre ; séparateurs et
-caractères interdits `+ - * / ( ) $ , .`). À chaque expansion, chaque
-symbole local est remplacé par un **symbole inventé** unique (listé sous
-une forme `↑Wnnnnn` d'après l'OCR « tW00001 » [AMBIGU : premier caractère
-illisible, probablement un caractère non autorisé dans les symboles
-utilisateur, p. ex. ↑ 70B]). Limite : 63 paramètres + locaux par
-définition. Annexe D : préférer `.1`, `.2`… aux symboles locaux pour la
-vitesse. Détails dans la spec des macros.
+`LOCAL` (ch. 5 §5.4.8): in a MACRO/MACROE/OPDEF definition, a list of
+local symbols (each begins with a letter; separators and forbidden
+characters `+ - * / ( ) $ , .`). At each expansion, each local symbol is
+replaced by a unique **invented symbol** (listed in a form `↑Wnnnnn`
+according to the OCR "tW00001" [AMBIG: first character unreadable,
+probably a character not allowed in user symbols, e.g. ↑ 70B]). Limit:
+63 parameters + locals per definition. Appendix D: prefer `.1`, `.2`… to
+local symbols for speed. Details in the macro spec.
 
 ---
 
-## 6. Registres CPU (§2.5)
+## 6. CPU registers (§2.5)
 
-Les 24 registres CPU ont des désignateurs **intégrés**, non modifiables :
+The 24 CPU registers have **built-in** designators that cannot be
+changed:
 
-| Type | Désignateurs |
+| Type | Designators |
 |---|---|
-| Adresse | `An` ou `A.n` |
-| Index | `Bn` ou `B.n` |
-| Opérande | `Xn` ou `X.n` |
+| Address | `An` or `A.n` |
+| Index | `Bn` or `B.n` |
+| Operand | `Xn` or `X.n` |
 
-- Forme `An`/`Bn`/`Xn` : n = **un seul chiffre 0–7**. Toute autre valeur
-  (ex. `A8`, `A10`) → c'est un **symbole**.
-- Forme `A.n`/`B.n`/`X.n` : n est un **symbole ou un entier** (évalué dans
-  la base courante [INFÉRENCE : l'exemple suppose la base décimale]). Si la
-  valeur dépasse 7, elle est **tronquée aux 3 bits de poids faible** avec
-  un **avertissement** [INFÉRENCE : drapeau 7, « value exceeds field size,
-  result truncated »].
-- Exemples : `A1` → registre A1 ; `A10` → symbole ; `A.1` → A1 ;
-  `A.NUM` avec NUM=6 → A6 ; `A.10` → 10 décimal = 12B → **A2** +
-  avertissement.
-- A1–A5 servent à lire la mémoire (chargement dans X1–X5), A6–A7 à
-  écrire (rangement de X6–X7).
-- PP : pas de registres reconnus.
-- Équivalence (exemple du manuel, ALPHA = 1000B) : `SB3 A2+ALPHA` et
-  (`SUM SET 3`, `SUB SET 2`, `SB.SUM A.SUB+ALPHA`) génèrent tous deux
+- Form `An`/`Bn`/`Xn`: n = **a single digit 0–7**. Any other value
+  (e.g. `A8`, `A10`) → it is a **symbol**.
+- Form `A.n`/`B.n`/`X.n`: n is a **symbol or an integer** (evaluated in
+  the current base [INFER: the example assumes decimal base]). If the
+  value exceeds 7, it is **truncated to the low-order 3 bits** with a
+  **warning** [INFER: flag 7, "value exceeds field size, result
+  truncated"].
+- Examples: `A1` → register A1; `A10` → symbol; `A.1` → A1;
+  `A.NUM` with NUM=6 → A6; `A.10` → decimal 10 = 12B → **A2** +
+  warning.
+- A1–A5 are used to read memory (load into X1–X5), A6–A7 to write
+  (store from X6–X7).
+- PP: no registers are recognized.
+- Equivalence (manual example, ALPHA = 1000B): `SB3 A2+ALPHA` and
+  (`SUM SET 3`, `SUB SET 2`, `SB.SUM A.SUB+ALPHA`) both generate
   `6032001000`.
 
 ---
 
-## 7. Éléments spéciaux (§2.6, §3.2)
+## 7. Special elements (§2.6, §3.2)
 
-Désignateurs réservés, **jamais utilisables comme symboles**, non
-modifiables. Dans une expression ils sont remplacés par la valeur
-indiquée (« bloc en cours » = bloc du `USE` courant).
+Reserved designators, **never usable as symbols**, cannot be changed.
+In an expression they are replaced by the value shown ("current block" =
+block of the current `USE`).
 
-| Élément | Valeur | Attribut |
+| Element | Value | Attribute |
 |---|---|---|
-| `*` ou `*L` | compteur **location** du bloc en cours | relogeable (dans le bloc en cours), **absolu** si le bloc en cours est le bloc absolu |
-| `*O` | compteur **origin** du bloc en cours | idem |
-| `*P` | valeur du compteur **position** du bloc en cours (bits restant dans le mot : 60…1, ou 12/16 en PP) | absolu |
-| `$` | compteur position **moins un** (n° du prochain bit libre) | absolu |
-| `*F` | 0 : appel par carte de contrôle COMPASS ; 1 : compilateur RUN (plus supporté) ; 2 : FTN4 ; 3 : FTN5. Redéfinissable par le paramètre `F` de la carte COMPASS (`F=n` décimal). | absolu |
+| `*` or `*L` | **location** counter of the current block | relocatable (in the current block), **absolute** if the current block is the absolute block |
+| `*O` | **origin** counter of the current block | same |
+| `*P` | value of the **position** counter of the current block (bits remaining in the word: 60…1, or 12/16 in PP) | absolute |
+| `$` | position counter **minus one** (number of the next free bit) | absolute |
+| `*F` | 0: called by a COMPASS control statement; 1: RUN compiler (no longer supported); 2: FTN4; 3: FTN5. Can be redefined by the `F` parameter of the COMPASS control statement (`F=n` decimal). | absolute |
 
-Remarques :
+Notes:
 
-- Ces éléments ne sont reconnus qu'**en position d'élément** d'une
-  expression. `*` en position d'opérateur est la multiplication ; ainsi
-  `**` = élément `*` × élément nul (0) ; `*+3` = location + 3 ;
+- These elements are recognized only **in element position** in an
+  expression. `*` in operator position is multiplication; thus
+  `**` = element `*` × null element (0); `*+3` = location + 3;
   `ABLE*4` = ABLE × 4.
-- `-*O` est une expression relogeable négative (exemple du manuel).
-- Après une instruction qui provoque un forçage différé (§10.4), les
-  pseudos qui référencent `*`, `*O`, `*P`, `$` voient la valeur **avant**
-  le forçage.
-- `POS *P` est sans effet ; `POS $` retire 1 au compteur position (ch. 4).
-- Exemples du manuel (OCR dégradé) : `JP *+1`, `... X3,*L-1`,
+- `-*O` is a negative relocatable expression (manual example).
+- After a statement that causes a deferred force upper (§10.4), pseudos
+  that reference `*`, `*O`, `*P`, `$` see the value **before** the force
+  upper.
+- `POS *P` has no effect; `POS $` subtracts 1 from the position counter
+  (ch. 4).
+- Manual examples (degraded OCR): `JP *+1`, `... X3,*L-1`,
   `VFD *P/0`, `... $/0,1/1`, `... *F,…`.
 
 ---
 
-## 8. Notation des données (§2.7)
+## 8. Data notation (§2.7)
 
-Deux sortes : **caractère** et **numérique** (octal, décimal,
-hexadécimal ; entier, flottant simple ou double précision). Trois façons
-de les introduire :
+Two kinds: **character** and **numeric** (octal, decimal, hexadecimal;
+integer, single- or double-precision floating point). Three ways to
+introduce them:
 
-1. **Data item** (donnée) : sous-champs de `DATA` et `LIT`, et valeurs de
-   champs de `VFD` (ch. 4).
-2. **Constante** : élément d'expression.
-3. **Littéral** : `=donnée` dans une expression (ou sous-champ de `LIT`).
+1. **Data item**: subfields of `DATA` and `LIT`, and field values of
+   `VFD` (ch. 4).
+2. **Constant**: expression element.
+3. **Literal**: `=data` in an expression (or a subfield of `LIT`).
 
-Différences entre constante et donnée :
+Differences between a constant and a data item:
 
-- Une constante **commence obligatoirement par un chiffre** : pas de forme
-  caractère délimitée, pas de pré-radix (`B`, `O`, `D`), et le `0` de
-  l'hexadécimal est obligatoire.
-- La taille du champ d'une constante est celle du **champ destination**
-  de l'expression, 60 bits au plus : **pas de double précision**.
-- Un signe devant une constante est un **opérateur** d'expression ; devant
-  une donnée ou un littéral, il fait partie de la donnée.
+- A constant **must begin with a digit**: no delimited character form, no
+  pre-radix (`B`, `O`, `D`), and the `0` of hexadecimal is mandatory.
+- The field size of a constant is that of the **destination field** of
+  the expression, 60 bits at most: **no double precision**.
+- A sign in front of a constant is an expression **operator**; in front
+  of a data item or a literal, it is part of the data.
 
-### 8.1 Donnée caractère (§2.7.4)
+### 8.1 Character data (§2.7.4)
 
-**Code** : les chaînes sont converties dans le code en vigueur au moment
-de l'évaluation (pseudo `CODE`, §11.4) ; défaut : **code display** (sauf
-`CIPPU` : ASCII 8 bits).
+**Code**: strings are converted into the code in effect at the time of
+evaluation (`CODE` pseudo, §11.4); default: **display code** (except
+`CIPPU`: 8-bit ASCII).
 
 **Formats**
 
 ```
 Data item :   [sign] n type string
               [sign] type d string d
-Constante :   n type string                 (n obligatoire)
-Littéral  :   = [sign] n type string
+Constant  :   n type string                 (n required)
+Literal   :   = [sign] n type string
               = [sign] type d string d
 ```
 
-- `=` : littéraux seulement (comme élément d'expression).
-- `sign` : facultatif (donnée/littéral). `+` ou absent : valeur positive.
-  `-` : on forme la **valeur complémentée** (complément à un, bit à bit ;
-  [INFÉRENCE] mot par mot pour une chaîne de plusieurs mots).
-- `n` : définit la longueur, **toujours décimal** quelle que soit la base.
-  - **absent** : chaîne délimitée par `d` (interdit pour une constante) ;
-  - **0** : donnée/littéral : la chaîne = tous les caractères après `type`
-    jusqu'au premier **blanc ou virgule** (exclus). Constante : jusqu'au
-    premier **`+ - * / blank , ∧`** (exclus) ;
-  - **n > 0** : la chaîne = **exactement les n caractères** qui suivent
-    `type` (blancs, virgules, opérateurs compris). Donnée/littéral : n ne
-    compte pas les zéros garantis, limité seulement par la taille de
-    l'instruction. Constante : n ≤ (bits du champ destination) / 6.
-- `type` (justification et remplissage) :
+- `=`: literals only (as an expression element).
+- `sign`: optional (data item/literal). `+` or absent: positive value.
+  `-`: the **complemented value** is formed (ones' complement, bit by
+  bit; [INFER] word by word for a multiword string).
+- `n`: defines the length, **always decimal** whatever the base.
+  - **absent**: string delimited by `d` (forbidden for a constant);
+  - **0**: data item/literal: the string = all characters after `type`
+    up to the first **blank or comma** (excluded). Constant: up to the
+    first **`+ - * / blank , ∧`** (excluded);
+  - **n > 0**: the string = **exactly the n characters** that follow
+    `type` (blanks, commas, operators included). Data item/literal: n does
+    not count the guaranteed zeros, limited only by the size of the
+    statement. Constant: n ≤ (bits of the destination field) / 6.
+- `type` (justification and fill):
 
-| Type | Donnée / littéral | Constante |
+| Type | Data item / literal | Constant |
 |---|---|---|
-| `C` | cadré à gauche, remplissage zéro, **12 bits nuls garantis** en fin de chaîne (un mot de plus si nécessaire) | = `L` (pas de zéros garantis) |
-| `H` | cadré à gauche, remplissage **blanc** | idem |
-| `A` | cadré à droite, remplissage **blanc** | idem |
-| `R` | cadré à droite, remplissage zéro | idem |
-| `L` | cadré à gauche, remplissage zéro | idem |
-| `Z` | cadré à gauche, remplissage zéro, **6 bits nuls garantis** en fin (un mot de plus si nécessaire) | = `L` |
+| `C` | left justified, zero fill, **12 zero bits guaranteed** at the end of the string (one more word if needed) | = `L` (no guaranteed zeros) |
+| `H` | left justified, **blank** fill | same |
+| `A` | right justified, **blank** fill | same |
+| `R` | right justified, zero fill | same |
+| `L` | left justified, zero fill | same |
+| `Z` | left justified, zero fill, **6 zero bits guaranteed** at the end (one more word if needed) | = `L` |
 
-- `d` : délimiteur (seulement si n absent). La chaîne = caractères entre la
-  1re et la 2e occurrence de d. **d peut être n'importe quel caractère sauf
-  → (concaténation) et ≠ (marque de micro).** [INFÉRENCE : le blanc et la
-  virgule comme délimiteurs sont à rejeter, ils terminent le sous-champ.]
-- `string` : caractères d'un jeu COMPASS (annexe A), sauf les délimiteurs
-  (cf. n et d), la marque de concaténation et les **paires** de marques de
-  micro — celles-ci ont été supprimées/traitées par l'édition avant
-  l'examen de la chaîne ; une marque ≠ **isolée** est permise.
+- `d`: delimiter (only if n is absent). The string = characters between
+  the 1st and the 2nd occurrence of d. **d can be any character except
+  → (concatenation) and ≠ (micro mark).** [INFER: blank and comma as
+  delimiters must be rejected, since they terminate the subfield.]
+- `string`: characters of a COMPASS character set (appendix A), except
+  the delimiters (see n and d), the concatenation mark and **pairs** of
+  micro marks — these have been removed/processed by editing before the
+  string is examined; an **isolated** ≠ mark is allowed.
 
-**Chaînes vides**
+**Empty strings**
 
-- vide si : n = 0 et `type` immédiatement suivi d'un terminateur (ex.
-  `0L,`) ; ou n absent et délimiteurs adjacents (ex. `H++`).
-- `DATA` : chaîne omise légale, **ne génère aucun mot**.
-- Constante : chaîne omise valide, **valeur zéro**.
-- `LIT` : chaîne omise légale, ne génère pas de littéral pour cet item ;
-  mais le LIT doit contenir au moins un item non vide (sinon erreur A,
-  « no data is found in the variable field of a LIT »).
-- Littéral dans une expression : chaîne vide **illégale** → erreur.
-- **Impossible de générer une chaîne vide avec C, Z, R ou A** : `0C`, `0Z`,
-  `0R`, `0A`… [INFÉRENCE : `0C`/`0Z` génèrent un mot de zéros (les zéros
-  garantis), `0R` un mot de zéros, `0A` un mot de blancs ; seuls `H` et
-  `L` peuvent donner une chaîne vide.] [AMBIGU]
+- empty if: n = 0 and `type` is immediately followed by a terminator
+  (e.g. `0L,`); or n absent and adjacent delimiters (e.g. `H++`).
+- `DATA`: an omitted string is legal and **generates no word**.
+- Constant: an omitted string is valid, **value zero**.
+- `LIT`: an omitted string is legal and generates no literal for that
+  item; but the LIT must contain at least one nonempty item (otherwise
+  error A, "no data is found in the variable field of a LIT").
+- Literal in an expression: empty string **illegal** → error.
+- **An empty string cannot be generated with C, Z, R or A**: `0C`, `0Z`,
+  `0R`, `0A`… [INFER: `0C`/`0Z` generate a word of zeros (the guaranteed
+  zeros), `0R` a word of zeros, `0A` a word of blanks; only `H` and `L`
+  can give an empty string.] [AMBIG]
 
-**Allocation en mots (data items et littéraux)** [INFÉRENCE, cohérente
-avec tous les exemples] — soit `cpw` = caractères par mot (10 en CPU,
-2 en PP 12 bits), `wb` = bits par mot (60 ou 12) :
+**Word allocation (data items and literals)** [INFER, consistent with
+all the examples] — let `cpw` = characters per word (10 in CPU, 2 in
+12-bit PP), `wb` = bits per word (60 or 12):
 
-- `H`, `L`, `A`, `R` : `ceil(n / cpw)` mots ; la chaîne est cadrée dans
-  ce champ multi-mot (H/L : caractères au début, remplissage à la fin du
-  dernier mot ; A/R : caractères à la fin du dernier mot, remplissage au
-  début du premier mot) ;
-- `C` : `ceil((6n + 12) / wb)` mots ; `Z` : `ceil((6n + 6) / wb)` mots ;
-  remplissage zéro.
-- Ex. CPU : `DATA 10HABCDEFGHIJ` = 1 mot ; `DATA 10CABCDEFGHIJ` = 2 mots
-  (le 2e nul) ; `DATA 9ZABCDEFGHI` = 1 mot.
-- Ex. du manuel : `WORDS DATA H* THE ANSWER IS *` →
-  `55241005550116232705`, `11235555555555555555`… (blanc remplissage) ;
-  PP `DATA 0LOUTPUT` → `1725`, `2420`, `2524` ; CPU `DATA 0LCOMPILE` →
-  `03171520111405000000` ; `DATA 0LLGO` → `14071700000000000000` ;
+- `H`, `L`, `A`, `R`: `ceil(n / cpw)` words; the string is justified in
+  this multiword field (H/L: characters at the start, fill at the end of
+  the last word; A/R: characters at the end of the last word, fill at the
+  start of the first word);
+- `C`: `ceil((6n + 12) / wb)` words; `Z`: `ceil((6n + 6) / wb)` words;
+  zero fill.
+- CPU examples: `DATA 10HABCDEFGHIJ` = 1 word; `DATA 10CABCDEFGHIJ` =
+  2 words (the 2nd is zero); `DATA 9ZABCDEFGHI` = 1 word.
+- Manual examples: `WORDS DATA H* THE ANSWER IS *` →
+  `55241005550116232705`, `11235555555555555555`… (blank fill);
+  PP `DATA 0LOUTPUT` → `1725`, `2420`, `2524`; CPU `DATA 0LCOMPILE` →
+  `03171520111405000000`; `DATA 0LLGO` → `14071700000000000000`;
   PP `DATA H*DATA*` → `0401`, `2401`.
 
-**Constantes caractère dans une expression** (§2.8.2) : la chaîne est
-d'abord cadrée (gauche ou droite) dans un champ de la **taille du champ
-destination**, remplie selon le type, puis étendue à 60 bits ; ensuite
-l'arithmétique s'applique.
+**Character constants in an expression** (§2.8.2): the string is first
+justified (left or right) in a field of the **size of the destination
+field**, filled according to the type, then extended to 60 bits; then
+the arithmetic applies.
 
-- Ex. `SX4 1R.+1` : `.` = 57B, +1 → K = `60` → `7140000060`.
+- E.g. `SX4 1R.+1`: `.` = 57B, +1 → K = `60` → `7140000060`.
 - `SX3 1R*` → `7130000047`. `SA1 3RCIO` → `5110031117`.
-- `SBi X0+1L$` (champ K de 18 bits) → K = `530000` (listing :
-  `6260530000`, soit SB6 ; registre peu lisible dans l'OCR).
-- `VFD 30/4H....,6/1RA,24/1AX+1` : `1AX` dans 24 bits = `55555530`, +1 →
-  `55555531` (le remplissage blanc couvre tout le champ destination).
-- `VFD 42/0LOUTPUT,18/1` → `17252420252400000001` (42 bits :
-  `17252420252400`, puis 18 bits : `000001`).
-- Troncature : constante **cadrée à droite** → erreur de troncature si le
-  bit significatif le plus haut dépasse le champ (les zéros tronqués ne
-  sont pas une erreur) ; constante **cadrée à gauche** → erreur si des
-  positions de poids faible sont tronquées, **même si elles sont nulles**.
-  [INFÉRENCE : drapeau 7.]
+- `SBi X0+1L$` (18-bit K field) → K = `530000` (listing:
+  `6260530000`, i.e. SB6; register barely legible in the OCR).
+- `VFD 30/4H....,6/1RA,24/1AX+1`: `1AX` in 24 bits = `55555530`, +1 →
+  `55555531` (the blank fill covers the whole destination field).
+- `VFD 42/0LOUTPUT,18/1` → `17252420252400000001` (42 bits:
+  `17252420252400`, then 18 bits: `000001`).
+- Truncation: **right-justified** constant → truncation error if the
+  highest significant bit exceeds the field (truncated zeros are not an
+  error); **left-justified** constant → error if low-order positions are
+  truncated, **even if they are zero**.
+  [INFER: flag 7.]
 
-### 8.2 Donnée numérique (§2.7.5)
+### 8.2 Numeric data (§2.7.5)
 
 **Formats**
 
 ```
 Data item :   [sign] [preradix] value [modifiers]
-Constante :   value [modifiers]                 (commence par un chiffre)
-Littéral  :   = [sign] [preradix] value [modifiers]
+Constant  :   value [modifiers]                 (begins with a digit)
+Literal   :   = [sign] [preradix] value [modifiers]
 ```
 
-- `sign` : `+`/absent positif ; `-` : valeur **complémentée** (complément à
-  un : -1 en 60 bits = `77777777777777777776` ; en PP 12 bits, -9 =
-  `7766`, -1 = `7776`).
-- `preradix` (données et littéraux seulement) : `B` ou `O` = octal ; `D` =
-  décimal ; absent = postradix ou base courante (`BASE`, défaut décimal).
-- `value` : chiffres octaux ou décimaux : partie entière, point
-  (décimal ou octal), partie fractionnaire. **Sans point = entier (virgule
-  fixe). Avec point = flottant** (CPU seulement ; illégal en PP).
-  - octal : au plus **20 chiffres significatifs** (entier) ou **32**
-    (flottant) ; pas de 8 ni 9 ;
-  - décimal : au plus **1,15 × 10^18** (entier, ≈ 2^60) ou **7,9 × 10^28**
-    (flottant, point ignoré) ; au-delà, résultat erroné (non garanti) ;
-  - `value` omise = 0 (ex. `=D`, `B` seuls… [INFÉRENCE]).
-- `modifiers` : facultatifs, **dans n'importe quel ordre**, chacun **une
-  seule fois** (doublon → erreur) :
-  - **postradix** `B`, `O` (octal) ou `D` (décimal). Pré-radix **et**
-    postradix → erreur ;
-  - **exposant décimal** `E±n`, `En`, `E` (simple précision) ; `EE±n`,
-    `EEn`, `EE` (**double précision**). n décimal, absent = 0, |n| ≤ 32767.
-    Effet : multiplie par 10^n. `EE` sur une valeur entière → entier
-    simple précision ;
-  - **échelle binaire** `S±n`, `Sn`, `S` : multiplie par 2^n. n décimal,
-    absent = 0, |n| ≤ 32767 ;
-  - **position du point binaire** `P±n`, `Pn`, `P` (flottants seulement) :
-    voir plus bas.
-- Avec BASE O, une donnée contenant 8 ou 9 sans radix D est en erreur ;
-  les comptes de caractères, les n des modificateurs S/E/P sont **toujours
-  décimaux** (BASE ch. 4). Erreur A : « 8 or 9 is encountered in octal
-  data and the modifier is not S, P, O, E, D, or B ».
-- Ordre d'application, quel que soit l'ordre d'écriture : **1. exposant
-  décimal, 2. échelle binaire, 3. point binaire** (CPU seulement).
-- Précision : calculs en **144 bits** ; arrondi à **96 bits** (double),
-  **48 bits** (flottant simple), **60 bits** (entiers).
-  [INFÉRENCE] Arrondi au plus proche (moitié vers le haut en valeur
-  absolue) au niveau du dernier bit retenu ; confirmé par
-  `1.1` → `17204314631463146315` (troncature donnerait `…6314`). Pour un
-  entier avec exposant négatif (`15E-1`), arrondi de 1,5 → 2 [AMBIGU].
-- Les échelles peuvent dépasser les plages valides, mais les **nombres**
-  sont bornés par le matériel. Ex. `1.0E400S-1200` ≈ 5,8 × 10^38 : valide.
+- `sign`: `+`/absent: positive; `-`: the value is **complemented** (ones'
+  complement: -1 in 60 bits = `77777777777777777776`; in a 12-bit PP word,
+  -9 = `7766`, -1 = `7776`).
+- `preradix` (data items and literals only): `B` or `O` = octal; `D` =
+  decimal; absent = postradix or current base (`BASE`, decimal by default).
+- `value`: octal or decimal digits: integer part, point (decimal or
+  octal), fractional part. **No point = integer (fixed point). With a
+  point = floating point** (CPU only; illegal in PP).
+  - octal: at most **20 significant digits** (integer) or **32**
+    (floating); no 8 or 9;
+  - decimal: at most **1.15 × 10^18** (integer, ≈ 2^60) or **7.9 × 10^28**
+    (floating, point ignored); beyond that, the result is incorrect (not
+    guaranteed);
+  - `value` omitted = 0 (e.g. `=D`, `B` alone… [INFER]).
+- `modifiers`: optional, **in any order**, each **only once** (duplicate →
+  error):
+  - **postradix** `B`, `O` (octal) or `D` (decimal). Preradix **and**
+    postradix → error;
+  - **decimal exponent** `E±n`, `En`, `E` (single precision); `EE±n`,
+    `EEn`, `EE` (**double precision**). n decimal, absent = 0, |n| ≤ 32767.
+    Effect: multiplies by 10^n. `EE` on an integer value → single-precision
+    integer;
+  - **binary scale** `S±n`, `Sn`, `S`: multiplies by 2^n. n decimal,
+    absent = 0, |n| ≤ 32767;
+  - **binary point position** `P±n`, `Pn`, `P` (floating point only): see
+    below.
+- With BASE O, a data item that contains 8 or 9 without a D radix is in
+  error; character counts and the n of the S/E/P modifiers are **always
+  decimal** (BASE, ch. 4). Error A: "8 or 9 is encountered in octal data
+  and the modifier is not S, P, O, E, D, or B".
+- Order of application, whatever the order in which they are written:
+  **1. decimal exponent, 2. binary scale, 3. binary point** (CPU only).
+- Precision: computations in **144 bits**; rounded to **96 bits** (double),
+  **48 bits** (single floating), **60 bits** (integers).
+  [INFER] Round to nearest (half up in absolute value) at the last
+  retained bit; confirmed by `1.1` → `17204314631463146315` (truncation
+  would give `…6314`). For an integer with a negative exponent (`15E-1`),
+  1.5 rounds to 2 [AMBIG].
+- Scales may exceed the valid ranges, but the **numbers** are bounded by
+  the hardware. Example: `1.0E400S-1200` ≈ 5.8 × 10^38: valid.
 
-**Entiers** : valeur exacte (après E et S), arrondie à l'entier, puis
-représentée sur 60 bits (≥ 2^59 → bit de signe à 1 ; [INFÉRENCE]
-« les bits de poids fort excédentaires sont perdus »). Négatif =
-complément à un du positif. Dans une donnée PP, le mot fait 12 bits
-[INFÉRENCE : troncature avec drapeau 7 si la valeur ne tient pas].
+**Integers**: exact value (after E and S), rounded to an integer, then
+represented in 60 bits (≥ 2^59 → sign bit set; [INFER] "excess
+high-order bits are lost"). Negative = ones' complement of the positive
+value. In a PP data item, the word is 12 bits [INFER: truncation with flag
+7 if the value does not fit].
 
-**Format flottant CDC 6000** (simple précision, 60 bits) — [INFÉRENCE :
-format matériel standard, vérifié sur les exemples du manuel] :
+**CDC 6000 floating-point format** (single precision, 60 bits) — [INFER:
+standard hardware format, checked against the manual's examples]:
 
 ```
-bit 59        : signe (1 = négatif ; un négatif est le complément à un
-                des 60 bits du positif)
-bits 58..48   : exposant biaisé (11 bits)
-bits 47..0    : coefficient entier C (48 bits) ; valeur = C × 2^e
+bit 59        : sign (1 = negative; a negative number is the ones'
+                complement of all 60 bits of the positive number)
+bits 58..48   : biased exponent (11 bits)
+bits 47..0    : integer coefficient C (48 bits); value = C × 2^e
 ```
 
-- Champ exposant pour un positif : `e ≥ 0` → `2000B + e` ; `e < 0` →
-  `1777B + e` (complément à un sur 11 bits avec bit de tête inversé).
-  Plage `e` : −1777B…+1777B (−1023…+1023).
-- **Normalisé** : bit 47 de C à 1 (zéro = mot nul `00000000000000000000`).
-- Exemples : `1.0` = `17204000000000000000` ; `0.1` =
-  `17146314631463146315` ; `1.1` = `17204314631463146315` ; `-0.0`
-  (complément de zéro) = `77777777777777777777`.
-- **Point binaire P** : `P+n` / `Pn` : le point est placé à droite du bit
-  n, c.-à-d. **exposant forcé à −n** ; `P-n` : exposant +n. « L'exposant
-  est ajusté à −(±n) » : `P-6` → champ exposant `2006B` ; `P10` →
-  `1765B`. Donne un flottant **non normalisé** ; sans P (ou P sans n) →
-  normalisé. Si, à cause de P, le bit le plus significatif sort du
-  coefficient (simple ou double) → **erreur de dépassement (overflow ou
-  underflow)**. [INFÉRENCE] L'arrondi à 48 bits significatifs a lieu
-  avant l'alignement P, et le décalage à droite dû à P tronque :
-  l'exemple `0.1P47` → `17200314631463146314` (et non …6315).
-- **Double précision** (`EE`, CPU, données et littéraux seulement) :
-  deux mots. Mot 1 = flottant simple normalisé formé des 48 bits de tête
-  du coefficient (arrondi global à 96 bits) ; mot 2 = les 48 bits
-  suivants, **exposant = exposant du mot 1 − 48** (champ − `60B`), non
-  normalisé ; un négatif complémente les deux mots. Exemples :
-  `DATA 1.3EE` → `17205146314631463146`, `16403146314631463146` ;
-  `10.0EE` [INFÉRENCE d'après l'exemple de littéraux] →
-  `17235000000000000000`, `16430000000000000000` (mot bas de coefficient
-  nul mais exposant présent).
-- **Entier** : un flottant ne peut pas être en double précision s'il est
-  utilisé comme constante d'expression (60 bits max). Toute arithmétique
-  d'expression est **entière** : `2.3` dans une expression vaut le motif
-  binaire du flottant 2.3 traité comme entier.
-- Dépassement d'exposant (> 1777B) ou sous-dépassement → erreur
-  [INFÉRENCE : drapeau A].
+- Exponent field for a positive number: `e ≥ 0` → `2000B + e`; `e < 0` →
+  `1777B + e` (11-bit ones' complement with the leading bit inverted).
+  Range of `e`: −1777B…+1777B (−1023…+1023).
+- **Normalized**: bit 47 of C set (zero = the all-zero word
+  `00000000000000000000`).
+- Examples: `1.0` = `17204000000000000000`; `0.1` =
+  `17146314631463146315`; `1.1` = `17204314631463146315`; `-0.0`
+  (complement of zero) = `77777777777777777777`.
+- **Binary point P**: `P+n` / `Pn`: the point is placed to the right of
+  bit n, that is, the **exponent is forced to −n**; `P-n`: exponent +n.
+  "The exponent is adjusted to −(±n)": `P-6` → exponent field `2006B`;
+  `P10` → `1765B`. The result is an **unnormalized** floating-point
+  number; without P (or P without n) → normalized. If, because of P, the
+  most significant bit moves out of the coefficient (single or double) →
+  **overflow or underflow error**. [INFER] Rounding to 48 significant bits
+  takes place before the P alignment, and the right shift caused by P
+  truncates: the example `0.1P47` → `17200314631463146314` (not …6315).
+- **Double precision** (`EE`, CPU, data items and literals only): two
+  words. Word 1 = normalized single-precision floating-point number formed
+  from the 48 leading bits of the coefficient (overall rounding to 96
+  bits); word 2 = the next 48 bits, **exponent = exponent of word 1 − 48**
+  (field − `60B`), unnormalized; a negative number complements both words.
+  Examples: `DATA 1.3EE` → `17205146314631463146`,
+  `16403146314631463146`; `10.0EE` [INFER from the literals example] →
+  `17235000000000000000`, `16430000000000000000` (low word with a zero
+  coefficient but an exponent present).
+- **Integer**: a floating-point number cannot be double precision when it
+  is used as an expression constant (60 bits maximum). All expression
+  arithmetic is **integer**: `2.3` in an expression is the bit pattern of
+  the floating-point number 2.3 treated as an integer.
+- Exponent overflow (> 1777B) or underflow → error [INFER: flag A].
 
-**Exemples (base décimale par défaut)**
+**Examples (default decimal base)**
 
-| Source | Résultat |
+| Source | Result |
 |---|---|
 | `DATA 1` | `00000000000000000001` |
 | `DATA -1` | `77777777777777777776` |
 | `SX3 100B` | K = `000100` |
 | `1S17` | 2^17 = `400000B` |
 | PP `DATA 5,-9` | `0005`, `7766` |
-| PP `LDC =10` | littéral `0012` |
-| PP `LDC =-1` | littéral `7776` |
-| `SA5 =20046755000234000004B` | littéral = ce motif octal |
+| PP `LDC =10` | literal `0012` |
+| PP `LDC =-1` | literal `7776` |
+| `SA5 =20046755000234000004B` | literal = this octal pattern |
 
-### 8.3 Notation hexadécimale (§2.7.6)
+### 8.3 Hexadecimal notation (§2.7.6)
 
-Toujours un **entier simple précision**.
+Always a **single-precision integer**.
 
 ```
 Data item :   [sign] [0] preradix value [modifiers]
-Constante :   0 preradix value [modifiers]        (le 0 est obligatoire)
-Littéral  :   = [sign] [0] preradix value [modifiers]
+Constant  :   0 preradix value [modifiers]        (the 0 is required)
+Literal   :   = [sign] [0] preradix value [modifiers]
 ```
 
-- `preradix` : obligatoire, **≡ (60B), ASCII `#`** (« = ou # selon
-  l'imprimante » dans l'OCR : il s'agit de ≡/#).
-- Le `0` de tête est facultatif pour données et littéraux, **obligatoire
-  pour une constante** (sinon le pré-radix serait pris pour le début d'un
-  symbole).
-- `value` : chiffres hexadécimaux `0–9`, `A–F` ; jusqu'à **26 chiffres
-  significatifs** ; pas de point ; absente = 0. [AMBIGU] 26 × 4 = 104 bits
-  > 60 : recommandation, garder les 60 bits de poids faible et lever le
-  drapeau 7 si des bits non nuls sont perdus.
-- `modifiers` : `S` (échelle binaire, même forme que §8.2) permis ; `P`
-  permis mais **ignoré**.
-- Exemples : `DATA #123ABC` → `00000000000004435274` ;
-  `CON 0#A01576` → `00000000000050012566` ; `SX3 =-#12345S2` → littéral
+- `preradix`: required, **≡ (60B), ASCII `#`** ("= or # depending on the
+  printer" in the OCR: this is ≡/#).
+- The leading `0` is optional for data items and literals, **required for
+  a constant** (otherwise the preradix would be taken as the start of a
+  symbol).
+- `value`: hexadecimal digits `0–9`, `A–F`; up to **26 significant
+  digits**; no point; absent = 0. [AMBIG] 26 × 4 = 104 bits > 60:
+  recommendation: keep the 60 low-order bits and raise flag 7 if nonzero
+  bits are lost.
+- `modifiers`: `S` (binary scale, same form as §8.2) allowed; `P` allowed
+  but **ignored**.
+- Examples: `DATA #123ABC` → `00000000000004435274`;
+  `CON 0#A01576` → `00000000000050012566`; `SX3 =-#12345S2` → literal
   `77777777777776671353` (−(12345h × 4)).
 
-### 8.4 Littéraux (§2.7.3)
+### 8.4 Literals (§2.7.3)
 
-- Un littéral est une **constante en lecture seule**, spécifiée comme
-  donnée d'un `LIT` ou comme élément d'expression préfixé par **`=`**
-  (`=1`, `=10HOUTPUT`, `=-3RABC`, `=R*ABC*`, `=1.0`, `=3.14159EE+6`,
-  `=#FF`…). Toutes les formes de données (§8.1–8.3) sont permises, y
-  compris pré-radix, signe, chaînes délimitées et double précision.
-- Dans une expression, le littéral vaut **l'adresse** de son entrée dans le
-  **bloc des littéraux** : il est donc **relogeable** (bloc local des
-  littéraux ; absolu après la passe 2 d'un assemblage absolu).
-- « Conventionnellement », un littéral est le seul élément de son
-  expression, mais la combinaison est légale (ex. `1+=3.14159EE+6`).
-- Un littéral vide dans une expression est illégal (erreur A).
-- `DATA` n'accepte pas de littéral comme item.
-- **Pool et dédoublonnage** : la première utilisation d'un littéral
-  assemble ses mots dans le bloc des littéraux. Si le motif binaire d'un
-  littéral préfixé, ou de **tous** les items d'une séquence `LIT`,
-  correspond à des mots déjà présents, aucune entrée n'est créée. Algorithme
-  [INFÉRENCE, conforme aux trois exemples du manuel] :
-  1. Former la suite de mots S (1 mot ou plus ; pour `LIT`, la
-     concaténation de tous ses items dans l'ordre).
-  2. Si S apparaît comme **sous-suite contiguë** n'importe où dans le pool
-     → réutiliser l'adresse de début.
-  3. Sinon, chercher le plus long **suffixe du pool égal à un préfixe de
-     S** ; n'ajouter que la partie restante de S ; l'adresse est celle du
-     début du préfixe recouvert (ou du premier mot ajouté si aucun
-     recouvrement).
-  - Le **motif binaire** seul compte : `=1` et `=1RA` (A = 01) partagent
-    le même mot.
-  - Exemple : `SB2 =1` (crée 5555 : `…01`), `SB3 =1RA` (réutilise 5555),
-    `SB4 =1RB` (crée 5556 : `…02`), `L LIT 1,2` (réutilise 5555–5556,
-    L = 5555). Puis `LIT 1,3,1RD,2` → 4 mots nouveaux (5557–5562). Mais
-    `LIT 1,2,3,4` à la place → recouvre les deux derniers mots `1,2` et
-    n'ajoute que `3,4`.
-- `LIT` permet d'associer un symbole à des entrées du pool (adresse du
-  premier mot dans le champ octal du listing). Ces mots doivent rester en
-  lecture seule (intégrité du pool partagé).
-- `LIT` générant plus de **100 mots** → erreur fatale **F**.
-- Listing (option D) : « CONTENT OF LITERALS BLOCK. », chaque adresse avec
-  son contenu octal et sa conversion en code display.
-- Placement : bloc des littéraux = `LITERALS*`, **immédiatement après le
-  bloc zéro** (§10.2). Dans un overlay de type IDENT ou une section
-  partielle par IDENT blanc, chaque section a son propre pool.
+- A literal is a **read-only constant**, specified as a data item of a
+  `LIT` or as an expression element prefixed by **`=`** (`=1`,
+  `=10HOUTPUT`, `=-3RABC`, `=R*ABC*`, `=1.0`, `=3.14159EE+6`, `=#FF`…).
+  All data forms (§8.1–8.3) are allowed, including preradix, sign,
+  delimited strings and double precision.
+- In an expression, the literal's value is **the address** of its entry
+  in the **literals block**: it is therefore **relocatable** (local
+  literals block; absolute after pass 2 of an absolute assembly).
+- "Conventionally", a literal is the only element of its expression, but
+  combining it is legal (e.g. `1+=3.14159EE+6`).
+- An empty literal in an expression is illegal (error A).
+- `DATA` does not accept a literal as an item.
+- **Pool and duplicate elimination**: the first use of a literal assembles
+  its words in the literals block. If the bit pattern of a prefixed
+  literal, or of **all** the items of a `LIT` sequence, matches words
+  already present, no entry is created. Algorithm [INFER, consistent with
+  the manual's three examples]:
+  1. Form the word sequence S (1 word or more; for `LIT`, the
+     concatenation of all its items in order).
+  2. If S appears as a **contiguous subsequence** anywhere in the pool
+     → reuse its starting address.
+  3. Otherwise, find the longest **suffix of the pool equal to a prefix of
+     S**; append only the remaining part of S; the address is that of the
+     start of the overlapped prefix (or of the first appended word if
+     there is no overlap).
+  - Only the **bit pattern** matters: `=1` and `=1RA` (A = 01) share the
+    same word.
+  - Example: `SB2 =1` (creates 5555: `…01`), `SB3 =1RA` (reuses 5555),
+    `SB4 =1RB` (creates 5556: `…02`), `L LIT 1,2` (reuses 5555–5556,
+    L = 5555). Then `LIT 1,3,1RD,2` → 4 new words (5557–5562). But
+    `LIT 1,2,3,4` instead → overlaps the last two words `1,2` and appends
+    only `3,4`.
+- `LIT` associates a symbol with pool entries (address of the first word
+  in the octal field of the listing). These words must remain read-only
+  (integrity of the shared pool).
+- `LIT` generating more than **100 words** → fatal error **F**.
+- Listing (option D): "CONTENT OF LITERALS BLOCK.", each address with its
+  octal content and its display-code conversion.
+- Placement: literals block = `LITERALS*`, **immediately after the zero
+  block** (§10.2). In an IDENT-type overlay or a partial section started
+  by a blank IDENT, each section has its own pool.
 
-### 8.5 Règles lexicales des sous-champs (référence d'implémentation)
+### 8.5 Lexical rules for subfields (implementation reference)
 
-Dans une expression, en **position d'élément** :
+In an expression, in **element position**:
 
-| Début | Interprétation |
+| Start | Interpretation |
 |---|---|
-| chiffre | constante : numérique (chiffres, `.`, modificateurs B/O/D/E/EE/S/P), caractère (`n` décimal puis type `C H A R L Z` puis n caractères, ou n = 0 jusqu'au terminateur), ou hexadécimale (`0` puis `≡`/`#`) |
-| `=` suivi de `S`, `X` ou `Y` | préfixe de symbole par défaut |
-| `=` autre | littéral (donnée complète, signe permis) |
-| `/` | symbole qualifié `/Q/SYM` ou global `//SYM` |
-| `*O`, `*L`, `*P`, `*F`, `*` | élément spécial |
-| `$` | élément spécial |
-| `An`, `Bn`, `Xn` (n 0–7, suivi d'un non-caractère de symbole), `A.x`, `B.x`, `X.x` | registre (CPU) |
-| autre caractère de symbole | symbole |
-| opérateur, `,`, blanc, fin | élément vide (= 0) |
+| digit | constant: numeric (digits, `.`, B/O/D/E/EE/S/P modifiers), character (decimal `n`, then type `C H A R L Z`, then n characters, or n = 0 up to the terminator), or hexadecimal (`0` then `≡`/`#`) |
+| `=` followed by `S`, `X` or `Y` | default symbol prefix |
+| `=` other | literal (complete data item, sign allowed) |
+| `/` | qualified symbol `/Q/SYM` or global symbol `//SYM` |
+| `*O`, `*L`, `*P`, `*F`, `*` | special element |
+| `$` | special element |
+| `An`, `Bn`, `Xn` (n 0–7, followed by a character that is not a symbol character), `A.x`, `B.x`, `X.x` | register (CPU) |
+| other symbol character | symbol |
+| operator, `,`, blank, end | empty element (= 0) |
 
-- Les lettres de type caractère (`C H A R L Z`) et les modificateurs
-  numériques (`B O D E S P`) sont **disjoints**, ce qui lève l'ambiguïté
-  après les chiffres. `0#…` : les chiffres A–F hexadécimaux ne sont pas des
-  types car le pré-radix a été vu.
-- Un modificateur suivi de `+`/`-` puis d'un chiffre consomme le signe et
-  l'entier ; sans chiffre, n = 0 et le signe redevient opérateur
-  [INFÉRENCE].
-- Dans `DATA`/`LIT` (données pures, pas de symboles) : un item commençant
-  par une lettre est soit un pré-radix numérique (`B`, `O`, `D` suivis de
-  chiffres), soit un type caractère suivi d'un délimiteur.
+- The character type letters (`C H A R L Z`) and the numeric modifiers
+  (`B O D E S P`) are **disjoint**, which removes the ambiguity after the
+  digits. `0#…`: the hexadecimal digits A–F are not types because the
+  preradix has been seen.
+- A modifier followed by `+`/`-` and then a digit consumes the sign and
+  the integer; without a digit, n = 0 and the sign becomes an operator
+  again [INFER].
+- In `DATA`/`LIT` (pure data, no symbols): an item that begins with a
+  letter is either a numeric preradix (`B`, `O`, `D` followed by digits)
+  or a character type followed by a delimiter.
 
 ---
 
 ## 9. Expressions (§2.8)
 
-### 9.1 Syntaxe
+### 9.1 Syntax
 
-- La plupart des sous-champs sont des **expressions** : un ou plusieurs
-  **termes** ; chaque terme = un ou plusieurs **éléments** reliés par des
-  opérateurs d'éléments. Une **virgule ou un blanc termine l'expression**.
-- Éléments : symbole, constante numérique ou caractère, élément spécial,
-  désignateur de registre (CPU), littéral. Exemples : `ALPHA`, `$`, `*P`,
+- Most subfields are **expressions**: one or more **terms**; each term =
+  one or more **elements** joined by element operators. A **comma or a
+  blank terminates the expression**.
+- Elements: symbol, numeric or character constant, special element,
+  register designator (CPU), literal. Examples: `ALPHA`, `$`, `*P`,
   `A.7`, `X3`, `3HABC`, `=10HOUTPUT`, `77B`.
-- Opérateurs d'éléments (forment un terme) : `*` multiplication, `/`
-  division.
-- Opérateurs de termes (forment l'expression) : `+` addition, `-`
-  soustraction, `∧` (ASCII `&`) **OU exclusif**.
-- **Aucune parenthèse** de regroupement ; **pas d'opérateurs relationnels**
-  ni de ET/OU logiques. Précédence : `*` `/` (gauche à droite) avant `+ -
-  ∧` (gauche à droite).
+- Element operators (form a term): `*` multiplication, `/` division.
+- Term operators (form the expression): `+` addition, `-` subtraction,
+  `∧` (ASCII `&`) **exclusive OR**.
+- **No grouping parentheses**; **no relational operators** and no logical
+  AND/OR. Precedence: `*` `/` (left to right) before `+ - ∧` (left to
+  right).
 
-Grammaire équivalente :
+Equivalent grammar:
 
 ```
 expression := [addop] term { addop term }
 term       := element { mulop element }
 addop      := '+' | '-' | '∧'
 mulop      := '*' | '/'
-element    := (voir §8.5) | ε
+element    := (see §8.5) | ε
 ```
 
-### 9.2 Règles (§2.8)
+### 9.2 Rules (§2.8)
 
-1. Dernier élément d'un terme omis → élément **zéro** fourni :
+1. Last element of a term omitted → a **zero** element is supplied:
    `ABLE*+3` = ABLE×0 + 3.
-2. **Deux éléments successifs sont illégaux** (erreur A). Mais `**` est
-   légal : élément `*`, opérateur `*`, élément nul (blanc).
-3. Un terme contient **au plus un élément relogeable ou externe** :
-   `**ABLE` (ABLE relogeable) est illégal.
-4. L'élément à **gauche d'un diviseur doit être absolu** [INFÉRENCE : le
-   produit partiel du terme à gauche du `/` doit être absolu ; le diviseur
-   aussi].
-5. **Division par zéro → zéro, sans erreur.**
-6. Deux opérateurs additifs ou plus à la suite (`+`, `-`, `∧`) → un terme
-   de valeur zéro est inséré entre eux.
-7. Expression commençant par un opérateur additif → terme zéro inséré
-   avant.
-8. Toute l'arithmétique est **entière**, même si un élément est une
-   constante flottante (`2.3`). Résultats limités à **60 bits** : les bits
-   de poids fort excédentaires d'un terme ou d'une valeur sont perdus
-   **sans message**.
+2. **Two successive elements are illegal** (error A). But `**` is legal:
+   element `*`, operator `*`, null (blank) element.
+3. A term contains **at most one relocatable or external element**:
+   `**ABLE` (ABLE relocatable) is illegal.
+4. The element to the **left of a divisor must be absolute** [INFER: the
+   partial product of the term to the left of the `/` must be absolute;
+   so must the divisor].
+5. **Division by zero → zero, without error.**
+6. Two or more consecutive additive operators (`+`, `-`, `∧`) → a term
+   with a value of zero is inserted between them.
+7. Expression that begins with an additive operator → a zero term is
+   inserted before it.
+8. All arithmetic is **integer**, even if an element is a floating-point
+   constant (`2.3`). Results are limited to **60 bits**: excess high-order
+   bits of a term or a value are lost **without a message**.
 
-### 9.3 Arithmétique (§2.8.2)
+### 9.3 Arithmetic (§2.8.2)
 
-- Chaque élément est remplacé par une **valeur 60 bits** ; signes étendus
-  pour les quantités 21 bits (compteurs, adresses, symboles) ; constante
-  caractère cadrée dans le champ destination puis étendue à 60 bits ;
-  registre → valeur 0.
-- **Division** : partie entière du quotient, reste perdu. `5/2*2` = 4
-  (gauche à droite).
-- Évaluation gauche à droite : COMPASS forme un terme jusqu'au prochain
-  `+`/`-`/`∧`, note si le terme contient un symbole relogeable ou externe
-  ou des registres, puis l'ajoute/retranche/« différencie » (XOR) au
-  cumul des parties absolue, relogeable, externe.
-- Représentation : **complément à un 60 bits** (le moins forme la valeur
-  complémentée ; −0 = `777…777` existe ; IFPL/IFMI distinguent +0 et −0).
-  [INFÉRENCE — à valider par tests] Sémantique recommandée, celle de
-  l'additionneur soustractif du 6600 : interpréter les opérandes en
-  entiers signés (mot à bit 59 = 1 → −(complément)), calculer
-  exactement (BigInt), puis convertir : résultat 0 → +0, **sauf**
-  (−0)+(−0) et (−0)−(+0) qui donnent −0 ; résultat r ≠ 0 → |r| mod 2^60,
-  complémenté si r < 0. Multiplication et division sur les valeurs
-  signées, quotient tronqué vers zéro.
-- `∧` : OU exclusif bit à bit des deux mots 60 bits. [AMBIGU] Avec un
-  terme relogeable ou externe : recommandation, erreur A (relocation non
-  définie), sauf si tous les éléments relogeables s'annulent.
-- La valeur finale est tronquée si nécessaire et placée dans le champ
-  destination ; **trop grande pour le champ → drapeau d'erreur** (7,
-  « ADDRESS VALUE EXCEEDS FIELD SIZE, RESULT TRUNCATED »). [INFÉRENCE]
-  « Tient dans n bits » = les bits 59..n sont tous à 0 ou tous à 1 (on
-  accepte ainsi `777777B` et `-1` dans un champ de 18 bits).
-- Taille maximale d'un champ d'expression : 60 bits.
+- Each element is replaced by a **60-bit value**; signs are extended for
+  21-bit quantities (counters, addresses, symbols); a character constant
+  is justified in the destination field, then extended to 60 bits;
+  register → value 0.
+- **Division**: integer part of the quotient, remainder lost. `5/2*2` = 4
+  (left to right).
+- Left-to-right evaluation: COMPASS forms a term up to the next
+  `+`/`-`/`∧`, notes whether the term contains a relocatable or external
+  symbol or registers, then adds/subtracts/"differences" (XOR) it into the
+  running absolute, relocatable and external parts.
+- Representation: **60-bit ones' complement** (minus forms the
+  complemented value; −0 = `777…777` exists; IFPL/IFMI distinguish +0 and
+  −0). [INFER — to be validated by tests] Recommended semantics, those of
+  the 6600 subtractive adder: interpret the operands as signed integers
+  (word with bit 59 = 1 → −(complement)), compute exactly (BigInt), then
+  convert: result 0 → +0, **except** (−0)+(−0) and (−0)−(+0), which give
+  −0; result r ≠ 0 → |r| mod 2^60, complemented if r < 0. Multiplication
+  and division on the signed values, quotient truncated toward zero.
+- `∧`: bitwise exclusive OR of the two 60-bit words. [AMBIG] With a
+  relocatable or external term: recommendation: error A (relocation
+  undefined), unless all relocatable elements cancel.
+- The final value is truncated if necessary and placed in the destination
+  field; **too large for the field → error flag** (7, "ADDRESS VALUE
+  EXCEEDS FIELD SIZE, RESULT TRUNCATED"). [INFER] "Fits in n bits" = bits
+  59..n are all 0 or all 1 (so `777777B` and `-1` are accepted in an
+  18-bit field).
+- Maximum size of an expression field: 60 bits.
 
-**Taille du champ destination**
+**Destination field size**
 
-| Contexte | Champ |
+| Context | Field |
 |---|---|
-| Pseudo de définition de symbole (EQU, =, SET, MAX, MIN, MICCNT) | **21 bits** (y compris constantes caractère) |
-| `VFD` | taille indiquée (≤ 60) |
-| `CON` | un mot : 60 bits (CPU), 12 ou 16 bits (PP) |
-| Instruction machine CPU | champ adresse 18 bits (K) ou 6 bits (jk) |
-| Instruction machine PP | 18, 16, 12 ou 6 bits |
+| Symbol-defining pseudo instruction (EQU, =, SET, MAX, MIN, MICCNT) | **21 bits** (character constants included) |
+| `VFD` | specified size (≤ 60) |
+| `CON` | one word: 60 bits (CPU), 12 or 16 bits (PP) |
+| CPU machine instruction | 18-bit (K) or 6-bit (jk) address field |
+| PP machine instruction | 18, 16, 12 or 6 bits |
 
-### 9.4 Registres dans une expression
+### 9.4 Registers in an expression
 
-- L'opérateur qui précède immédiatement un désignateur de registre est
-  l'**opérateur de registre**, quelle que soit la position du registre
-  dans l'expression : `+`, `-`, `*` ou `/`.
-- Si le registre est le **premier élément**, l'opérateur peut être omis :
-  `+` supposé.
-- Le reste forme l'**opérande** (absolu, relogeable ou externe).
-- `3+A6-NUM` → registre A6 (opérateur +) et opérande `3-NUM`.
-- `X3+LIMA-10B`, `LIMA+X3-10B`, `-10B+LIMA+X3` produisent le même
-  résultat. Autres exemples : `B1+XYZ`, `*+A.NUM`.
-- Usage réservé en pratique aux instructions machine CPU, qui
-  interprètent la forme (ch. 8) ; une pseudo qui interdit les registres
-  (EQU, CON…) → erreur A (« the instruction disallows register
-  designators », « a register is illegal in a CON instruction »).
+- The operator immediately preceding a register designator is the
+  **register operator**, whatever the position of the register in the
+  expression: `+`, `-`, `*` or `/`.
+- If the register is the **first element**, the operator may be omitted:
+  `+` is assumed.
+- The rest forms the **operand** (absolute, relocatable or external).
+- `3+A6-NUM` → register A6 (operator +) and operand `3-NUM`.
+- `X3+LIMA-10B`, `LIMA+X3-10B`, `-10B+LIMA+X3` produce the same result.
+  Other examples: `B1+XYZ`, `*+A.NUM`.
+- In practice, reserved for CPU machine instructions, which interpret the
+  form (ch. 8); a pseudo instruction that disallows registers (EQU,
+  CON…) → error A ("the instruction disallows register designators", "a
+  register is illegal in a CON instruction").
 
-### 9.5 Types d'expression et relocation (§2.8.1)
+### 9.5 Expression types and relocation (§2.8.1)
 
-Une expression se réduit à :
+An expression reduces to:
 
-- une **valeur absolue** (adresse absolue ou entier) ;
-- un **externe ± entier 21 bits** ;
-- une **valeur relogeable ± entier 21 bits** ;
-- des **registres + l'un des précédents** (CPU) ;
-- des **registres seuls** (CPU).
+- an **absolute value** (absolute address or integer);
+- an **external ± 21-bit integer**;
+- a **relocatable value ± 21-bit integer**;
+- **registers + one of the above** (CPU);
+- **registers alone** (CPU).
 
-**Modèle d'implémentation recommandé** : chaque valeur intermédiaire porte
-(a) une partie absolue 60 bits, (b) un vecteur de coefficients entiers
-par bloc relogeable (bloc local, bloc common ; le bloc absolu ne compte
-pas), (c) un vecteur de coefficients par symbole externe, (d) la liste des
-registres. Un élément relogeable vaut coefficient +1 dans son bloc ; la
-multiplication par un absolu multiplie les coefficients (`3*FOX`
-légal) ; un terme ne peut avoir qu'un seul élément non absolu
-(règle 3) ; le dividende doit être absolu (règle 4).
+**Recommended implementation model**: each intermediate value carries
+(a) a 60-bit absolute part, (b) a vector of integer coefficients per
+relocatable block (local block, common block; the absolute block does not
+count), (c) a vector of coefficients per external symbol, (d) the list of
+registers. A relocatable element has coefficient +1 in its block;
+multiplication by an absolute value multiplies the coefficients (`3*FOX`
+is legal); a term can have only one non-absolute element (rule 3); the
+dividend must be absolute (rule 4).
 
-À la fin :
+At the end:
 
-- **Absolue** : tous les coefficients nuls. Possible avec des éléments
-  relogeables s'ils s'annulent **par paires dans le même bloc** (signes
-  opposés, éventuellement multiples, non nécessairement contigus).
-  Exemples (EASY, FOX relogeables du même bloc, MIKE absolu, compteurs du
-  même bloc) : `EASY-FOX+MIKE`, `FOX-*`, `MIKE+16`, `*-EASY-FOX*2`.
-- **Relogeable** : un seul bloc avec coefficient ±1, tous les autres à 0,
-  aucun externe. Trois sortes : **programme positive**, **programme
-  négative**, **common positive** (common négatif **interdit** par le
-  chargeur → erreur). Exemples (LIMA d'un autre bloc) : `LIMA+MIKE-16`,
+- **Absolute**: all coefficients zero. Possible with relocatable elements
+  if they cancel **in pairs within the same block** (opposite signs,
+  possibly multiples, not necessarily contiguous). Examples (EASY, FOX
+  relocatable in the same block, MIKE absolute, counters of the same
+  block): `EASY-FOX+MIKE`, `FOX-*`, `MIKE+16`, `*-EASY-FOX*2`.
+- **Relocatable**: a single block with coefficient ±1, all others 0, no
+  external. Three kinds: **program positive**, **program negative**,
+  **common positive** (common negative is **not allowed** by the loader →
+  error). Examples (LIMA in another block): `LIMA+MIKE-16`,
   `FOX-EASY+FOX`, `3*FOX-2*EASY`, `EASY-*+FOX`, `FOX-100B/MIKE`,
   `-MIKE*2+LIMA`, `=10HMESSAGE 33`, `-*O`.
-- **Externe** : un seul externe avec coefficient **+1** (positif), tous
-  les coefficients de blocs nuls. Exemples (XYZ, ABC externes ; compteurs
-  du bloc de LIMA) : `XYZ-*+FOX-EASY+LIMA`, `FOX-3*EASY+2*FOX+XYZ`,
-  `ABC+100B+MIKE`. Illégaux : `XYZ+ABC` (deux externes), `-ABC+*-LIMA`
-  (externe négatif), `XYZ+*O` (relogeable non apparié).
-- **Registre** : comme ci-dessus, plus des registres.
-- Toute autre combinaison (coefficient ±2, deux blocs non annulés, externe
-  + relogeable…) → erreur **A** (« The relocatable terms do not cancel
-  properly » / « The expression does not reduce to one external term »).
-- La notion de bloc est celle de la **passe 1** : deux symboles de blocs
-  locaux **différents** ne s'annulent pas, même si leur différence serait
-  constante après allocation. [INFÉRENCE stricte d'après le texte.]
-- Un symbole d'un bloc local dans un **assemblage absolu** est relogeable
-  en passe 1 et absolu en passe 2 ; un bloc common dans un programme
-  absolu est traité comme un bloc local (§10.2).
-- Contraintes de contexte (ch. 4, 8) : certaines instructions exigent une
-  expression absolue (erreur A), ou évaluable, ou interdisent les
-  externes ; un point d'entrée relogeable négatif → erreur **N** ; ORG/ORGC
-  avec relocation négative → erreur A.
-- Listing : le code octal d'un mot contenant une adresse est suivi de
-  `+` (relogeable positive), `-` (relogeable négative), `C` (common),
-  `X` (externe). (Le signe `-` est illisible dans l'OCR ; inféré.)
-- Avertissement du manuel : certains chargeurs se comportent mal si une
-  adresse relogeable/externe est assemblée plusieurs fois dans le même
-  champ du même mot (ORG en arrière, common préréglé par plusieurs
-  modules) ; `ORGC` permet de l'éviter. En `VFD` relogeable : aucun champ
-  relogeable/externe ne peut chevaucher une frontière de mot, et 4 champs
-  relogeables/externes au plus par mot.
+- **External**: a single external with coefficient **+1** (positive), all
+  block coefficients zero. Examples (XYZ, ABC external; counters of LIMA's
+  block): `XYZ-*+FOX-EASY+LIMA`, `FOX-3*EASY+2*FOX+XYZ`,
+  `ABC+100B+MIKE`. Illegal: `XYZ+ABC` (two externals), `-ABC+*-LIMA`
+  (negative external), `XYZ+*O` (unpaired relocatable).
+- **Register**: as above, plus registers.
+- Any other combination (coefficient ±2, two uncanceled blocks, external
+  + relocatable…) → error **A** ("The relocatable terms do not cancel
+  properly" / "The expression does not reduce to one external term").
+- The notion of block is that of **pass 1**: two symbols of **different**
+  local blocks do not cancel, even if their difference would be constant
+  after allocation. [Strict INFER from the text.]
+- A symbol of a local block in an **absolute assembly** is relocatable in
+  pass 1 and absolute in pass 2; a common block in an absolute program is
+  treated as a local block (§10.2).
+- Context constraints (ch. 4, 8): some instructions require an absolute
+  expression (error A), or an evaluable one, or disallow externals; a
+  negative relocatable entry point → error **N**; ORG/ORGC with negative
+  relocation → error A.
+- Listing: the octal code of a word that contains an address is followed
+  by `+` (positive relocatable), `-` (negative relocatable), `C`
+  (common), `X` (external). (The `-` sign is unreadable in the OCR;
+  inferred.)
+- Warning from the manual: some loaders misbehave if a relocatable/external
+  address is assembled more than once into the same field of the same word
+  (ORG backward, common preset by several modules); `ORGC` avoids this. In
+  a relocatable `VFD`: no relocatable/external field can cross a word
+  boundary, and at most 4 relocatable/external fields per word.
 
-### 9.6 Évaluation selon la passe et valeur des externes
+### 9.6 Evaluation by pass and value of externals
 
-- **Externe** défini hors du sous-programme : valeur **0**. Externe défini
-  dans le sous-programme relativement à un externe : valeur = décalage
-  par rapport à cet externe.
-- **Passe 1** : la valeur d'un symbole relogeable est relative au **début
-  de son bloc**. **Passe 2** : relative à l'origine du **programme** (pour
-  les blocs locaux) ou du **bloc common**. Une expression contenant des
-  symboles relogeables ne s'évalue donc pas forcément pareil dans les deux
-  passes (d'où l'exigence « évaluable »/« préalablement défini » pour les
-  pseudos qui influencent l'allocation).
+- **External** defined outside the subprogram: value **0**. External
+  defined within the subprogram relative to an external: value = offset
+  from that external.
+- **Pass 1**: the value of a relocatable symbol is relative to the
+  **start of its block**. **Pass 2**: relative to the origin of the
+  **program** (for local blocks) or of the **common block**. An
+  expression containing relocatable symbols therefore does not
+  necessarily evaluate the same way in both passes (hence the
+  "evaluable"/"previously defined" requirement for pseudo instructions
+  that influence allocation).
 
-### 9.7 Exemples d'expressions (§2.8)
+### 9.7 Expression examples (§2.8)
 
-| Expression | Lecture |
+| Expression | Reading |
 |---|---|
-| `ABLE` | un terme |
-| `$-29` | deux termes : `$` et 29 |
-| `1+=3.14159EE+6` | constante + adresse d'un littéral double précision |
+| `ABLE` | one term |
+| `$-29` | two terms: `$` and 29 |
+| `1+=3.14159EE+6` | constant + address of a double-precision literal |
 | `*+3` | location + 3 |
 | `ABLE*4-72/NUM` | (ABLE×4) − (72÷NUM) |
-| `10B` | constante octale |
-| `3+A6-NUM` | registre A6, opérande 3−NUM |
-| `1R=∧1R/` | XOR des codes de `=` (54B) et `/` (50B) = 04B |
+| `10B` | octal constant |
+| `3+A6-NUM` | register A6, operand 3−NUM |
+| `1R=∧1R/` | XOR of the codes of `=` (54B) and `/` (50B) = 04B |
 
 ---
 
-## 10. Structure de programme (chapitre 3)
+## 10. Program structure (chapter 3)
 
-### 10.1 Sous-programme et groupe de blocs
+### 10.1 Subprogram and block group
 
-- Sous-programme = `IDENT` … `END`. Programme principal si `END` donne une
-  **adresse de transfert** (`END BEGIN`).
-- Un sous-programme peut être divisé en **blocs** ; le code peut être
-  dirigé alternativement vers plusieurs blocs (`USE`, `USELCM`, `ORG`,
-  `ORGC`) ; les emplacements d'un bloc sont attribués consécutivement.
-- Un symbole défini dans un bloc **n'est pas local au bloc** : il est
-  global au sous-programme (seul QUAL le restreint).
-- Les blocs établis entre deux `IDENT`, ou entre `IDENT` et `END`, forment
-  un **groupe de blocs**. **255 blocs au plus par groupe, dont 252
-  établis par l'utilisateur** (> 255 → erreur **F**). Quand COMPASS
-  interprète `IDENT` ou `END`, il exécute la **passe 2 du groupe achevé** :
-  tous les symboles reçoivent des valeurs absolues, la table des noms de
-  blocs est effacée, la liste des USE/USELCM/ORG/ORGC est effacée, la
-  structure de blocs repart de zéro. Pour `END`, la table des symboles est
-  aussi effacée avant le sous-programme suivant.
-- Code généré avant tout `USE` (ou sans `USE`) → **bloc nominal**, listé
-  `PROGRAM*` : bloc **absolu** pour un programme absolu, **bloc zéro**
-  pour un programme relogeable.
-- Limites externes : plus de **511 symboles externes** → erreur F.
+- Subprogram = `IDENT` … `END`. It is a main program if `END` gives a
+  **transfer address** (`END BEGIN`).
+- A subprogram can be divided into **blocks**; code can be directed
+  alternately to several blocks (`USE`, `USELCM`, `ORG`, `ORGC`); the
+  locations of a block are assigned consecutively.
+- A symbol defined in a block **is not local to the block**: it is global
+  to the subprogram (only QUAL restricts it).
+- The blocks established between two `IDENT`s, or between `IDENT` and
+  `END`, form a **block group**. **At most 255 blocks per group, of which
+  252 are established by the user** (> 255 → error **F**). When COMPASS
+  interprets `IDENT` or `END`, it executes **pass 2 of the completed
+  group**: all symbols receive absolute values, the block name table is
+  cleared, the USE/USELCM/ORG/ORGC list is cleared, and the block structure
+  starts over from zero. For `END`, the symbol table is also cleared
+  before the next subprogram.
+- Code generated before any `USE` (or without `USE`) → **nominal block**,
+  listed as `PROGRAM*`: the **absolute** block for an absolute program, the
+  **zero block** for a relocatable program.
+- External limits: more than **511 external symbols** → error F.
 
-### 10.2 Types de blocs
+### 10.2 Block types
 
-| Bloc | Nom au listing | Description |
+| Block | Name in listing | Description |
 |---|---|---|
-| **Absolu** | `PROGRAM*` (assemblage absolu) / `ABSOLUTE*` (relogeable) | Bloc nominal d'un assemblage absolu. Code absolu ; symboles définis en passe 1 comme valeurs absolues relatives à 0 (= origine du bloc) ; doit être chargé à l'origine indiquée. Dans un assemblage relogeable, n'existe que si un `ORG`/`ORGC` reçoit une valeur **absolue** ; le chargeur charge ce texte tel quel (adresses relatives à RA, sans manipulation). Pas de bloc absolu ECS/LCM. |
-| **Zéro** | `PROGRAM*` | Nom de bloc `0`. Bloc nominal CM/SCM d'un assemblage **relogeable** ; **local** (inaccessible aux autres modules). En fin d'assemblage, les **symboles par défaut** non définis y sont placés à la fin. Dans un programme absolu, il n'existe que s'il y a des symboles par défaut, et suit immédiatement le bloc absolu (également listé `PROGRAM*`). Pas de bloc zéro ECS/LCM. |
-| **Littéraux** | `LITERALS*` | Entrées littérales ; local ; **toujours immédiatement après le bloc zéro**. L'utilisateur ne le contrôle pas (sauf via `LIT`). Pas de bloc littéraux ECS/LCM. |
-| **Locaux utilisateur** | nom | Établis par `USE nom` / `USELCM nom`. En fin d'assemblage, chacun reçoit une origine relative au bloc nominal, **dans l'ordre d'établissement**. Tous les blocs locaux CM/SCM sont concaténés en un seul bloc pour le chargeur (nom unique au module) ; de même pour les blocs locaux ECS/LCM. |
-| **Common nommé** | `/nom/` | Zone préréglable partagée entre modules relogeables. `USE /nom/` (CM) ou `USELCM /nom/` (LCM). Le premier module chargé qui le déclare fixe sa taille maximale. Dans un **programme absolu**, `USE /nom/` crée un bloc **local** nommé `/nom/`. |
-| **Common blanc** | `//` | Non préréglable (le chargeur n'y charge rien). `USE //` (CM) / `USELCM //` (LCM). Alloué par le chargeur après chargement de tous les modules, à la plus grande taille déclarée. Seules `BSS` et `ORG` peuvent suivre (`BSSZ` illégal). Données dans le common blanc → erreur **R**. Dans un programme absolu : bloc local nommé `//`, données permises. |
+| **Absolute** | `PROGRAM*` (absolute assembly) / `ABSOLUTE*` (relocatable) | Nominal block of an absolute assembly. Absolute code; symbols defined in pass 1 as absolute values relative to 0 (= block origin); must be loaded at the specified origin. In a relocatable assembly, it exists only if an `ORG`/`ORGC` receives an **absolute** value; the loader loads this text as is (addresses relative to RA, with no manipulation). There is no ECS/LCM absolute block. |
+| **Zero** | `PROGRAM*` | Block name `0`. Nominal CM/SCM block of a **relocatable** assembly; **local** (inaccessible to other modules). At the end of assembly, undefined **default symbols** are placed at its end. In an absolute program, it exists only if there are default symbols, and it immediately follows the absolute block (also listed as `PROGRAM*`). There is no ECS/LCM zero block. |
+| **Literals** | `LITERALS*` | Literal entries; local; **always immediately after the zero block**. The user does not control it (except through `LIT`). There is no ECS/LCM literals block. |
+| **User local** | name | Established by `USE name` / `USELCM name`. At the end of assembly, each receives an origin relative to the nominal block, **in order of establishment**. All CM/SCM local blocks are concatenated into a single block for the loader (name unique to the module); likewise for the ECS/LCM local blocks. |
+| **Named common** | `/name/` | Presettable area shared between relocatable modules. `USE /name/` (CM) or `USELCM /name/` (LCM). The first loaded module that declares it sets its maximum size. In an **absolute program**, `USE /name/` creates a **local** block named `/name/`. |
+| **Blank common** | `//` | Not presettable (the loader loads nothing into it). `USE //` (CM) / `USELCM //` (LCM). Allocated by the loader after all modules are loaded, at the largest declared size. Only `BSS` and `ORG` may follow (`BSSZ` is illegal). Data in blank common → error **R**. In an absolute program: local block named `//`, data allowed. |
 
-Compléments (`USE`, ch. 4 §4.5.1) :
+Additional details (`USE`, ch. 4 §4.5.1):
 
-- `USE 0` ou `USE` blanc : bloc nominal. `USE *` : bloc utilisé avant le
-  USE/USELCM/ORG/ORGC courant (pile).
-- Nom de bloc local : 1 à 8 caractères, sans blanc ni virgule, premier
-  caractère ≠ `:`. `USE A` et `USE /A/` sont des blocs différents.
-- Nom de common : 7 caractères au plus, sans blanc ni virgule, premier et
-  dernier caractères ≠ `:`.
-- `/0/` (common) coexiste avec le bloc `0` ; `//` (blanc) coexiste avec un
-  common nommé `////` [OCR].
-- **Noms redondants** (CPU) : deux blocs de même nom et même mémoire
-  peuvent coexister s'ils sont de types différents (local/common) ; de
-  même nom et même type s'ils sont de mémoires différentes (CM/LCM) →
-  jusqu'à **4 blocs** de même nom. Clé d'un bloc = (nom, local|common,
-  CM|LCM).
-- `USELCM` : CPU seulement.
-- Longueur de chaque bloc ECS/LCM (y compris le bloc local combiné)
-  **arrondie au multiple de 8 mots** supérieur ; taille max d'un bloc
-  ECS/LCM : **1 048 568 mots**.
-- Résumé des blocs au listing (option B) : `BLOCKS TYPE ADDRESS LENGTH`,
-  types `ABSOLUTE` (tout bloc d'un assemblage absolu), `LOCAL` (relatif
-  à l'origine du bloc zéro), `COMMON` (relatif à l'origine du common),
-  préfixe `+` pour un bloc ECS/LCM (ch. 11).
+- `USE 0` or blank `USE`: nominal block. `USE *`: the block in use before
+  the current USE/USELCM/ORG/ORGC (stack).
+- Local block name: 1 to 8 characters, no blank or comma, first
+  character ≠ `:`. `USE A` and `USE /A/` are different blocks.
+- Common name: at most 7 characters, no blank or comma, first and last
+  characters ≠ `:`.
+- `/0/` (common) coexists with block `0`; `//` (blank) coexists with a
+  named common `////` [OCR].
+- **Redundant names** (CPU): two blocks with the same name and the same
+  memory can coexist if they are of different types (local/common); with
+  the same name and the same type if they are in different memories
+  (CM/LCM) → up to **4 blocks** with the same name. Block key = (name,
+  local|common, CM|LCM).
+- `USELCM`: CPU only.
+- The length of each ECS/LCM block (including the combined local block)
+  is **rounded up to a multiple of 8 words**; maximum size of an ECS/LCM
+  block: **1 048 568 words**.
+- Block summary in the listing (option B): `BLOCKS TYPE ADDRESS LENGTH`,
+  types `ABSOLUTE` (any block of an absolute assembly), `LOCAL` (relative
+  to the origin of the zero block), `COMMON` (relative to the origin of the
+  common), prefix `+` for an ECS/LCM block (ch. 11).
 
-### 10.3 Compteurs de bloc (§3.2)
+### 10.3 Block counters (§3.2)
 
-Pour **chaque bloc**, COMPASS tient trois compteurs, rétablis à la reprise
-du bloc :
+For **each block**, COMPASS keeps three counters, which are restored when
+the block is resumed:
 
-- À l'établissement d'un bloc : origin = location = 0 en passe 1 ;
-  position = 60 (CPU), 12 (PP) ou 16 (PP `CIPPU` format long).
-- En passe 2, chaque bloc local reçoit une **valeur initiale**
-  d'origin/location = son origine allouée.
+- When a block is established: origin = location = 0 in pass 1;
+  position = 60 (CPU), 12 (PP) or 16 (PP `CIPPU` long format).
+- In pass 2, each local block receives an **initial value** of
+  origin/location = its allocated origin.
 
-**Compteur origin** (`*O`) : position relative du prochain mot assemblé ou
-réservé dans le bloc. +1 par mot assemblé ou sauté en avant, −1 par mot
-sauté en arrière. `ORG`, `ORGC`, `BSS` l'avancent ; `ORG`/`ORGC` peuvent
-aussi le ramener en arrière ou changer de bloc ; `BSS` peut le
-décrémenter (BSS négatif) sans changer de bloc.
+**Origin counter** (`*O`): relative position of the next word assembled
+or reserved in the block. +1 per word assembled or skipped forward, −1 per
+word skipped backward. `ORG`, `ORGC`, `BSS` advance it; `ORG`/`ORGC` can
+also move it backward or change blocks; `BSS` can decrement it (negative
+BSS) without changing blocks.
 
-**Compteur location** (`*`, `*L`) : normalement égal à l'origin ; sert à
-définir les adresses symboliques. Incrémenté avec l'origin. `LOC` peut le
-rendre différent (code chargé à un endroit et exécuté ailleurs, ou table
-numérotée depuis 0) ; cela **ne change pas** le placement du code. Au
-listing, une adresse est précédée de `L` quand location ≠ origin.
+**Location counter** (`*`, `*L`): normally equal to the origin counter;
+used to define symbolic addresses. Incremented together with the origin
+counter. `LOC` can make it different (code loaded in one place and
+executed elsewhere, or a table numbered from 0); this **does not change**
+where the code is placed. In the listing, an address is preceded by `L`
+when location ≠ origin.
 
-**Compteur position** (`*P`, `$` = *P − 1) : bits numérotés 59..0 (CPU),
-11..0 (PP 12 bits), 15..0 (PP 16 bits). Vaut 60/12/16 au départ = nombre
-de bits **restants** dans le mot ; décrémenté d'un par bit assemblé ; 0
-quand le mot est complet, remis à 60/16/12 au début d'une nouvelle
-opération (mot suivant). En CPU, les instructions 15 et 30 bits lui
-donnent normalement les valeurs 60, 45, 30, 15. En PP, valeur normale 12
-(16 si CIPPU format long). `VFD` et `POS` modifient cette progression.
+**Position counter** (`*P`, `$` = *P − 1): bits numbered 59..0 (CPU),
+11..0 (12-bit PP), 15..0 (16-bit PP). It is 60/12/16 at the start = the
+number of bits **remaining** in the word; decremented by one per bit
+assembled; 0 when the word is complete, reset to 60/16/12 at the start of
+a new operation (next word). In CPU code, 15-bit and 30-bit instructions
+normally give it the values 60, 45, 30, 15. In PP code, the normal value
+is 12 (16 for CIPPU long format). `VFD` and `POS` modify this progression.
 
-**Longueur d'un bloc** : [AMBIGU] le manuel parle tantôt de « la valeur
-finale des compteurs origin », tantôt de « la valeur maximale du compteur
-origin ». Recommandation : longueur = **valeur maximale atteinte** par le
-compteur origin du bloc (identique dans l'usage normal).
+**Block length**: [AMBIG] the manual speaks sometimes of "the final value
+of the origin counters", sometimes of "the maximum value of the origin
+counter". Recommendation: length = **maximum value reached** by the
+block's origin counter (identical in normal use).
 
-### 10.4 Forçage en début de mot (« force upper », §3.2.4)
+### 10.4 Force upper (§3.2.4)
 
-**CPU.** Avant d'assembler l'instruction suivante, si l'une des conditions
-est vraie, l'assembleur complète les parcelles restantes du mot en cours
-avec des **no-op** (`46000B`, 15 bits), met position = 60 et incrémente
-origin et location :
+**CPU.** Before assembling the next instruction, if one of the following
+conditions is true, the assembler fills the remaining parcels of the
+current word with **no-ops** (`46000B`, 15 bits), sets position = 60 and
+increments origin and location:
 
-1. place insuffisante dans le mot pour l'instruction ou la donnée
-   suivante ;
-2. instruction machine ou `VFD` avec **un symbole ou `+` en location** ;
-3. instruction `RE`, `WE`, `PS`, `XJ`, `CC`, `CU`, `DM`, `IM` (et `RL`,
-   `WL` sous NOS et NOS/BE) sur CYBER 180/170, CYBER 70 modèles 71–74,
-   série 6000 — **annulable par `-` en location** ;
-4. pseudo `END`, `BSS`, `BSSZ`, `DATA`, `DIS`, `CON`, `SEGMENT`, `SEG`,
-   `IDENT`, `ORGC`, `LOC`, `ORG` ou `MD`.
+1. insufficient room in the word for the next instruction or data item;
+2. machine instruction or `VFD` with **a symbol or `+` in the location
+   field**;
+3. instruction `RE`, `WE`, `PS`, `XJ`, `CC`, `CU`, `DM`, `IM` (and `RL`,
+   `WL` under NOS and NOS/BE) on CYBER 180/170, CYBER 70 models 71–74,
+   6000 series — **can be cancelled by `-` in the location field**;
+4. pseudo instruction `END`, `BSS`, `BSSZ`, `DATA`, `DIS`, `CON`,
+   `SEGMENT`, `SEG`, `IDENT`, `ORGC`, `LOC`, `ORG` or `MD`.
 
-Forçage **après** assemblage (différé) de : `JP`, `RJ`, `EQ` inconditionnel,
-`ZR` inconditionnel, `ES` et `MJ` (CYBER 70/76, 7600), `PS` et `XJ`
-(CYBER 180/170, 70 modèles 71–74, 6000), `IM` (CYBER 70 modèles 72, 73).
-Ce forçage différé n'a lieu qu'à la rencontre de la prochaine instruction
-machine, ou pseudo de génération de données, d'allocation ou de contrôle
-binaire, **dans le même bloc USE** ; il est annulé par un `-` en location
-de cette instruction suivante. Les pseudos intermédiaires qui lisent les
-compteurs voient la valeur **avant** forçage.
+Force upper **after** assembly (deferred) of: `JP`, `RJ`, unconditional
+`EQ`, unconditional `ZR`, `ES` and `MJ` (CYBER 70/76, 7600), `PS` and `XJ`
+(CYBER 180/170, 70 models 71–74, 6000), `IM` (CYBER 70 models 72, 73).
+This deferred force upper takes place only when the next machine
+instruction, or data generation, allocation or binary control pseudo
+instruction, is encountered **in the same USE block**; it is cancelled by
+a `-` in the location field of that next instruction. Intervening pseudo
+instructions that read the counters see the value **before** the force
+upper.
 
-(« EQ inconditionnel » = `EQ` sans registres, i.e. `EQ K` ≡ `EQ B0,B0,K` ;
-« ZR inconditionnel » = `ZR K` [INFÉRENCE ; détails au ch. 8].)
+("Unconditional EQ" = `EQ` without registers, i.e. `EQ K` ≡ `EQ B0,B0,K`;
+"unconditional ZR" = `ZR K` [INFER; details in ch. 8].)
 
-VFD (ch. 4 §4.8.5) : location symbole → forçage, symbole = location après
-forçage ; `+` → forçage ; `-` → COMPASS génère des bits nuls jusqu'à la
-prochaine frontière de **quart de mot** (15 bits) et le premier champ y
-commence ; blanc → le premier champ commence à la position courante. Si
-l'instruction suivante du bloc n'est pas un `VFD` à location blanche et que
-le dernier champ s'arrête avant une frontière de quart de mot, des zéros
-sont insérés jusqu'à cette frontière (invisibles au listing), puis les
-parcelles restantes sont remplies de no-op. VFD consécutifs sans location :
-champs contigus, sans remplissage.
+VFD (ch. 4 §4.8.5): symbol in location → force upper, symbol = location
+after force upper; `+` → force upper; `-` → COMPASS generates zero bits up
+to the next **quarter-word** boundary (15 bits) and the first field starts
+there; blank → the first field starts at the current position. If the next
+instruction in the block is not a `VFD` with a blank location field and
+the last field ends before a quarter-word boundary, zeros are inserted up
+to that boundary (not visible in the listing), then the remaining parcels
+are filled with no-ops. Consecutive VFDs without location: contiguous
+fields, no padding.
 
-**PP.** Aucun forçage. Un `+` en location est ignoré sauf sur `VFD` ; sur
-un `VFD`, `+` ou `-` (ou un symbole) fait commencer les données au mot
-suivant.
+**PP.** No force upper. A `+` in the location field is ignored except on
+`VFD`; on a `VFD`, `+` or `-` (or a symbol) makes the data start in the
+next word.
 
-### 10.5 Programme relogeable (§3.3)
+### 10.5 Relocatable program (§3.3)
 
-- CPU seulement. Composé d'un ou plusieurs modules assemblés/compilés
-  séparément (COMPASS ou autres langages produisant du binaire relogeable
-  acceptable par le chargeur).
-- En mémoire, les modules occupent des blocs de mots contigus ; le premier
-  mot du premier bloc est l'**adresse de référence RA** ; le total est la
-  longueur de champ (FL).
-- Les modules relogeables sont assemblés **comme commençant à l'adresse
-  0** ; toute adresse devient fonction de RA.
-- **Un IDENT non blanc sans adresse de chargement fixe** ⇒ module
-  relogeable.
-- En fin d'assemblage, chaque bloc local reçoit une origine relative au
-  bloc zéro ; chaque bloc devient une extension du bloc zéro. Ordre
-  d'allocation [INFÉRENCE d'après §3.1 et fig. 3-1/3-2] :
+- CPU only. Made of one or more separately assembled/compiled modules
+  (COMPASS or other languages producing relocatable binary acceptable to
+  the loader).
+- In memory, the modules occupy contiguous blocks of words; the first word
+  of the first block is the **reference address RA**; the total is the
+  field length (FL).
+- Relocatable modules are assembled **as if starting at address 0**;
+  every address becomes a function of RA.
+- **A nonblank IDENT without a fixed load address** ⇒ relocatable module.
+- At the end of assembly, each local block receives an origin relative to
+  the zero block; each block becomes an extension of the zero block.
+  Allocation order [INFER from §3.1 and fig. 3-1/3-2]:
 
 ```
-0                      : bloc zéro (PROGRAM*), longueur L0
-                         dont, à la fin, 1 mot par symbole =S non défini
-L0                     : LITERALS*, longueur Llit
-L0+Llit                : 1er bloc local utilisateur CM (ordre d'établissement)
-...                    : blocs locaux suivants
-(LCM) bloc local LCM combiné : blocs locaux LCM concaténés, origine 0 relative à ce bloc
-common /X/, //         : chacun relatif à sa propre origine (relocation common)
-ABSOLUTE*              : adresses absolues relatives à RA
+0                      : zero block (PROGRAM*), length L0
+                         including, at the end, 1 word per undefined =S symbol
+L0                     : LITERALS*, length Llit
+L0+Llit                : 1st user CM local block (order of establishment)
+...                    : following local blocks
+(LCM) combined LCM local block: LCM local blocks concatenated, origin 0 relative to this block
+common /X/, //         : each relative to its own origin (common relocation)
+ABSOLUTE*              : absolute addresses relative to RA
 ```
 
-- **Longueur du module au listing** = somme des valeurs finales des
-  compteurs origin des blocs locaux, **y compris** bloc zéro et bloc
-  littéraux, **sans** le bloc absolu.
-- Liaison : `ENTRY`, `ENTRYC`, `EXT`.
-- Binaire relogeable : une section par pseudo `LCC` (s'il y en a), suivie
-  d'une section contenant les tables du chargeur.
+- **Module length in the listing** = sum of the final values of the origin
+  counters of the local blocks, **including** the zero block and the
+  literals block, **excluding** the absolute block.
+- Linkage: `ENTRY`, `ENTRYC`, `EXT`.
+- Relocatable binary: one section per `LCC` pseudo instruction (if any),
+  followed by a section containing the loader tables.
 
-### 10.6 Programme absolu (§3.4)
+### 10.6 Absolute program (§3.4)
 
-- Code non relogeable, chargé à des adresses fixes (chargement plus
-  rapide). CPU absolu ou relogeable ; PP toujours absolu.
-- COMPASS construit une **image mémoire**. En passe 2, chaque bloc reçoit
-  une origine relative au bloc absolu ; tout symbole relogeable reçoit une
-  adresse absolue ; chaque bloc devient une extension du bloc absolu.
-  Ordre (fig. 3-2) : `PROGRAM*` (absolu) → `PROGRAM*` (bloc zéro, si
-  symboles par défaut) → `LITERALS*` (si littéraux) → blocs locaux A, B,
-  C dans l'ordre d'établissement.
-- Module binaire absolu : table **préfixe** (PRFX, `7700B`), table
-  d'**en-tête**, image binaire. En-têtes possibles : ASCM (`5000B`),
-  EASCM (`5100B`), ACPM (`5300B`), EACPM (`5400B`). Les tables sont
-  désignées au listing par leur numéro octal ; formats dans le manuel du
-  chargeur (spec du chargeur).
-- Quantité de binaire écrite à une instruction de contrôle binaire
-  (`IDENT`, `SEGMENT`, `SEG`, `END`) :
-  - groupe de blocs complet (IDENT…END ou IDENT…IDENT) : l'image se
-    termine à la **valeur maximale du compteur origin du dernier bloc
-    établi** (dernière adresse de mot) ;
-  - portion seulement : l'image se termine à la valeur **courante** du
-    compteur origin.
-- `END`, `SEGMENT` et un `IDENT` non blanc terminent un overlay et
-  écrivent une **fin de section** ; `SEGMENT` et `IDENT` écrivent les
-  informations d'en-tête de l'overlay suivant.
+- Nonrelocatable code, loaded at fixed addresses (faster loading). CPU
+  code is absolute or relocatable; PP code is always absolute.
+- COMPASS builds a **memory image**. In pass 2, each block receives an
+  origin relative to the absolute block; every relocatable symbol receives
+  an absolute address; each block becomes an extension of the absolute
+  block. Order (fig. 3-2): `PROGRAM*` (absolute) → `PROGRAM*` (zero
+  block, if there are default symbols) → `LITERALS*` (if there are
+  literals) → local blocks A, B, C in order of establishment.
+- Absolute binary module: **prefix** table (PRFX, `7700B`), **header**
+  table, binary image. Possible headers: ASCM (`5000B`), EASCM (`5100B`),
+  ACPM (`5300B`), EACPM (`5400B`). The tables are identified in the listing
+  by their octal number; formats are in the loader manual (loader spec).
+- Amount of binary written at a binary control instruction (`IDENT`,
+  `SEGMENT`, `SEG`, `END`):
+  - complete block group (IDENT…END or IDENT…IDENT): the image ends at the
+    **maximum value of the origin counter of the last block established**
+    (last word address);
+  - a portion only: the image ends at the **current** value of the origin
+    counter.
+- `END`, `SEGMENT` and a nonblank `IDENT` terminate an overlay and write an
+  **end of section**; `SEGMENT` and `IDENT` write the header information of
+  the next overlay.
 
-### 10.7 Overlays absolus (§3.4.1)
+### 10.7 Absolute overlays (§3.4.1)
 
-- Plus d'un `IDENT` (non blanc) ou des `SEGMENT` dans un programme absolu ⇒
-  une **section par overlay**.
-- CPU : trois niveaux — principal (main), primaire, secondaire. Niveau =
-  **paire de nombres octaux 0–77B** `(p,s)` donnée par `IDENT` ou
-  `SEGMENT` : `0,0` = principal ; `p≠0, s=0` = primaire ; `p≠0, s≠0` =
-  secondaire. Sans niveaux explicites : `0,0` pour le premier overlay,
-  `1,0` pour tous les suivants. Hiérarchie, ordre et cohabitation en
-  mémoire ne sont **pas** contrôlés par COMPASS.
-- Overlays PP : pas de niveaux, sinon semblables. Code PP en `7774B–7777B`
-  peut mal se charger (retour à 0000).
-- **Overlay de type IDENT** : du `IDENT` au suivant (exclu), ou du dernier
-  `IDENT` à `END`. Le premier `IDENT` produit l'identification ; un
-  second `IDENT` avant `END` produit l'image de l'overlay de l'origine du
-  précédent IDENT jusqu'à la max. du compteur origin du dernier bloc
-  déclaré (ou jusqu'à l'origin courant si un SEG/SEGMENT a précédé), puis
-  fin de section et identification du suivant. **Tous les blocs, y compris
-  les littéraux, sont complétés** ; la structure de blocs repart à zéro
-  (mêmes noms de blocs réutilisables, chaque overlay a son bloc
-  littéraux ; table USE et compteurs réinitialisés). L'origine d'un
-  overlay IDENT peut tomber n'importe où dans un overlay précédent (tous
-  les symboles ont reçu une adresse absolue). La table de contrôle du
-  chargeur est chargée sous l'adresse donnée par `ORG`.
-- **Overlay de type SEGMENT** : de `IDENT` au premier `SEGMENT`, d'un
-  `SEGMENT` au suivant, du dernier `SEGMENT` à `END`. À chaque `SEGMENT` :
-  image depuis l'origine de l'overlay précédent jusqu'à la valeur
-  **courante** du compteur origin du bloc en cours ; fin de section ;
-  identification du suivant. `SEGMENT` **n'efface ni la table des
-  symboles ni la table USE** : le bloc en cours est incomplet, l'utilisateur
-  doit s'assurer que les autres blocs sont complets ; seuls les symboles
-  valides pour le bloc en cours peuvent définir l'origine du nouvel
-  overlay ; chaque overlay SEGMENT doit utiliser des **noms de blocs
-  nouveaux** (un bloc d'un overlay précédent ne peut pas être repris). Le
-  bloc zéro et le bloc littéraux tombent dans l'overlay qui contient la
-  fin du bloc absolu.
-- **Overlays à points d'entrée multiples** (§3.4.2) : `ENTRY` est permis
-  en assemblage absolu et génère une **table overlay 5100B** (mot de
-  contrôle + liste des points d'entrée) placée **sous l'origine de
-  l'overlay**, longue d'un mot de plus que le nombre d'entrées.
+- More than one (nonblank) `IDENT`, or `SEGMENT`s, in an absolute program
+  ⇒ **one section per overlay**.
+- CPU: three levels — main, primary, secondary. Level = **pair of octal
+  numbers 0–77B** `(p,s)` given by `IDENT` or `SEGMENT`: `0,0` = main;
+  `p≠0, s=0` = primary; `p≠0, s≠0` = secondary. Without explicit levels:
+  `0,0` for the first overlay, `1,0` for all following ones. Hierarchy,
+  order and coexistence in memory are **not** checked by COMPASS.
+- PP overlays: no levels, otherwise similar. PP code at `7774B–7777B` may
+  load incorrectly (wraps around to 0000).
+- **IDENT-type overlay**: from one `IDENT` to the next (exclusive), or from
+  the last `IDENT` to `END`. The first `IDENT` produces the
+  identification; a second `IDENT` before `END` produces the image of the
+  overlay from the origin of the previous IDENT up to the max. of the
+  origin counter of the last block declared (or up to the current origin
+  if a SEG/SEGMENT came before), then end of section and identification of
+  the next one. **All blocks, including the literals, are completed**; the
+  block structure starts over from zero (the same block names can be
+  reused, each overlay has its own literals block; USE table and counters
+  reset). The origin of an IDENT overlay can fall anywhere in a previous
+  overlay (all symbols have received an absolute address). The loader
+  control table is loaded below the address given by `ORG`.
+- **SEGMENT-type overlay**: from `IDENT` to the first `SEGMENT`, from one
+  `SEGMENT` to the next, from the last `SEGMENT` to `END`. At each
+  `SEGMENT`: image from the origin of the previous overlay up to the
+  **current** value of the origin counter of the current block; end of
+  section; identification of the next one. `SEGMENT` **clears neither the
+  symbol table nor the USE table**: the current block is incomplete, the
+  user must make sure the other blocks are complete; only symbols valid
+  for the current block can define the origin of the new overlay; each
+  SEGMENT overlay must use **new block names** (a block of a previous
+  overlay cannot be resumed). The zero block and the literals block fall
+  into the overlay that contains the end of the absolute block.
+- **Multiple-entry-point overlays** (§3.4.2): `ENTRY` is allowed in an
+  absolute assembly and generates a **5100B overlay table** (control word
+  + list of entry points) placed **below the origin of the overlay**, one
+  word longer than the number of entries.
 
-### 10.8 Binaire partiel (§3.4.3)
+### 10.8 Partial binary (§3.4.3)
 
-- Programme ou overlay CPU absolu contenant des `SEG` ou des `IDENT` à
-  champ variable **blanc** : COMPASS écrit une **section partielle** = le
-  binaire produit depuis le précédent `IDENT`, `SEGMENT` ou `SEG`, **sans
-  fin de section ni nouvelle table préfixe**. `SEGMENT`, `IDENT` non blanc
-  ou `END` complètent la section.
-- **SEG** : réduit la mémoire de l'assembleur ; n'écrit pas un groupe de
-  blocs complet : du premier bloc établi dans cette portion jusqu'au
-  compteur origin du bloc courant. Stocker des données dans un bloc hors
-  de la portion courante → **erreur fatale** [INFÉRENCE : R]. La portion
-  contenant la fin du bloc absolu contient le bloc littéraux. Tables des
-  symboles et USE **non** réinitialisées.
-- **IDENT blanc** : écrit tout le binaire accumulé depuis le précédent
-  IDENT/SEG/SEGMENT, sans fin de section ni table `7700B`. Table USE et
-  compteurs **réinitialisés** ; chaque symbole reçoit une adresse absolue.
-  Les blocs de chaque section partielle sont alloués comme si c'était un
-  nouveau sous-programme (son bloc absolu, son bloc littéraux, ses blocs
-  locaux) ; l'origine du nouveau bloc absolu = dernière adresse + 1 du
-  dernier bloc de la portion précédente. Image : de l'origine du bloc
-  absolu à la max. du compteur origin du dernier bloc (ou à l'origin
-  courant si un SEG/SEGMENT a déjà écrit une partie du groupe). Les noms de
-  blocs peuvent être réutilisés (blocs indépendants). Écrire dans, ou
-  ramener l'origin vers, une section partielle déjà écrite → **erreur de
-  plage** (« range error » [INFÉRENCE : R]).
+- Absolute CPU program or overlay containing `SEG`s or `IDENT`s with a
+  **blank** variable field: COMPASS writes a **partial section** = the
+  binary produced since the previous `IDENT`, `SEGMENT` or `SEG`, **with no
+  end of section and no new prefix table**. `SEGMENT`, a nonblank `IDENT`
+  or `END` completes the section.
+- **SEG**: reduces assembler memory; does not write a complete block
+  group: from the first block established in this portion up to the
+  origin counter of the current block. Storing data in a block outside the
+  current portion → **fatal error** [INFER: R]. The portion containing the
+  end of the absolute block contains the literals block. Symbol and USE
+  tables are **not** reset.
+- **Blank IDENT**: writes all binary accumulated since the previous
+  IDENT/SEG/SEGMENT, with no end of section and no `7700B` table. USE
+  table and counters are **reset**; each symbol receives an absolute
+  address. The blocks of each partial section are allocated as if it were
+  a new subprogram (its own absolute block, literals block and local
+  blocks); the origin of the new absolute block = last address + 1 of the
+  last block of the previous portion. Image: from the origin of the
+  absolute block to the max. of the origin counter of the last block (or
+  to the current origin if a SEG/SEGMENT already wrote part of the group).
+  Block names can be reused (independent blocks). Writing into, or moving
+  the origin back into, a partial section already written → **range
+  error** [INFER: R].
 
 ---
 
-## 11. Jeux de caractères (annexe A)
+## 11. Character sets (appendix A)
 
-### 11.1 Notes de l'annexe A
+### 11.1 Notes from appendix A
 
-1. « Majuscule/minuscule » ne désigne que les conversions de casse.
-2. Display → ASCII/EBCDIC : on prend l'équivalent majuscule.
-3. ASCII/EBCDIC → display : majuscules et minuscules donnent le même code
-   display.
-4. Tout code ASCII/EBCDIC non listé → display **55B** (blanc).
-5. Deux glyphes display pour un code : à gauche jeu **CDC 64 caractères**
-   (IP CSET = C64.1), à droite **sous-ensemble ASCII 64 caractères**
+1. "Uppercase/lowercase" refers only to case conversions.
+2. Display → ASCII/EBCDIC: the uppercase equivalent is used.
+3. ASCII/EBCDIC → display: uppercase and lowercase give the same display
+   code.
+4. Any ASCII/EBCDIC code not listed → display **55B** (blank).
+5. Two display graphics for one code: on the left the **CDC 64-character
+   set** (IP CSET = C64.1), on the right the **ASCII 64-character subset**
    (C64.2).
-6. Jeu **63 caractères** : `:` = display **63B** ; `%` n'existe pas
-   (ASCII `%` → 55B) ; le code display **00 est indéfini**.
-7. 12 bits nuls ou plus en fin de mot 60 bits = **marque de fin de ligne**
-   (et non deux `:`). Convertie en BCD externe 1632 / BCD interne 1672 sur
-   bande 7 pistes en parité paire, et reconvertie en 0000 en lecture.
-8. (Code `00` BCD externe de `:`) changé en 12 à l'écriture sur bande 7
-   pistes en parité paire.
-9. 11-0 et 11-8-2 équivalents en lecture (perforé 11-0).
-10. 12-0 et 12-8-2 équivalents en lecture (perforé 12-0).
-11. 12-8-7 et 11-0 équivalents en lecture (perforé 12-8-7) [OCR douteux].
-12. 12-8-4 et 12-0 équivalents en lecture (perforé 12-8-4) [OCR douteux].
-13. Pseudo `CODE` : `A` ASCII (sous-ensemble 6 bits), `D` display
-    (défaut), `E` BCD externe, `I` BCD interne (plus `N` ASCII 8 bits et
-    `O` « autre », ch. 4).
+6. **63-character set**: `:` = display **63B**; `%` does not exist
+   (ASCII `%` → 55B); display code **00 is undefined**.
+7. 12 or more zero bits at the end of a 60-bit word = **end-of-line mark**
+   (and not two `:`). Converted to external BCD 1632 / internal BCD 1672
+   on 7-track tape in even parity, and converted back to 0000 on read.
+8. (External BCD code `00` of `:`) changed to 12 when written to 7-track
+   tape in even parity.
+9. 11-0 and 11-8-2 are equivalent on read (11-0 is punched).
+10. 12-0 and 12-8-2 are equivalent on read (12-0 is punched).
+11. 12-8-7 and 11-0 are equivalent on read (12-8-7 is punched) [doubtful
+    OCR].
+12. 12-8-4 and 12-0 are equivalent on read (12-8-4 is punched) [doubtful
+    OCR].
+13. `CODE` pseudo instruction: `A` ASCII (6-bit subset), `D` display
+    (default), `E` external BCD, `I` internal BCD (plus `N` 8-bit ASCII and
+    `O` "other", ch. 4).
 
-### 11.2 Table complète
+### 11.2 Complete table
 
-Colonnes : code display (octal) ; glyphe CDC 64 ; équivalent ASCII
-(sous-ensemble 64) ; perforation Hollerith 026 ; **BCD externe** (`CODE
-E`) ; **BCD interne** (`CODE I`) ; ASCII (hex) ; **ASCII 6 bits** (`CODE
-A`, octal) ; perforation ASCII 029.
+Columns: display code (octal); CDC 64 graphic; ASCII equivalent (64
+subset); Hollerith 026 punch; **external BCD** (`CODE E`); **internal
+BCD** (`CODE I`); ASCII (hex); **6-bit ASCII** (`CODE A`, octal); ASCII
+029 punch.
 
-Règle vérifiée sur toute la table : **ASCII 6 bits = code ASCII − 40B**
-(ex. `O` = 4Fh → 57B). Les valeurs BCD ont été reconstruites à partir de
-l'OCR de l'annexe A et de la carte de référence, et contrôlées par les
-règles de construction BCD (zone 12 → 6x/7x externe, 2x/3x interne ; zone
-11 → 4x/5x ; zone 0 → 2x/3x externe, 6x/7x interne ; chiffre 0 = 12B
-externe, 00 interne ; blanc = 20B externe, 60B interne) et par l'exemple
-`CODE` du manuel (`OUTPUT` → E : `46 24 23 47 24 23`, I : `46 64 63 47 64
-63`, A : `57 65 64 60 65 64`).
+Rule verified over the whole table: **6-bit ASCII = ASCII code − 40B**
+(e.g. `O` = 4Fh → 57B). The BCD values were reconstructed from the OCR of
+appendix A and of the reference card, and checked against the BCD
+construction rules (zone 12 → 6x/7x external, 2x/3x internal; zone 11 →
+4x/5x; zone 0 → 2x/3x external, 6x/7x internal; digit 0 = 12B external, 00
+internal; blank = 20B external, 60B internal) and against the manual's
+`CODE` example (`OUTPUT` → E: `46 24 23 47 24 23`, I: `46 64 63 47 64
+63`, A: `57 65 64 60 65 64`).
 
-| Display | CDC | ASCII | 026 | BCD ext. (E) | BCD int. (I) | ASCII hex | ASCII 6 bits (A) | 029 |
+| Display | CDC | ASCII | 026 | Ext. BCD (E) | Int. BCD (I) | ASCII hex | 6-bit ASCII (A) | 029 |
 |---|---|---|---|---|---|---|---|---|
-| 00 | `:` (jeu 64) | `:` | 8-2 | 00 (note 8) | 12 [INFÉRENCE] | 3A | 32 | 8-2 |
+| 00 | `:` (64 set) | `:` | 8-2 | 00 (note 8) | 12 [INFER] | 3A | 32 | 8-2 |
 | 01 | A | A | 12-1 | 61 | 21 | 41 | 41 | 12-1 |
 | 02 | B | B | 12-2 | 62 | 22 | 42 | 42 | 12-2 |
 | 03 | C | C | 12-3 | 63 | 23 | 43 | 43 | 12-3 |
@@ -1480,13 +1469,13 @@ externe, 00 interne ; blanc = 20B externe, 60B interne) et par l'exemple
 | 52 | ) | ) | 12-8-4 | 74 | 34 | 29 | 11 | 11-8-5 |
 | 53 | $ | $ | 11-8-3 | 53 | 53 | 24 | 04 | 11-8-3 |
 | 54 | = | = | 8-3 | 13 | 13 | 3D | 35 | 8-6 |
-| 55 | blanc | blanc | (aucune) | 20 | 60 | 20 | 00 | (aucune) |
+| 55 | blank | blank | (none) | 20 | 60 | 20 | 00 | (none) |
 | 56 | , | , | 0-8-3 | 33 | 73 | 2C | 14 | 0-8-3 |
 | 57 | . | . | 12-8-3 | 73 | 33 | 2E | 16 | 12-8-3 |
 | 60 | ≡ | # | 0-8-6 | 36 | 76 | 23 | 03 | 8-3 |
 | 61 | [ | [ | 8-7 | 17 | 17 | 5B | 73 | 12-8-2 |
 | 62 | ] | ] | 0-8-2 | 32 | 72 | 5D | 75 | 11-8-2 |
-| 63 | % (jeu 64) / `:` (jeu 63) | % | 8-6 | 16 | 16 | 25 | 05 | 0-8-4 |
+| 63 | % (64 set) / `:` (63 set) | % | 8-6 | 16 | 16 | 25 | 05 | 0-8-4 |
 | 64 | ≠ | " | 8-4 | 14 | 14 | 22 | 02 | 8-7 |
 | 65 | → | _ | 0-8-5 | 35 | 75 | 5F | 77 | 0-8-5 |
 | 66 | ∨ | ! | 11-0 | 52 | 52 | 21 | 01 | 12-8-7 |
@@ -1500,117 +1489,111 @@ externe, 00 interne ; blanc = 20B externe, 60B interne) et par l'exemple
 | 76 | ¬ | ^ | 12-8-6 | 76 | 36 | 5E | 76 | 11-8-7 |
 | 77 | ; | ; | 12-8-7 | 77 | 37 | 3B | 33 | 11-8-6 |
 
-Points de la table à surveiller (OCR) : BCD interne de `:` (12B,
-inféré de la perforation 8-2) ;
-perforations 029 de 66B/67B ; colonnes ASCII minuscules et EBCDIC de
-l'annexe (non nécessaires à l'assembleur, omises).
+Points of the table to watch (OCR): internal BCD of `:` (12B, inferred
+from the 8-2 punch);
+029 punches of 66B/67B; the appendix's lowercase ASCII and EBCDIC columns
+(not needed by the assembler, omitted).
 
-### 11.3 Lecture d'un source ASCII (implémentation JS)
+### 11.3 Reading an ASCII source (JS implementation)
 
-- ASCII → display : utiliser la colonne « équivalent ASCII » à l'envers ;
-  minuscules a–z → 01–32B ; accepter aussi les glyphes CDC Unicode (`≡ ≠ →
-  ∨ ∧ ↑ ↓ ≤ ≥ ¬`) comme alias ; tout autre caractère → 55B (blanc).
-- `:` → **00B** (jeu 64) ou **63B** (jeu 63) ; `%` → 63B (jeu 64) ou 55B
-  (jeu 63). Recommandation : option `charset: 64 | 63`, défaut 64 (table
-  principale du manuel) ; NOS est souvent installé en 63 caractères.
-- Toute la logique de l'assembleur (édition, analyse, valeurs des
-  constantes) opère sur les **codes display** ; la conversion vers le code
-  de sortie (CODE) se fait au moment où une donnée/constante caractère est
-  évaluée.
+- ASCII → display: use the "ASCII equivalent" column in reverse;
+  lowercase a–z → 01–32B; also accept the Unicode CDC graphics (`≡ ≠ →
+  ∨ ∧ ↑ ↓ ≤ ≥ ¬`) as aliases; any other character → 55B (blank).
+- `:` → **00B** (64 set) or **63B** (63 set); `%` → 63B (64 set) or 55B
+  (63 set). Recommendation: option `charset: 64 | 63`, default 64 (the
+  manual's main table); NOS is often installed with 63 characters.
+- All assembler logic (editing, parsing, constant values) operates on
+  **display codes**; conversion to the output code (CODE) takes place when
+  a character data item/constant is evaluated.
 
-### 11.4 Codes de génération (pseudos CODE et CHAR, ch. 4)
+### 11.4 Generation codes (CODE and CHAR pseudos, ch. 4)
 
-- `CODE D` (défaut) : display. `CODE A` : ASCII **6 bits** (ASCII − 40B).
-  `CODE E` : BCD externe. `CODE I` : BCD interne. `CODE N` : ASCII
-  **8 bits** (défaut sous `CIPPU` ; mise en paquet hors du périmètre de ce
-  document). `CODE O` : code « autre » défini par `CHAR`. `CODE *` :
-  revient au code précédent (pile des **50** derniers ; pile vide →
-  display). Caractère inconnu → erreur A.
-- `mname CODE c` : redéfinit le micro `mname` à la lettre du code
-  précédent (`A`, `D`, `E`, `I`, `N`, `O`) ; si aucun micro programme ou
-  système nommé `CODE` n'est défini, le micro prédéfini `CODE` prend la
-  lettre du nouveau code. Le listing affiche `c1→c2` (ancien → nouveau).
-- `CHAR exp1,exp2` : en mode `CODE O`, le caractère de code display
-  `exp1` (0–77B) est généré avec la valeur `exp2` (0–77B). Initialement,
-  « autre » = display. Ex. `CHAR 0,63B` puis `CHAR 63B,0` échangent `:` et
+- `CODE D` (default): display. `CODE A`: **6-bit** ASCII (ASCII − 40B).
+  `CODE E`: external BCD. `CODE I`: internal BCD. `CODE N`: **8-bit**
+  ASCII (default under `CIPPU`; packing outside the scope of this
+  document). `CODE O`: "other" code defined by `CHAR`. `CODE *`: returns
+  to the previous code (stack of the last **50**; empty stack → display).
+  Unknown character → error A.
+- `mname CODE c`: redefines micro `mname` as the letter of the previous
+  code (`A`, `D`, `E`, `I`, `N`, `O`); if no program or system micro named
+  `CODE` is defined, the predefined micro `CODE` takes the letter of the
+  new code. The listing shows `c1→c2` (old → new).
+- `CHAR exp1,exp2`: in `CODE O` mode, the character with display code
+  `exp1` (0–77B) is generated with the value `exp2` (0–77B). Initially,
+  "other" = display. E.g. `CHAR 0,63B` then `CHAR 63B,0` swap `:` and
   `%`.
-- `BASE` (même chapitre) gouverne la base des données numériques sans
-  radix : `D` décimal (défaut), `O` octal, `M` mixte (décimal pour : comptes
-  de bits VFD, comptes de lignes IF/ELSE/SKIP, comptes de caractères
-  MICRO/OCTMIC/DECMIC, sous-champs B/C/I de REP/REPI, comptes DUP/ECHO,
-  comptes de caractères, S, facteurs d'échelle, point binaire, n de COL,
-  compte de mots DIS, compte de lignes SPACE ; octal sinon), `*` (pile de
-  50). Comptes de caractères, S, E, P : **toujours décimaux** quelle que
-  soit la base.
+- `BASE` (same chapter) governs the base of numeric data without a radix:
+  `D` decimal (default), `O` octal, `M` mixed (decimal for: VFD bit
+  counts, IF/ELSE/SKIP line counts, MICRO/OCTMIC/DECMIC character counts,
+  B/C/I subfields of REP/REPI, DUP/ECHO counts, character counts, S, scale
+  factors, binary point, n of COL, DIS word count, SPACE line count; octal
+  otherwise), `*` (stack of 50). Character counts, S, E, P: **always
+  decimal** whatever the base.
 
 ---
 
-## 12. Drapeaux d'erreur (référence, ch. 11 et carte)
+## 12. Error flags (reference, ch. 11 and card)
 
-Le drapeau est imprimé dans la colonne « Error Flags » à gauche de la
-ligne fautive (les lignes en erreur sont toujours listées). **Lettre =
-erreur fatale** (supprime le binaire) ; **chiffre = avertissement
-informatif**. Un répertoire des erreurs (« ERROR DIRECTORY ») est édité en
-fin de listing : `x TYPE ERROR  description / OCCURRED ON PAGES …`.
+The flag is printed in the "Error Flags" column to the left of the
+offending line (lines in error are always listed). **Letter = fatal
+error** (suppresses the binary); **digit = informative warning**. An error
+directory ("ERROR DIRECTORY") is printed at the end of the listing:
+`x TYPE ERROR  description / OCCURRED ON PAGES …`.
 
-| Drapeau | Message | Causes (extraits pertinents pour ce document) |
+| Flag | Message | Causes (excerpts relevant to this document) |
 |---|---|---|
-| A | ADDRESS FIELD BAD. | sous-champ erroné ; caractère CODE ≠ A,D,E,I,O,* ; caractère BASE ≠ O,M,D,* ; symbole/nom > 8 caractères ; expression ne se réduisant pas à un seul externe ; termes relogeables qui ne s'annulent pas ; expression absolue exigée ; registres interdits ; 8/9 dans une donnée octale ; LIT sans donnée ; `=S`/`=X`/`=Y` sans symbole ; saut relatif PP hors de −31..31 ; registre dans CON ; relocation négative sur ORG/ORGC ; POS < 0 ou > taille de mot ; virgule manquante après le compte de mots DIS ; entrée illégale dans IDENT ; compte de micro hors 0..10… |
-| D | DOUBLY DEFINED SYMBOL. THE FIRST DEFINITION HOLDS. | symbole déjà défini ou déclaré externe (la carte de référence OCR lit « B ») |
-| E | ECHO, DUP, RMT, OR MACRO ILLEGALLY NESTED. | définition non entièrement contenue dans la définition englobante |
-| F | NUMBER OF ENTRIES EXCEEDS PERMISSIBLE AMOUNT. | LIT > 100 mots ; plus de 63 paramètres+locaux ; plus de 255 blocs ; plus de 511 externes ; données XTEXT manquantes/erronées |
-| L | LOCATION FIELD BAD. | location exigée erronée ; macro format 2 sans paramètre substituable |
-| N | NEGATIVE RELOCATION ON ENTRY POINT. | point d'entrée relogeable négatif |
-| O | OPERATION FIELD BAD. | opération inconnue ; hors séquence (ABS ou PPU pas dans le premier groupe d'instructions) ; illégale pour le mode binaire ; relation IF erronée ; instruction changée/invalide pour 810…855 (AIDTEXT) |
-| P | CONSULT LISTING FOR REASON BEHIND P-ERROR. | drapeau utilisateur `ERR`/`ERRxx` |
-| R | DATA ORIGIN OUTSIDE BLOCK OR IN BLANK COMMON BLOCK. | données dans le common blanc ou hors des limites du bloc |
-| U | UNDEFINED SYMBOL. VALUE ASSUMED 0. | symbole non défini (y compris compte de lignes IF, compte DIS, attribut IF, qualificatif) |
-| V | BIT COUNT ERROR ON VFD (MUST BE 0 ≤ COUNT ≤ 60). | taille de champ VFD erronée |
-| 1 | LOCATION SYMBOL BAD. SYMBOL NOT DEFINED. | location erronée pour une instruction qui n'en demande pas |
-| 2 | ADDRESS ERROR ON SYMBOL DEFINITION. | champ variable erroné ; symbole de location non défini |
-| 3 | DUPLICATE MACRO DEFINITION. NEW ONE OVERRIDES. | macro/opdef/synonyme redéfinissant un code opération |
-| 4 | BAD FORMAL PARAMETER NAME IGNORED. | paramètre formel répété ou illégal |
+| A | ADDRESS FIELD BAD. | bad subfield; CODE character ≠ A,D,E,I,O,*; BASE character ≠ O,M,D,*; symbol/name > 8 characters; expression that does not reduce to a single external; relocatable terms that do not cancel; absolute expression required; illegal registers; 8/9 in an octal data item; LIT without data; `=S`/`=X`/`=Y` without a symbol; PP relative jump outside −31..31; register in CON; negative relocation on ORG/ORGC; POS < 0 or > word size; missing comma after the DIS word count; illegal entry in IDENT; micro count outside 0..10… |
+| D | DOUBLY DEFINED SYMBOL. THE FIRST DEFINITION HOLDS. | symbol already defined or declared external (the OCR of the reference card reads "B") |
+| E | ECHO, DUP, RMT, OR MACRO ILLEGALLY NESTED. | definition not entirely contained in the enclosing definition |
+| F | NUMBER OF ENTRIES EXCEEDS PERMISSIBLE AMOUNT. | LIT > 100 words; more than 63 parameters+locals; more than 255 blocks; more than 511 externals; missing/bad XTEXT data |
+| L | LOCATION FIELD BAD. | bad required location; format 2 macro without a substitutable parameter |
+| N | NEGATIVE RELOCATION ON ENTRY POINT. | negative relocatable entry point |
+| O | OPERATION FIELD BAD. | unknown operation; out of sequence (ABS or PPU not in the first group of instructions); illegal for the binary mode; bad IF relation; instruction changed/invalid for 810…855 (AIDTEXT) |
+| P | CONSULT LISTING FOR REASON BEHIND P-ERROR. | user flag `ERR`/`ERRxx` |
+| R | DATA ORIGIN OUTSIDE BLOCK OR IN BLANK COMMON BLOCK. | data in blank common or outside the block limits |
+| U | UNDEFINED SYMBOL. VALUE ASSUMED 0. | undefined symbol (including IF line count, DIS count, IF attribute, qualifier) |
+| V | BIT COUNT ERROR ON VFD (MUST BE 0 ≤ COUNT ≤ 60). | bad VFD field size |
+| 1 | LOCATION SYMBOL BAD. SYMBOL NOT DEFINED. | bad location for an instruction that does not require one |
+| 2 | ADDRESS ERROR ON SYMBOL DEFINITION. | bad variable field; location symbol not defined |
+| 3 | DUPLICATE MACRO DEFINITION. NEW ONE OVERRIDES. | macro/opdef/synonym redefining an operation code |
+| 4 | BAD FORMAL PARAMETER NAME IGNORED. | repeated or illegal formal parameter |
 | 5 | CPU OPERATION SYNTAX INCORRECTLY SPECIFIED. | OPDEF/CPOP/CPSYN/PURGDEF |
-| 6 | LOCATION FIELD MEANINGLESS. | location erronée, ignorée |
-| 7 | ADDRESS VALUE EXCEEDS FIELD SIZE, RESULT TRUNCATED. | valeur > champ destination ; BSS négatif ; position/compte MICRO négatif |
-| 8 | MISSING OR EXTRA ADDRESS SUBFIELD. | sous-champ manquant ou superflu |
-| 9 | MICRO SUBSTITUTION ERROR. NO SUBSTITUTION. | référence de micro non reconnue |
+| 6 | LOCATION FIELD MEANINGLESS. | bad location, ignored |
+| 7 | ADDRESS VALUE EXCEEDS FIELD SIZE, RESULT TRUNCATED. | value > destination field; negative BSS; negative MICRO position/count |
+| 8 | MISSING OR EXTRA ADDRESS SUBFIELD. | missing or extra subfield |
+| 9 | MICRO SUBSTITUTION ERROR. NO SUBSTITUTION. | unrecognized micro reference |
 
-[INFÉRENCE] Les avertissements mentionnés sans numéro dans les chapitres
-1–3 (troncature de registre `A.10`, définition d'un symbole en forme de
-registre, troncature d'une constante caractère) sont à rattacher au
-drapeau 7 (troncature) ; la définition d'un symbole à forme de registre
-n'a pas de numéro identifiable [AMBIGU : utiliser 6 ou 7, documenter le
-choix].
+[INFER] The warnings mentioned without a number in chapters 1–3 (register
+truncation `A.10`, definition of a symbol shaped like a register,
+truncation of a character constant) belong with flag 7 (truncation); the
+definition of a register-shaped symbol has no identifiable number [AMBIG:
+use 6 or 7, document the choice].
 
 ---
 
-## 13. Annexe D — conseils utiles à l'implémentation
+## 13. Appendix D — hints useful to the implementation
 
-- Dans une macro : les commentaires `*` en colonne 1 **ne sont pas
-  sauvegardés**, les autres oui. `IRP` est plus rapide que `ECHO`/`DUP`.
-  Les drapeaux de paramètre `;A`, `;B`… (77B suivi d'une lettre ; le 1er
-  paramètre devient la marque interne 7701B, le 2e 7702B…) peuvent être
-  écrits directement. Préférer `.1`, `.2`… aux symboles locaux.
-- IF : préférer les comptes de lignes à `ENDIF` ; `SKIP` plutôt que
-  `IF PP`.
-- Micros : la substitution est coûteuse ; `≠≠` pour une substitution
-  nulle.
-- `SEG` dans les programmes absolus pour réduire la mémoire ; `NOREF` pour
-  les symboles qu'on ne veut pas au tableau des références ; `QUAL` pour
-  tous les overlays.
-- Programme d'exemple (fig. D-1, NOS) : `IDENT EXAMPLE`, `ENTRY BEGIN`,
+- In a macro: `*` comments in column 1 **are not saved**, other comments
+  are. `IRP` is faster than `ECHO`/`DUP`. The parameter flags `;A`, `;B`…
+  (77B followed by a letter; the 1st parameter becomes the internal mark
+  7701B, the 2nd 7702B…) can be written directly. Prefer `.1`, `.2`… to
+  local symbols.
+- IF: prefer line counts to `ENDIF`; `SKIP` rather than `IF PP`.
+- Micros: substitution is costly; `≠≠` for a null substitution.
+- `SEG` in absolute programs to reduce memory; `NOREF` for symbols that
+  should not appear in the reference table; `QUAL` for all overlays.
+- Example program (fig. D-1, NOS): `IDENT EXAMPLE`, `ENTRY BEGIN`,
   `OBUF BSS 301B`, `OUTPUT FILEC OBUF,301B`, `BEGIN SB1 1`, `SB2 B0`,
   `SB3 6`, `MX1 0`, `LOOP SA2 TABLE+B2`, `SB2 B2+B1`, `IX1 X2+X1`,
   `NE B2,B3,LOOP`, `RJ =XCDD`, `SA6 ANS`, `WRITEH OUTPUT,WORDS,LEN`,
   `WRITER OUTPUT`, `ENDRUN`, `TABLE DATA 1` … `DATA 6`,
   `WORDS DATA H* THE ANSWER IS *`, `ANS BSS 1`, `LEN EQU *-WORDS`, `SST`,
   `XTEXT COMCSYS`, `XTEXT COMCWTH`, `XTEXT COMCCIO`, `XTEXT COMCCDD`,
-  `END BEGIN`. Points de langage illustrés : `MX1 0` (15 bits) suivi d'une
-  instruction 30 bits → la parcelle restante est remplie d'un no-op
-  (forçage) ; le `+` après le code octal marque un champ K relogeable ;
-  `=XCDD` déclare CDD externe fort par défaut ; `LEN EQU *-WORDS` est
-  absolu (paire annulée). Code produit : `SB1 1` → `6110000001`,
+  `END BEGIN`. Language points illustrated: `MX1 0` (15 bits) followed by
+  a 30-bit instruction → the remaining parcel is filled with a no-op
+  (force upper); the `+` after the octal code marks a relocatable K field;
+  `=XCDD` declares CDD a strong external by default; `LEN EQU *-WORDS` is
+  absolute (cancelled pair). Code produced: `SB1 1` → `6110000001`,
   `SB2 B0` → `66200`, `SB3 6` → `6130000006`, `MX1 0` → `43100`,
   `SA2 TABLE+B2` → `5122000321 +`, `SB2 B2+B1` → `66221`,
   `IX1 X2+X1` → `36121`, `NE B2,B3,LOOP` → `0523000310 +`,
@@ -1618,28 +1601,28 @@ choix].
 
 ---
 
-## 14. Synthèse des ambiguïtés
+## 14. Summary of ambiguities
 
-1. **Continuation après une « instruction terminée »** (§2.4) : interprété
-   comme continuation après une ligne `*` ; sinon rattachement.
-2. **Ordre concaténation / micros et ré-analyse** (§3.3) : balayage
-   unique gauche→droite, pas de re-substitution.
-3. **Chaînes vides C, Z, R, A** (§8.1) : un mot nul (blanc pour A).
-4. **Allocation multi-mot de A/R** (§8.1) : cadrage à droite dans
-   `ceil(n/cpw)` mots.
-5. **Arrondi des entiers avec exposant négatif** et **arrondi/troncature
-   avec P** (§8.2).
-6. **Hexadécimal > 60 bits** (§8.3).
-7. **Arithmétique en complément à un** : production de −0, produits et
-   quotients signés (§9.3) — à valider par tests de non-régression sur des
-   listings réels.
-8. **Critère « valeur trop grande pour le champ »** (§9.3).
-9. **XOR avec termes relogeables** (§9.3).
-10. **Longueur de bloc** : maximum vs valeur finale du compteur origin
+1. **Continuation after a "terminated statement"** (§2.4): interpreted as
+   continuation after a `*` line; otherwise attached to the statement.
+2. **Order of concatenation / micros and rescanning** (§3.3): single
+   left→right scan, no re-substitution.
+3. **Empty C, Z, R, A strings** (§8.1): one zero word (blank for A).
+4. **Multiword allocation of A/R** (§8.1): right-justified in
+   `ceil(n/cpw)` words.
+5. **Rounding of integers with a negative exponent** and **rounding/
+   truncation with P** (§8.2).
+6. **Hexadecimal > 60 bits** (§8.3).
+7. **Ones' complement arithmetic**: production of −0, signed products and
+   quotients (§9.3) — to be validated by regression tests against real
+   listings.
+8. **"Value too large for the field" criterion** (§9.3).
+9. **XOR with relocatable terms** (§9.3).
+10. **Block length**: maximum vs final value of the origin counter
     (§10.3).
-11. **BCD interne de `:`** et perforations 029 de 66B/67B (§11.2).
-12. **Numéro d'avertissement** pour les symboles en forme de registre et
-    la troncature `A.x` (§12).
-13. **Lettre D vs B** pour « doubly defined » (tableau 11-1 : D ; carte
-    OCR : B) — retenir **D**.
-14. **Préfixe des symboles inventés** des LOCAL (`?Wnnnnn`) (§5.7).
+11. **Internal BCD of `:`** and 029 punches of 66B/67B (§11.2).
+12. **Warning number** for register-shaped symbols and `A.x` truncation
+    (§12).
+13. **Letter D vs B** for "doubly defined" (table 11-1: D; OCR of the
+    card: B) — use **D**.
+14. **Prefix of invented symbols** for LOCAL (`?Wnnnnn`) (§5.7).

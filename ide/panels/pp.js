@@ -1,4 +1,4 @@
-// Panneau des processeurs périphériques (10 PP) et panneau des canaux.
+// Peripheral processor panel (10 PPs) and channels panel.
 
 import { h, esc, o, parseOctal } from '../dom.js';
 import { VirtualList, section, tbtn, tinput, inlineEdit } from './common.js';
@@ -6,16 +6,16 @@ import { toast } from '../ui.js';
 import { disasmPP } from '../../src/pp/disasm.js';
 import { DISPLAY } from '../../src/common/charset.js';
 
-/** État d'un PP en clair. */
+/** State of a PP as readable text. */
 export function ppState(pp) {
-  if (pp.stopped) return { cls: 'stopped', text: 'arrêté' };
-  if (pp.exchanging) return { cls: 'wait', text: 'échange CPU' };
-  if (pp.hungOn) return { cls: 'hung', text: `attente ${pp.hungOn}` };
-  if (pp.busy) return { cls: 'busy', text: 'transfert' };
-  return { cls: 'run', text: 'en marche' };
+  if (pp.stopped) return { cls: 'stopped', text: 'stopped' };
+  if (pp.exchanging) return { cls: 'wait', text: 'CPU exchange' };
+  if (pp.hungOn) return { cls: 'hung', text: `waiting on ${pp.hungOn}` };
+  if (pp.busy) return { cls: 'busy', text: 'transfer' };
+  return { cls: 'run', text: 'running' };
 }
 
-/** Trouve une adresse de départ d'où le désassemblage retombe exactement sur P. */
+/** Finds a start address from which the disassembly lands exactly on P. */
 function alignedStart(mem, P, back = 10) {
   for (let s = Math.max(0, P - back); s < P; s++) {
     let a = s;
@@ -43,7 +43,7 @@ export class PpPanel {
       const a = Number(r.dataset.a);
       if (e.target.closest('.d-bp') || e.target.closest('.d-addr')) {
         const on = this.ctx.runner.togglePpAddressBreakpoint(this.sel, a);
-        this.ctx.log(`Point d'arrêt PP${o(this.sel, 2)} ${on ? 'posé' : 'retiré'} en ${o(a, 4)}B.`);
+        this.ctx.log(`PP${o(this.sel, 2)} breakpoint ${on ? 'set' : 'removed'} at ${o(a, 4)}B.`);
         this.update(true);
       } else if (r.dataset.line) this.ctx.revealSource(Number(r.dataset.line));
     });
@@ -52,11 +52,11 @@ export class PpPanel {
       render: (i) => this.memRow(i),
       onDblClick: (i, e) => this.editMem(i, e),
     });
-    this.memGoto = tinput({ placeholder: 'adresse', width: 80, onenter: (v) => { const a = parseOctal(v); if (a !== null) this.memList.scrollToIndex(Number(a & 0o7777n) >> 3, true); } });
-    this.stepBtn = tbtn('Pas PP', () => this.ctx.stepPP(this.sel), { icon: 'stepPp', tip: 'Exécuter une instruction de ce PP (Maj+F10)' });
-    this.secDetail = section('PP sélectionné', h('div', null, this.detailHead, this.dis), { key: 'pp-detail', actions: [this.stepBtn] });
-    this.secMem = section('Mémoire du PP (4096 mots de 12 bits)', this.memList.el, { key: 'pp-mem', actions: [this.memGoto] });
-    this.el = h('div', { class: 'panel panel-pp scroll' }, section('Barillet des 10 PP', this.grid, { key: 'pp-grid' }), this.secDetail, this.secMem);
+    this.memGoto = tinput({ placeholder: 'address', width: 80, onenter: (v) => { const a = parseOctal(v); if (a !== null) this.memList.scrollToIndex(Number(a & 0o7777n) >> 3, true); } });
+    this.stepBtn = tbtn('Step PP', () => this.ctx.stepPP(this.sel), { icon: 'stepPp', tip: 'Execute one instruction of this PP (Shift+F10)' });
+    this.secDetail = section('Selected PP', h('div', null, this.detailHead, this.dis), { key: 'pp-detail', actions: [this.stepBtn] });
+    this.secMem = section('PP memory (4096 12-bit words)', this.memList.el, { key: 'pp-mem', actions: [this.memGoto] });
+    this.el = h('div', { class: 'panel panel-pp scroll' }, section('Barrel of the 10 PPs', this.grid, { key: 'pp-grid' }), this.secDetail, this.secMem);
   }
 
   select(n) {
@@ -90,7 +90,7 @@ export class PpPanel {
     this.detailHead.innerHTML = `<div class="pp-regs mono">`
       + `<span><b>PP${o(this.sel, 2)}</b></span><span>P <b>${o(pp.P, 4)}</b></span><span>A <b>${o(pp.A, 6)}</b></span>`
       + `<span>Q <b>${o(pp.Q, 4)}</b></span><span>K <b>${o(pp.K, 4)}</b></span>`
-      + `<span>instr. <b>${pp.instructions.toLocaleString('fr-FR')}</b></span></div>`
+      + `<span>instr. <b>${pp.instructions.toLocaleString('en-US')}</b></span></div>`
       + `<div class="pp-status"><span class="dot ${st.cls}"></span>${esc(st.text)}</div>`;
     this.renderDisasm(pp);
     if (!this.secMem.classList.contains('closed')) this.memList.refresh();
@@ -141,7 +141,7 @@ export class PpPanel {
     const pp = this.ctx.machine.pps[this.sel];
     inlineEdit(cell, o(pp.mem[a], 4), (v) => {
       const n = parseOctal(v);
-      if (n === null || n > 0o7777n) { toast('Valeur octale de 12 bits attendue.', 'warn'); return false; }
+      if (n === null || n > 0o7777n) { toast('12-bit octal value expected.', 'warn'); return false; }
       pp.mem[a] = Number(n);
       setTimeout(() => { this.memList.refresh(); this.update(true); });
       return true;
@@ -149,7 +149,7 @@ export class PpPanel {
   }
 }
 
-// ---------------------------------------------------------------- canaux
+// -------------------------------------------------------------- channels
 
 export class ChannelsPanel {
   constructor(ctx) {
@@ -157,9 +157,9 @@ export class ChannelsPanel {
     this.body = h('tbody');
     this.el = h('div', { class: 'panel panel-channels scroll' },
       h('div', { class: 'table-wrap' }, h('table', { class: 'grid-table channels' },
-        h('thead', null, h('tr', null, ...['Canal', 'Actif', 'Plein', 'Donnée', 'Dernière fonction', 'Équipement sélectionné', 'Raccordés'].map((t) => h('th', null, t)))),
+        h('thead', null, h('tr', null, ...['Channel', 'Active', 'Full', 'Data', 'Last function', 'Selected equipment', 'Connected'].map((t) => h('th', null, t)))),
         this.body)),
-      h('div', { class: 'note' }, 'Un canal est « actif » quand une connexion est établie (ACN, ou automatiquement après FNC sur certains équipements) et « plein » quand un mot de 12 bits y attend. Les canaux 0 à 13B équipent le 6600 ; 14B porte l\'horloge temps réel.'));
+      h('div', { class: 'note' }, 'A channel is "active" when a connection is established (ACN, or automatically after FNC on some equipment) and "full" when a 12-bit word is waiting on it. Channels 0 to 13B are standard on the 6600; 14B carries the real-time clock.'));
   }
 
   onShow() {

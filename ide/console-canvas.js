@@ -1,14 +1,14 @@
-// Rendu de la console 6612 : deux écrans cathodiques côte à côte.
+// Rendering of the 6612 console: two cathode-ray screens side by side.
 //
-// Chaque écran a un espace de coordonnées de 512 x 512 (9 bits) ; Y croît vers
-// le haut. Les caractères sont tracés avec une police vectorielle (comme le
-// générateur de caractères de la console) en trois tailles : petite (8 points),
-// moyenne (16) et grande (32), ou en mode points. La rémanence du luminophore
-// est simulée : un tracé non rafraîchi s'estompe avec son âge.
+// Each screen has a 512 x 512 coordinate space (9 bits); Y increases upward.
+// Characters are drawn with a vector font (like the console's character
+// generator) in three sizes: small (8 dots), medium (16) and large (32), or
+// in dot mode. Phosphor persistence is simulated: a trace that is not
+// refreshed fades with its age.
 
 import { DISPLAY_CDC } from '../src/common/charset.js';
 
-// Police vectorielle : polylignes sur une grille de 4 x 6 (y vers le bas).
+// Vector font: polylines on a 4 x 6 grid (y downward).
 const G = {
   A: [[0, 6, 0, 2, 2, 0, 4, 2, 4, 6], [0, 4, 4, 4]],
   B: [[0, 6, 0, 0, 3, 0, 4, 1, 4, 2, 3, 3, 0, 3], [3, 3, 4, 4, 4, 5, 3, 6, 0, 6]],
@@ -76,14 +76,14 @@ const G = {
   ':': [[2, 1.5, 2, 2.2], [2, 4.6, 2, 5.3]],
 };
 
-/** Polylignes du glyphe d'un code display (0-63). */
+/** Glyph polylines of a display code (0-63). */
 const GLYPHS = [];
 for (let i = 0; i < 64; i++) GLYPHS.push(G[DISPLAY_CDC[i]] || []);
 
 const PHOSPHORS = {
-  green: { core: '#c8ffd9', glow: 'rgba(60, 255, 140, 0.95)', tint: '#0b1a12', dim: 'rgba(80, 255, 150, ', label: 'Vert (P31)' },
-  blue: { core: '#e4f1ff', glow: 'rgba(110, 180, 255, 0.95)', tint: '#0a1220', dim: 'rgba(130, 190, 255, ', label: 'Bleu' },
-  amber: { core: '#ffeccc', glow: 'rgba(255, 176, 64, 0.95)', tint: '#1c1408', dim: 'rgba(255, 180, 80, ', label: 'Ambre' },
+  green: { core: '#c8ffd9', glow: 'rgba(60, 255, 140, 0.95)', tint: '#0b1a12', dim: 'rgba(80, 255, 150, ', label: 'Green (P31)' },
+  blue: { core: '#e4f1ff', glow: 'rgba(110, 180, 255, 0.95)', tint: '#0a1220', dim: 'rgba(130, 190, 255, ', label: 'Blue' },
+  amber: { core: '#ffeccc', glow: 'rgba(255, 176, 64, 0.95)', tint: '#1c1408', dim: 'rgba(255, 180, 80, ', label: 'Amber' },
 };
 export const PHOSPHOR_NAMES = Object.fromEntries(Object.entries(PHOSPHORS).map(([k, v]) => [k, v.label]));
 
@@ -111,7 +111,7 @@ export class CrtConsole {
     this.layout = null;
   }
 
-  /** Calcule les rectangles des écrans selon la taille du canevas. */
+  /** Computes the screen rectangles from the canvas size. */
   computeLayout() {
     const dpr = window.devicePixelRatio || 1;
     const rect = this.canvas.getBoundingClientRect();
@@ -131,7 +131,7 @@ export class CrtConsole {
     return this.layout;
   }
 
-  /** Dessine les tracés visibles. items : [{ s, sz, x, y, c, t }] ; now : temps simulé (µs). */
+  /** Draws the visible traces. items: [{ s, sz, x, y, c, t }]; now: simulated time (µs). */
   draw(items, now) {
     const L = this.layout && this.layout.W === Math.round(this.canvas.getBoundingClientRect().width) ? this.layout : this.computeLayout();
     const { dpr } = L;
@@ -140,7 +140,7 @@ export class CrtConsole {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, L.W, L.H);
 
-    // Dédoublonnage : un caractère redessiné à la même place ne compte qu'une fois (le plus récent).
+    // Deduplication: a character redrawn at the same place counts only once (the most recent).
     const latest = new Map();
     for (const e of items) {
       const key = `${e.s}|${e.x}|${e.y}|${e.c}|${e.sz}`;
@@ -148,7 +148,7 @@ export class CrtConsole {
       if (!p || p.t < e.t) latest.set(key, e);
     }
 
-    // Tracés nets sur le canevas hors écran, regroupés par niveau de luminosité.
+    // Sharp traces on the off-screen canvas, grouped by brightness level.
     const off = this.offCtx;
     off.setTransform(dpr, 0, 0, dpr, 0, 0);
     off.clearRect(0, 0, L.W, L.H);
@@ -180,7 +180,7 @@ export class CrtConsole {
         for (const e of list) {
           if (e.s !== sc.id) continue;
           if (e.c < 0 || e.sz === 3) { dots.push(e); continue; }
-          // le 6612 ne trace rien pour le code 00 ni pour les codes 60B-77B
+          // the 6612 draws nothing for code 00 nor for codes 60B-77B
           if (e.c === 0 || e.c >= 0o60) continue;
           const inc = INCREMENT[e.sz] * k;
           const gw = inc * 0.62, gh = inc * 0.82;
@@ -203,7 +203,7 @@ export class CrtConsole {
     }
     off.globalAlpha = 1;
 
-    // Écrans : cadre, verre, puis luminophore (halo flou + tracé net).
+    // Screens: bezel, glass, then phosphor (blurred glow + sharp trace).
     for (const sc of L.screens) this.drawBezel(ctx, sc, ph);
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -227,7 +227,7 @@ export class CrtConsole {
 
   drawBezel(ctx, sc, ph) {
     const r = sc.size * 0.07;
-    // cadre extérieur
+    // outer bezel
     ctx.save();
     const m = 7;
     const grad = ctx.createLinearGradient(0, sc.y - m, 0, sc.y + sc.size + m);
@@ -237,7 +237,7 @@ export class CrtConsole {
     ctx.beginPath();
     roundRect(ctx, sc.x - m, sc.y - m, sc.size + m * 2, sc.size + m * 2, r + m);
     ctx.fill();
-    // verre
+    // glass
     const g = ctx.createRadialGradient(sc.x + sc.size / 2, sc.y + sc.size / 2, sc.size * 0.1, sc.x + sc.size / 2, sc.y + sc.size / 2, sc.size * 0.75);
     g.addColorStop(0, ph.tint);
     g.addColorStop(1, '#030504');
@@ -246,12 +246,12 @@ export class CrtConsole {
     roundRect(ctx, sc.x, sc.y, sc.size, sc.size, r);
     ctx.fill();
     ctx.restore();
-    // étiquette
+    // label
     ctx.save();
     ctx.fillStyle = 'rgba(160, 168, 180, 0.75)';
     ctx.font = '600 10px system-ui, "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(sc.id === 0 ? 'ÉCRAN GAUCHE' : 'ÉCRAN DROIT', sc.x + sc.size / 2, sc.y + sc.size + 20);
+    ctx.fillText(sc.id === 0 ? 'LEFT SCREEN' : 'RIGHT SCREEN', sc.x + sc.size / 2, sc.y + sc.size + 20);
     ctx.restore();
   }
 
@@ -261,13 +261,13 @@ export class CrtConsole {
     ctx.beginPath();
     roundRect(ctx, sc.x, sc.y, sc.size, sc.size, r);
     ctx.clip();
-    // reflet
+    // reflection
     const g = ctx.createLinearGradient(sc.x, sc.y, sc.x + sc.size * 0.6, sc.y + sc.size * 0.6);
     g.addColorStop(0, 'rgba(255,255,255,0.07)');
     g.addColorStop(0.5, 'rgba(255,255,255,0.0)');
     ctx.fillStyle = g;
     ctx.fillRect(sc.x, sc.y, sc.size, sc.size);
-    // vignettage
+    // vignetting
     const v = ctx.createRadialGradient(sc.x + sc.size / 2, sc.y + sc.size / 2, sc.size * 0.35, sc.x + sc.size / 2, sc.y + sc.size / 2, sc.size * 0.78);
     v.addColorStop(0, 'rgba(0,0,0,0)');
     v.addColorStop(1, 'rgba(0,0,0,0.55)');
@@ -283,7 +283,7 @@ export class CrtConsole {
     ctx.restore();
   }
 
-  /** Écran (0/1) et coordonnées 6612 sous un point du canevas, ou null. */
+  /** Screen (0/1) and 6612 coordinates under a canvas point, or null. */
   hitTest(clientX, clientY) {
     const L = this.layout;
     if (!L) return null;

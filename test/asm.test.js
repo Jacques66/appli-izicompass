@@ -1,4 +1,4 @@
-// Conformité de l'assembleur avec les exemples « code generated » du manuel COMPASS 3.
+// Conformance of the assembler with the "code generated" examples of the COMPASS 3 manual.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assemble } from '../src/asm/compass.js';
@@ -6,7 +6,7 @@ import { Machine } from '../src/machine.js';
 import { linkAndLoad, loadPP } from '../src/loader/loader.js';
 import { toNumber } from '../src/cpu/float.js';
 
-/** Assemble des lignes dans un programme et retourne le code octal de chaque ligne. */
+/** Assembles lines in a program and returns the octal code of each line. */
 function codes(lines, { pp = false, pre = [] } = {}) {
   const head = pp ? ['          IDENT  T,100B', '          PERIPH'] : ['          IDENT  T', '          ABS', '          ORG    100B'];
   const src = [...head, ...pre, ...lines.map((l) => '          ' + l), '          END'].join('\n');
@@ -48,12 +48,12 @@ const CPU = [
   ['RX6    X5', '01465'], ['WX7    X0', '01570'],
 ];
 
-test('instructions CPU : exemples du manuel', () => {
+test('CPU instructions: manual examples', () => {
   const { out } = codes(CPU.map((c) => c[0]));
   CPU.forEach(([src, exp], k) => assert.equal(out[k], exp, src));
 });
 
-test('branchements CPU', () => {
+test('CPU branches', () => {
   const pre = [' K        EQU    1234B'];
   const cases = [
     ['ZR     B5,K', '0450001234'], ['EQ     B0,B5,K', '0405001234'], ['EQ     B5,B3,K', '0453001234'],
@@ -65,12 +65,12 @@ test('branchements CPU', () => {
     ['IR     X0,K', '0340001234'], ['OR     X1,K', '0351001234'], ['DF     X5,K', '0365001234'],
     ['ID     X7,K', '0377001234'], ['RJ     K', '0100001234'], ['JP     B5+K', '0255001234'],
   ];
-  // chaque branchement force la suivante en début de mot : on les assemble un par ligne
+  // each branch forces the next instruction upper: assemble them one per line
   const { out } = codes(cases.map((c) => c[0]), { pre });
   cases.forEach(([src, exp], k) => assert.equal(out[k], exp, src));
 });
 
-test('données : nombres, caractères, codes', () => {
+test('data: numbers, characters, codes', () => {
   const cases = [
     ['DATA   1.0', '17204000000000000000'], ['DATA   0.1', '17146314631463146315'],
     ['DATA   1.1', '17204314631463146315'], ['DATA   -1', '77777777777777777776'],
@@ -88,7 +88,7 @@ test('données : nombres, caractères, codes', () => {
   cases.forEach(([src, exp], k) => assert.equal(out[k], exp, src));
 });
 
-test('pseudo CODE : ASCII, BCD externe et interne', () => {
+test('CODE pseudo: ASCII, external and internal BCD', () => {
   const lines = ['DATA   0LOUTPUT', 'CODE   ASCII', 'DATA   0LOUTPUT', 'CODE   EXTERNAL BCD', 'DATA   0LOUTPUT',
     'CODE   INTERNAL BCD', 'DATA   0LOUTPUT', 'CODE   DISPLAY', 'DATA   0LOUTPUT', 'CODE   *', 'DATA   0LOUTPUT'];
   const { out } = codes(lines);
@@ -100,7 +100,7 @@ test('pseudo CODE : ASCII, BCD externe et interne', () => {
   assert.equal(out[10], '46646347646300000000');
 });
 
-test('instructions PP', () => {
+test('PP instructions', () => {
   const pre = [' TAG1     EQU    12B', ' TAG6     EQU    203B', ' TAG      EQU    1364B'];
   const cases = [
     ['LDC    707070B', '2070 7070'], ['LPC    070707B', '2207 0707'], ['FNC    20B,5', '7705 0020'],
@@ -117,7 +117,7 @@ test('instructions PP', () => {
   cases.forEach(([src, exp], k) => assert.equal(out[k], exp, src));
 });
 
-test('sauts relatifs PP (sans option J)', () => {
+test('PP relative jumps (without option J)', () => {
   const src = [
     '          IDENT  T,20B', '          PERIPH', '          ORG    12B', ' TAG1     PSN',
     '          ORG    20B', '          UJN    TAG1-*', ' TAG3     EQU    25B', '          NJN    TAG3', '          END',
@@ -127,12 +127,12 @@ test('sauts relatifs PP (sans option J)', () => {
   assert.equal(r.lines.find((m) => m.line === 8).octal.join(' '), '0525');
 });
 
-test('CMU : descripteur DM', () => {
+test('CMU: DM descriptor', () => {
   const { out } = codes(['DM     127,BUFFA,0,BUFFB,5'], { pre: [' BUFFA    EQU    5000B', ' BUFFB    EQU    7000B'] });
   assert.equal(out[0], '46570050007405007000');
 });
 
-test('littéraux partagés', () => {
+test('shared literals', () => {
   const src = ['          IDENT  T', '          ABS', '          ORG    100B', '          SB2    =1', '          SB3    =1RA',
     '          SB4    =1RB', ' L        LIT    1,2', '          END'].join('\n');
   const r = assemble(src);
@@ -142,9 +142,9 @@ test('littéraux partagés', () => {
   assert.ok(r.ok, JSON.stringify(r.errors));
 });
 
-test('bout en bout : programme CPU exécuté par l\'émulateur', () => {
+test('end to end: CPU program run by the emulator', () => {
   const src = `
-          IDENT  SOMME
+          IDENT  SUM
           ABS
           ORG    100B
  START    SB1    1
@@ -180,7 +180,7 @@ test('bout en bout : programme CPU exécuté par l\'émulateur', () => {
   assert.equal(toNumber(m.cm[sym('PROD')]), -10);
 });
 
-test('bout en bout : programme relogeable lié', () => {
+test('end to end: linked relocatable program', () => {
   const main = `
           IDENT  MAIN
           ENTRY  START
@@ -210,7 +210,7 @@ test('bout en bout : programme relogeable lié', () => {
   assert.equal(m.cm[0o1000 + 0o100 + out], 42n);
 });
 
-test('bout en bout : programme PP sur la console 6612', () => {
+test('end to end: PP program on the 6612 console', () => {
   const src = `
           IDENT  CON,100B
           PERIPH
@@ -234,5 +234,5 @@ test('bout en bout : programme PP sur la console 6612', () => {
   m.startPP(0, r.programs[0].entry);
   m.run(2000);
   const chars = m.console.trace.map((t) => t.c);
-  assert.ok(chars.includes(0o17) && chars.includes(0o13), 'caractères O et K tracés');
+  assert.ok(chars.includes(0o17) && chars.includes(0o13), 'characters O and K traced');
 });

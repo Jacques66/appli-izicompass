@@ -1,10 +1,10 @@
-// Désassembleur CPU 6600 en syntaxe COMPASS.
+// 6600 CPU disassembler, COMPASS syntax.
 
 import { instructionLength } from './cpu.js';
 
 const o = (n) => (n > 7 ? `${n.toString(8)}B` : String(n));
 
-/** Constante K 18 bits : négatif en complément à un affiché « -n ». */
+/** 18-bit K constant: a ones' complement negative is shown as "-n". */
 function kval(K) {
   if (K & 0o400000) {
     const n = ~K & 0o777777;
@@ -14,7 +14,7 @@ function kval(K) {
 }
 
 function addrForm(base, K, label) {
-  // base : 'A1', 'B0', 'X2'… ; K : constante
+  // base: 'A1', 'B0', 'X2'...; K: constant
   if (label) return base === 'B0' ? label : `${base}+${label}`;
   const k = kval(K);
   if (base === 'B0') return k.neg ? `-${k.text}` : k.text;
@@ -27,10 +27,10 @@ const COND = ['ZR', 'NZ', 'PL', 'NG', 'IR', 'OR', 'DF', 'ID'];
 const FLOAT = ['FX# Xj+Xk', 'FX# Xj-Xk', 'DX# Xj+Xk', 'DX# Xj-Xk', 'RX# Xj+Xk', 'RX# Xj-Xk', 'IX# Xj+Xk', 'IX# Xj-Xk'];
 
 /**
- * Désassemble une instruction.
- * @param parcels tableau de 4 parcelles du mot
- * @param n index de la parcelle de début
- * @param opts { symbol(addr) -> nom ou null, cmu }
+ * Disassembles one instruction.
+ * @param parcels array of the word's 4 parcels
+ * @param n index of the starting parcel
+ * @param opts { symbol(addr) -> name or null, cmu }
  * @returns { text, length, mnemonic, operands }
  */
 export function disasmInstruction(parcels, n, opts = {}) {
@@ -39,7 +39,7 @@ export function disasmInstruction(parcels, n, opts = {}) {
   const length = instructionLength(p, opts.cmu);
   let K = 0;
   if (length === 30) {
-    if (n === 3) return { text: `** ${p.toString(8).padStart(5, '0')} (30 bits en parcelle 3)`, length: 15 };
+    if (n === 3) return { text: `** ${p.toString(8).padStart(5, '0')} (30 bits in parcel 3)`, length: 15 };
     K = ((p & 7) << 15) | parcels[n + 1];
   }
   const sym = opts.symbol || (() => null);
@@ -120,13 +120,13 @@ export function disasmInstruction(parcels, n, opts = {}) {
   return { text: t, length, mnemonic: op[0], operands: op.slice(1).join(' '), fm, i, j, k, K };
 }
 
-/** Découpe un mot de 60 bits en parcelles. */
+/** Splits a 60-bit word into parcels. */
 export function wordParcels(w) {
   const hi = Number(w >> 30n), lo = Number(w & 0x3fffffffn);
   return [hi >>> 15, hi & 0x7fff, lo >>> 15, lo & 0x7fff];
 }
 
-/** Désassemble un mot complet : liste d'instructions { parcel, text, length }. */
+/** Disassembles a full word: list of instructions { parcel, text, length }. */
 export function disasmWord(w, opts = {}) {
   const parcels = wordParcels(w);
   const out = [];
@@ -140,7 +140,7 @@ export function disasmWord(w, opts = {}) {
   return out;
 }
 
-/** Octal d'une instruction (5 ou 10 chiffres). */
+/** Octal form of an instruction (5 or 10 digits). */
 export function instructionOctal(parcels, n, length) {
   const a = parcels[n].toString(8).padStart(5, '0');
   return length === 30 ? a + parcels[n + 1].toString(8).padStart(5, '0') : a;

@@ -1,11 +1,11 @@
-// Codes de caractères utilisés par l'assembleur (pseudo CODE) :
-// D display, A ASCII 6 bits, E BCD externe, I BCD interne, N ASCII 8 bits, O « autre » (CHAR).
+// Character codes used by the assembler (CODE pseudo):
+// D display, A 6-bit ASCII, E external BCD, I internal BCD, N 8-bit ASCII, O "other" (CHAR).
 
 import { DISPLAY, toDisplay } from '../common/charset.js';
 
-// BCD interne (code 6 bits -> caractère ASCII de rendu).
+// Internal BCD (6-bit code -> rendering ASCII character).
 const INTERNAL_BCD = '0123456789:="@%[+ABCDEFGHI<.)\\^;-JKLMNOPQR!$*\'?> /STUVWXYZ],(_#&';
-// BCD externe.
+// External BCD.
 const EXTERNAL_BCD = ':1234567890="@%[ /STUVWXYZ],(_#&-JKLMNOPQR!$*\'?>+ABCDEFGHI<.)\\^;';
 
 function reverseTable(t) {
@@ -16,15 +16,15 @@ function reverseTable(t) {
 const intBcd = reverseTable(INTERNAL_BCD);
 const extBcd = reverseTable(EXTERNAL_BCD);
 
-/** Taille en bits d'un caractère dans le code donné. */
+/** Size in bits of a character in the given code. */
 export function charBits(code, wordBits) {
   if (code === 'N') return wordBits === 16 ? 8 : 12;
   return 6;
 }
 
 /**
- * Valeur d'un caractère source (ASCII) dans le code courant.
- * @param other table CHAR (64 entrées) pour le code O
+ * Value of a source character (ASCII) in the current code.
+ * @param other CHAR table (64 entries) for code O
  */
 export function charValue(ch, code, other) {
   const c = ch.toUpperCase();
@@ -52,7 +52,7 @@ export function charValue(ch, code, other) {
   }
 }
 
-/** Valeur « blanc » dans le code courant (remplissage H et A). */
+/** "Blank" value in the current code (H and A fill). */
 export function blankValue(code, other) {
   return charValue(' ', code, other);
 }

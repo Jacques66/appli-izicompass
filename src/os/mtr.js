@@ -1,12 +1,12 @@
-// Moniteur PP (MTR) du mini-système, écrit en COMPASS PP.
-// Il s'exécute dans PP0 : il démarre le travail par un échange (EXN), puis
-// sert les demandes que le programme CPU dépose en RA+1.
+// PP monitor (MTR) of the mini-system, written in PP COMPASS.
+// It runs in PP0: it starts the job with an exchange jump (EXN), then
+// services the requests that the CPU program places in RA+1.
 
 const EXT = '00,61,62,63,64,65,66,67,70,71,41,42,43,44,45,46,47,50,51,22,23,24,25,26,27,30,31,12,01,02,03,04,05,06,07,10,11,60,40,54,21,34,74,53,13,20,33,73,36,17,32,16,14,35,52,37,55,56,72,57,15,75,76,77';
 const HOL = '55,34,35,36,37,40,41,42,43,44,00,60,74,70,54,64,33,50,23,24,25,26,27,30,31,32,75,56,63,65,73,71,46,12,13,14,15,16,17,20,21,22,62,53,47,52,77,76,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,67,01,02,03,04,05,06,07,10,11,61,57,72,51,45,66'
   + ',55'.repeat(48);
 
-/** Table de 64 ou 128 valeurs -> lignes CON de 8 valeurs. */
+/** Table of 64 or 128 values -> CON lines of 8 values. */
 function table(label, csv) {
   const v = csv.split(',');
   const out = [];
@@ -19,54 +19,54 @@ function table(label, csv) {
 
 export const MTR = String.raw`          IDENT  MTR,100B
           PERIPH
-          TITLE  MTR - MONITEUR DU MINI-SYSTEME.
-*         MTR - MONITEUR PP DU MINI-SYSTEME 6600.
+          TITLE  MTR - MINI-SYSTEM MONITOR.
+*         MTR - PP MONITOR OF THE 6600 MINI-SYSTEM.
 *
-*         DEMANDES RA+1 (MOT 18/NOM,1/0,1/R,4/0,18/P2,18/P1) :
-*           MSG  MESSAGE AU JOURNAL (P1 = ADRESSE DU MESSAGE)
-*           END  FIN NORMALE DU TRAVAIL
-*           ABT  FIN ANORMALE DU TRAVAIL
-*           RCL  RAPPEL (SANS EFFET)
-*           TIM  TEMPS EN MILLISECONDES -> (P1)
-*           CLK  HEURE  ' HH.MM.SS.' -> (P1)
-*           DAT  DATE   ' AA/MM/JJ.' -> (P1)
-*           MEM  LONGUEUR DU CHAMP (30/FL,30/0) -> (P1)
-*           CIO  ENTREE-SORTIE SUR LE FET (P1) :
-*                OUTPUT : WRITE, WRITER, WRITEF -> IMPRIMANTE 1612
-*                INPUT  : READ <- LECTEUR DE CARTES 405 (UNE CARTE)
-*                         CODE 011B NORMAL, 021B FIN D'ENREGISTREMENT
-*                         (CARTE 7/8/9), 031B FIN DE FICHIER.
+*         RA+1 REQUESTS (WORD 18/NAME,1/0,1/R,4/0,18/P2,18/P1):
+*           MSG  MESSAGE TO THE DAYFILE (P1 = MESSAGE ADDRESS)
+*           END  NORMAL END OF JOB
+*           ABT  ABNORMAL END OF JOB
+*           RCL  RECALL (NO EFFECT)
+*           TIM  TIME IN MILLISECONDS -> (P1)
+*           CLK  TIME OF DAY ' HH.MM.SS.' -> (P1)
+*           DAT  DATE        ' YY/MM/DD.' -> (P1)
+*           MEM  FIELD LENGTH (30/FL,30/0) -> (P1)
+*           CIO  INPUT/OUTPUT ON THE FET (P1):
+*                OUTPUT: WRITE, WRITER, WRITEF -> 1612 LINE PRINTER
+*                INPUT:  READ <- 405 CARD READER (ONE CARD)
+*                        CODE 011B NORMAL, 021B END OF RECORD
+*                        (7/8/9 CARD), 031B END OF FILE.
 *
-*         MEMOIRE CENTRALE (ADRESSES ABSOLUES) :
- DAYP     EQU    20B         INDICE DE LA PROCHAINE LIGNE DU JOURNAL
- STAT     EQU    21B         ETAT : 1 EN COURS, 2 TERMINE, 3 ABANDON
- JRA      EQU    22B         RA DU TRAVAIL
- JFL      EQU    23B         FL DU TRAVAIL
- TIMW     EQU    24B         HEURE AFFICHABLE
- DATW     EQU    25B         DATE AFFICHABLE
- MSEC     EQU    26B         MILLISECONDES DEPUIS LE DEMARRAGE
- LIN1     EQU    30B         DERNIER MESSAGE (4 MOTS)
- CMDW     EQU    34B         COMMANDE DE LA CONSOLE (1 = DROP)
- JXP      EQU    100B        PAQUET D'ECHANGE DU TRAVAIL
- IXP      EQU    120B        PAQUET D'ECHANGE DE REPOS
- DAYF     EQU    200B        JOURNAL : 32 LIGNES DE 4 MOTS
+*         CENTRAL MEMORY (ABSOLUTE ADDRESSES):
+ DAYP     EQU    20B         INDEX OF THE NEXT DAYFILE LINE
+ STAT     EQU    21B         STATUS: 1 RUNNING, 2 ENDED, 3 ABORTED
+ JRA      EQU    22B         JOB RA
+ JFL      EQU    23B         JOB FL
+ TIMW     EQU    24B         DISPLAYABLE TIME OF DAY
+ DATW     EQU    25B         DISPLAYABLE DATE
+ MSEC     EQU    26B         MILLISECONDS SINCE STARTUP
+ LIN1     EQU    30B         LAST MESSAGE (4 WORDS)
+ CMDW     EQU    34B         CONSOLE COMMAND (1 = DROP)
+ JXP      EQU    100B        JOB EXCHANGE PACKAGE
+ IXP      EQU    120B        IDLE EXCHANGE PACKAGE
+ DAYF     EQU    200B        DAYFILE: 32 LINES OF 4 WORDS
 *
-*         CANAUX.
- PCH      EQU    12B         IMPRIMANTE 1612 ET LECTEUR 405
- CLK      EQU    14B         HORLOGE TEMPS REEL
+*         CHANNELS.
+ PCH      EQU    12B         1612 LINE PRINTER AND 405 READER
+ CLK      EQU    14B         REAL-TIME CLOCK
 *
-*         CELLULES DIRECTES.
+*         DIRECT CELLS.
  T1       EQU    1
  T2       EQU    2
  T3       EQU    3
  T4       EQU    4
  T5       EQU    5
- W        EQU    10B         MOT LU (5 CELLULES)
- X        EQU    15B         MOT DE TRAVAIL (5 CELLULES)
+ W        EQU    10B         WORD READ (5 CELLS)
+ X        EQU    15B         WORK WORD (5 CELLS)
  RAD      EQU    22B         RA / 100B
- AH       EQU    24B         ADRESSE RELATIVE (6 BITS HAUTS)
- AL       EQU    25B         ADRESSE RELATIVE (12 BITS BAS)
- IDX      EQU    27B         INDICE DU JOURNAL
+ AH       EQU    24B         RELATIVE ADDRESS (HIGH 6 BITS)
+ AL       EQU    25B         RELATIVE ADDRESS (LOW 12 BITS)
+ IDX      EQU    27B         DAYFILE INDEX
  FH       EQU    30B         FIRST
  FL       EQU    31B
  IH       EQU    32B         IN
@@ -75,19 +75,19 @@ export const MTR = String.raw`          IDENT  MTR,100B
  OL       EQU    35B
  LH       EQU    36B         LIMIT
  LL       EQU    37B
- BH       EQU    40B         ADRESSE DU FET
+ BH       EQU    40B         FET ADDRESS
  BL       EQU    41B
- CODE     EQU    42B         CODE DE FONCTION CIO
- NCH      EQU    43B         NOMBRE DE CARACTERES DE LA LIGNE
- LCLK     EQU    44B         DERNIERE LECTURE DE L'HORLOGE
- USEC     EQU    45B         MICROSECONDES ACCUMULEES
- STA      EQU    46B         ETAT DE LA CARTE
- CNT      EQU    47B         COMPTEUR
- SCC      EQU    50B         COMMANDE DE SAUT DE L'IMPRIMANTE
+ CODE     EQU    42B         CIO FUNCTION CODE
+ NCH      EQU    43B         NUMBER OF CHARACTERS IN THE LINE
+ LCLK     EQU    44B         LAST CLOCK READING
+ USEC     EQU    45B         ACCUMULATED MICROSECONDS
+ STA      EQU    46B         CARD STATUS
+ CNT      EQU    47B         COUNTER
+ SCC      EQU    50B         PRINTER CARRIAGE CONTROL
 *
           ORG    100B
 *
-*         DEMARRAGE : LIRE RA, LANCER LE TRAVAIL PAR UN ECHANGE.
+*         STARTUP: READ RA, START THE JOB WITH AN EXCHANGE JUMP.
  MTR      LDN    JRA
           CRD    W
           LDD    W+3
@@ -102,16 +102,16 @@ export const MTR = String.raw`          IDENT  MTR,100B
           LDN    0
           STD    USEC
           LDC    JXP
-          EXN                DEMARRER LE CPU
+          EXN                START THE CPU
 *
-*         BOUCLE PRINCIPALE.
- MTR1     RJM    TIM         TENIR L'HEURE A JOUR
+*         MAIN LOOP.
+ MTR1     RJM    TIM         KEEP THE TIME UP TO DATE
           LDN    STAT
           CRD    W
           LDD    W+4
           SBN    1
-          NJN    MTR1        PAS DE TRAVAIL EN COURS
-          LDN    CMDW        COMMANDE DE LA CONSOLE ?
+          NJN    MTR1        NO JOB RUNNING
+          LDN    CMDW        CONSOLE COMMAND?
           CRD    W
           LDD    W+4
           ZJN    MTR1A
@@ -120,14 +120,14 @@ export const MTR = String.raw`          IDENT  MTR,100B
           LDN    CMDW
           CWD    W
           LDC    MSGDRP
-          RJM    DAY         DROP : ABANDON DU TRAVAIL
+          RJM    DAY         DROP: ABORT THE JOB
           LJM    ABT1
- MTR1A    LDD    RAD         SORTIE D'ERREUR DU CPU (RA+0 NON NUL) ?
+ MTR1A    LDD    RAD         CPU ERROR EXIT (RA+0 NONZERO)?
           SHN    6
           CRD    W
           LDD    W
           ZJN    MTR1B
-          LPN    7           CONDITION : 1 ADRESSE, 2 INFINI, 4 INDEFINI
+          LPN    7           ERROR: 1 ADDRESS, 2 INFINITE, 4 INDEFINITE
           STD    T1
           LDC    MSGEA
           STD    T2
@@ -144,7 +144,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
  MTR1C    LDD    T2
           RJM    DAY
           LJM    ABT1
- MTR1B    RJM    RA1         LIRE RA+1
+ MTR1B    RJM    RA1         READ RA+1
           CRD    W
           LDD    W
           ADD    W+1
@@ -152,9 +152,9 @@ export const MTR = String.raw`          IDENT  MTR,100B
           ADD    W+3
           ADD    W+4
           NJN    MTR1D
-          LJM    MTR1        PAS DE DEMANDE
+          LJM    MTR1        NO REQUEST
  MTR1D    BSS    0
-*         RECHERCHE DE LA DEMANDE DANS LA TABLE.
+*         LOOK UP THE REQUEST IN THE TABLE.
           LDD    W+3
           LPN    77B
           STD    AH
@@ -163,7 +163,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           LDN    0
           STD    T1
  MTR2     LDM    TREQ,T1
-          ZJN    MTR4        DEMANDE INCONNUE
+          ZJN    MTR4        UNKNOWN REQUEST
           LMD    W
           NJN    MTR3
           LDM    TREQ+1,T1
@@ -172,15 +172,15 @@ export const MTR = String.raw`          IDENT  MTR,100B
           NJN    MTR3
           LDM    TREQ+2,T1
           STD    T2
-          LJM    0,T2        TRAITEMENT
+          LJM    0,T2        PROCESS THE REQUEST
  MTR3     LDN    3
           RAD    T1
           UJN    MTR2
  MTR4     LDC    MSGILL
-          RJM    DAY         DEMANDE ILLEGALE : ABANDON
+          RJM    DAY         ILLEGAL REQUEST: ABORT
           LJM    ABT1
 *
-*         FIN DE DEMANDE : RA+1 = 0.
+*         REQUEST COMPLETE: RA+1 = 0.
  DONE     LDN    0
           STD    X
           STD    X+1
@@ -191,7 +191,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           CWD    X
           LJM    MTR1
 *
-*         TABLE DES DEMANDES : 2 CARACTERES, 3E CARACTERE, ADRESSE.
+*         REQUEST TABLE: 2 CHARACTERS, 3RD CHARACTER, ADDRESS.
  TREQ     CON    1523B,0700B,MSG
           CON    0516B,0400B,END
           CON    0102B,2400B,ABT
@@ -203,17 +203,17 @@ export const MTR = String.raw`          IDENT  MTR,100B
           CON    0311B,1700B,CIO
           CON    0
 *
-*         MSG - MESSAGE AU JOURNAL.
- MSG      RJM    MSGC        COPIER LE MESSAGE DANS LE JOURNAL
+*         MSG - MESSAGE TO THE DAYFILE.
+ MSG      RJM    MSGC        COPY THE MESSAGE TO THE DAYFILE
           LJM    DONE
 *
-*         END - FIN DU TRAVAIL.
+*         END - END OF JOB.
  END      LDC    MSGEND
           RJM    DAY
           LDN    2
           UJN    ABT2
 *
-*         ABT - ABANDON DU TRAVAIL.
+*         ABT - ABORT THE JOB.
  ABT      LDC    MSGABT
           RJM    DAY
  ABT1     LDN    3
@@ -226,10 +226,10 @@ export const MTR = String.raw`          IDENT  MTR,100B
           LDN    STAT
           CWD    X
           LDC    IXP
-          EXN                ARRETER LE TRAVAIL
+          EXN                STOP THE JOB
           LJM    MTR1
 *
-*         TIM, CLK, DAT - TEMPS ET DATE.
+*         TIM, CLK, DAT - TIME AND DATE.
  TIMR     LDN    MSEC
           UJN    CLKR1
  CLKR     LDN    TIMW
@@ -240,14 +240,14 @@ export const MTR = String.raw`          IDENT  MTR,100B
           CWD    X
           LJM    DONE
 *
-*         MEM - LONGUEUR DU CHAMP : 30/FL,30/0.
+*         MEM - FIELD LENGTH: 30/FL,30/0.
  MEMR     LDN    JFL
           CRD    W
           LDN    0
           STD    X
           STD    X+3
           STD    X+4
-          LDD    W+3         FL (18 BITS) DANS LES BITS 47-30
+          LDD    W+3         FL (18 BITS) IN BITS 47-30
           LPN    77B
           SHN    6
           STD    X+1
@@ -261,20 +261,20 @@ export const MTR = String.raw`          IDENT  MTR,100B
           RJM    ABSA
           CWD    X
           LJM    DONE
-          TITLE  CIO - ENTREES-SORTIES.
+          TITLE  CIO - INPUT/OUTPUT.
 *
-*         CIO - DEMANDE D'ENTREE-SORTIE SUR UN FET.
+*         CIO - INPUT/OUTPUT REQUEST ON A FET.
  CIO      LDD    AH
           STD    BH
           LDD    AL
           STD    BL
-          RJM    ABSA        MOT 0 DU FET
+          RJM    ABSA        FET WORD 0
           CRD    W
           LDD    W+4
           LPC    776B
           STD    CODE
           LDD    W
-          LMC    1725B       OUTPUT ?
+          LMC    1725B       OUTPUT?
           NJN    CIO1
           LDD    W+1
           LMC    2420B
@@ -282,10 +282,10 @@ export const MTR = String.raw`          IDENT  MTR,100B
           LDD    W+2
           LMC    2524B
           NJN    CIO1
-          RJM    PTR         IMPRIMER
+          RJM    PTR         PRINT
           UJN    CIO2
  CIO1     LDD    W
-          LMC    1116B       INPUT ?
+          LMC    1116B       INPUT?
           NJN    CIO2
           LDD    W+1
           LMC    2025B
@@ -295,13 +295,13 @@ export const MTR = String.raw`          IDENT  MTR,100B
           NJN    CIO2
           LDD    CODE
           LMN    10B
-          NJN    CIO2        SEULE LA LECTURE EST TRAITEE
-          RJM    CRD         LIRE UNE CARTE
+          NJN    CIO2        ONLY READ IS PROCESSED
+          RJM    CRD         READ ONE CARD
           UJN    CIO4
- CIO2     LDD    CODE        FONCTION TERMINEE : CODE + 1
+ CIO2     LDD    CODE        FUNCTION COMPLETE: CODE + 1
           ADN    1
           STD    STA
-*         FIN : CODE ET ETAT DANS LE MOT 0 DU FET.
+*         DONE: CODE AND STATUS IN FET WORD 0.
  CIO4     LDD    BH
           STD    AH
           LDD    BL
@@ -316,7 +316,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           CWD    W
           LJM    DONE
 *
-*         FET - LIRE FIRST, IN, OUT, LIMIT.
+*         FET - READ FIRST, IN, OUT, LIMIT.
  FET      SUBR
           LDN    1
           RJM    FETW
@@ -344,7 +344,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           STD    LL
           UJN    FETX
 *
-*         FETW - LIRE LE MOT (A) DU FET DANS X.
+*         FETW - READ FET WORD (A) INTO X.
  FETW     SUBR
           STD    T3
           LDD    BH
@@ -364,7 +364,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           STD    X+3
           UJN    FETWX
 *
-*         SETW - ECRIRE (X+3, X+4) DANS LE MOT (A) DU FET.
+*         SETW - WRITE (X+3, X+4) INTO FET WORD (A).
  SETW     SUBR
           STD    T3
           LDD    X+3
@@ -380,18 +380,18 @@ export const MTR = String.raw`          IDENT  MTR,100B
           RJM    ABSA
           CWD    X
           UJN    SETWX
-          TITLE  IMPRESSION.
+          TITLE  PRINTING.
 *
-*         PTR - IMPRIMER LES LIGNES DU TAMPON (DE OUT A IN).
+*         PTR - PRINT THE LINES OF THE BUFFER (FROM OUT TO IN).
  PTR      SUBR
           RJM    FET
- PTR1     LDD    OH          OUT = IN ?
+ PTR1     LDD    OH          OUT = IN?
           LMD    IH
           NJN    PTR2
           LDD    OL
           LMD    IL
           NJN    PTR2
-          LDD    IH          OUT = IN : TERMINE
+          LDD    IH          OUT = IN: DONE
           STD    X+3
           LDD    IL
           STD    X+4
@@ -400,7 +400,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           LJM    PTRX
  PTR2     LDN    0
           STD    NCH
- PTR3     LDD    OH          LIRE LE MOT EN OUT
+ PTR3     LDD    OH          READ THE WORD AT OUT
           STD    AH
           LDD    OL
           STD    AL
@@ -412,7 +412,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           AOD    OH
           LDN    0
           STD    OL
- PTR4     LDD    OH          OUT = LIMIT ?
+ PTR4     LDD    OH          OUT = LIMIT?
           LMD    LH
           NJN    PTR5
           LDD    OL
@@ -422,7 +422,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           STD    OH
           LDD    FL
           STD    OL
- PTR5     LDN    W           RANGER LES 10 CARACTERES DU MOT
+ PTR5     LDN    W           STORE THE 10 CHARACTERS OF THE WORD
           STD    T1
           LDN    5
           STD    T2
@@ -436,25 +436,25 @@ export const MTR = String.raw`          IDENT  MTR,100B
           SOD    T2
           NJN    PTR6
           LDD    W+4
-          ZJN    PTR7        FIN DE LIGNE
+          ZJN    PTR7        END OF LINE
           LJM    PTR3
- PTR7     RJM    PRT         IMPRIMER LA LIGNE
+ PTR7     RJM    PRT         PRINT THE LINE
           LJM    PTR1
 *
-*         PUT - AJOUTER LE CARACTERE (A) A LA LIGNE.
+*         PUT - APPEND CHARACTER (A) TO THE LINE.
  PUT      SUBR
           STD    T3
           LDD    NCH
           ADC    -210B
-          PJN    PUTX        LIGNE PLEINE (136 CARACTERES)
+          PJN    PUTX        LINE FULL (136 CHARACTERS)
           LDD    T3
           STM    LINE,NCH
           AOD    NCH
           UJN    PUTX
 *
-*         PRT - IMPRIMER LA LIGNE (LE 1ER CARACTERE EST LE CONTROLE).
+*         PRT - PRINT THE LINE (THE 1ST CHARACTER IS CARRIAGE CONTROL).
  PRT      SUBR
- PRT1     LDD    NCH         SUPPRIMER LES 00 ET BLANCS DE FIN
+ PRT1     LDD    NCH         STRIP TRAILING 00 AND BLANKS
           ZJN    PRT2
           LDM    LINE-1,NCH
           ZJN    PRT1A
@@ -462,21 +462,21 @@ export const MTR = String.raw`          IDENT  MTR,100B
           NJN    PRT2
  PRT1A    SOD    NCH
           UJN    PRT1
- PRT2     LDC    601B        SAUT SIMPLE
+ PRT2     LDC    601B        SINGLE SPACE
           STD    SCC
           LDD    NCH
-          ZJN    PRT5        LIGNE VIDE
+          ZJN    PRT5        EMPTY LINE
           LDM    LINE
-          LMN    34B         '1' : NOUVELLE PAGE
+          LMN    34B         '1': NEW PAGE
           NJN    PRT3
           FNC    604B,PCH
           UJN    PRT4
  PRT3     LDM    LINE
-          LMN    33B         '0' : DOUBLE INTERLIGNE
+          LMN    33B         '0': DOUBLE SPACE
           NJN    PRT4
           LDC    602B
           STD    SCC
- PRT4     LDN    1           CONVERTIR EN BCD EXTERNE
+ PRT4     LDN    1           CONVERT TO EXTERNAL BCD
           STD    T1
  PRT4A    LDD    T1
           SBD    NCH
@@ -487,7 +487,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           STM    LINE-1,T1
           AOD    T1
           UJN    PRT4A
- PRT5     FNC    600B,PCH    SELECTION DE L'IMPRIMANTE
+ PRT5     FNC    600B,PCH    SELECT THE PRINTER
           ACN    PCH
           LDD    NCH
           ZJN    PRT6
@@ -495,38 +495,38 @@ export const MTR = String.raw`          IDENT  MTR,100B
           ZJN    PRT6
           OAM    LINE,PCH
  PRT6     DCN    PCH
-          FNC    605B,PCH    IMPRIMER
+          FNC    605B,PCH    PRINT
           LDD    SCC
-          FAN    PCH         AVANCE DU PAPIER
+          FAN    PCH         PAPER ADVANCE
           LJM    PRTX
-          TITLE  LECTURE DE CARTES.
+          TITLE  CARD READING.
 *
-*         CRD - LIRE UNE CARTE DANS LE TAMPON DU FET.
+*         CRD - READ ONE CARD INTO THE FET BUFFER.
  CRD      SUBR
           RJM    FET
-          FNC    702B,PCH    LECTURE
+          FNC    702B,PCH    READ
           ACN    PCH
-          LDC    120B        80 COLONNES
+          LDC    120B        80 COLUMNS
           IAM    CARD,PCH
-          STD    T1          COLONNES NON LUES
+          STD    T1          COLUMNS NOT READ
           LMC    120B
           NJN    CRD1
-          LDN    31B         PAS DE CARTE : FIN DE FICHIER
+          LDN    31B         NO CARD: END OF FILE
           STD    STA
           LJM    CRDX
- CRD1     LDM    CARD        CARTE DE CONTROLE ?
-          LMN    7           7/8/9 : FIN D'ENREGISTREMENT
+ CRD1     LDM    CARD        CONTROL CARD?
+          LMN    7           7/8/9: END OF RECORD
           NJN    CRD2
           LDN    21B
           STD    STA
           LJM    CRDX
  CRD2     LDM    CARD
-          LMN    17B         6/7/8/9 : FIN DE FICHIER
+          LMN    17B         6/7/8/9: END OF FILE
           NJN    CRD3
           LDN    31B
           STD    STA
           LJM    CRDX
-*         DECODAGE HOLLERITH -> CODE DISPLAY.
+*         HOLLERITH -> DISPLAY CODE DECODING.
  CRD3     LDN    0
           STD    T1
  CRD4     LDM    CARD,T1
@@ -536,7 +536,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           SBN    77B
           SBN    21B
           MJN    CRD4
-          LDC    120B        SUPPRIMER LES BLANCS DE FIN
+          LDC    120B        STRIP TRAILING BLANKS
           STD    NCH
  CRD5     LDD    NCH
           ZJN    CRD6
@@ -545,15 +545,15 @@ export const MTR = String.raw`          IDENT  MTR,100B
           NJN    CRD6
           SOD    NCH
           UJN    CRD5
-*         RANGER LA LIGNE EN IN (10 CARACTERES PAR MOT).
+*         STORE THE LINE AT IN (10 CHARACTERS PER WORD).
  CRD6     LDN    0
-          STD    T1          INDICE DE CARACTERE
+          STD    T1          CHARACTER INDEX
  CRD7     LDN    0
-          STD    T2          INDICE DE CELLULE
- CRD8     LDD    T1          PAIRE DE CARACTERES
+          STD    T2          CELL INDEX
+ CRD8     LDD    T1          CHARACTER PAIR
           SBD    NCH
           MJN    CRD9
-          LDN    0           AU-DELA DE LA LIGNE : ZERO
+          LDN    0           PAST THE END OF THE LINE: ZERO
           UJN    CRD10
  CRD9     LDM    LINE,T1
           SHN    6
@@ -569,7 +569,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           AOD    T2
           LMN    5
           NJN    CRD8
-          LDD    IH          ECRIRE LE MOT EN IN
+          LDD    IH          WRITE THE WORD AT IN
           STD    AH
           LDD    IL
           STD    AL
@@ -581,7 +581,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           AOD    IH
           LDN    0
           STD    IL
- CRD11    LDD    IH          IN = LIMIT ?
+ CRD11    LDD    IH          IN = LIMIT?
           LMD    LH
           NJN    CRD12
           LDD    IL
@@ -591,10 +591,10 @@ export const MTR = String.raw`          IDENT  MTR,100B
           STD    IH
           LDD    FL
           STD    IL
- CRD12    LDD    W+4         FIN DE LIGNE (12 BITS NULS) ?
+ CRD12    LDD    W+4         END OF LINE (12 ZERO BITS)?
           ZJN    CRD13
           LJM    CRD7
- CRD13    LDD    IH          NOUVEL IN
+ CRD13    LDD    IH          NEW IN
           STD    X+3
           LDD    IL
           STD    X+4
@@ -604,25 +604,25 @@ export const MTR = String.raw`          IDENT  MTR,100B
           STD    STA
           LJM    CRDX
 *
-*         HOL - CONVERTIR LA COLONNE (A) EN CODE DISPLAY.
+*         HOL - CONVERT COLUMN (A) TO DISPLAY CODE.
  HOL      SUBR
           STD    T4
-          SHN    -9          ZONE (LIGNES 12, 11, 0)
+          SHN    -9          ZONE (ROWS 12, 11, 0)
           SHN    4
           STD    T5
           LDD    T4
-          LPC    777B        LIGNES 1 A 9
+          LPC    777B        ROWS 1 TO 9
           ZJN    HOL3
           STD    T4
-          LPN    2           LIGNE 8 ?
+          LPN    2           ROW 8?
           ZJN    HOL1
           LDD    T4
           LMN    2
-          ZJN    HOL1        8 SEUL
-          STD    T4          8 + AUTRE LIGNE (2 A 7)
+          ZJN    HOL1        8 ALONE
+          STD    T4          8 + ANOTHER ROW (2 TO 7)
           LDN    10B
           RAD    T5
- HOL1     LDC    400B        RECHERCHER LA LIGNE PERFOREE
+ HOL1     LDC    400B        FIND THE PUNCHED ROW
           STD    T3
           LDN    1
           STD    CNT
@@ -635,15 +635,15 @@ export const MTR = String.raw`          IDENT  MTR,100B
           AOD    CNT
           SBN    12B
           MJN    HOL2
-          LDN    55B         COMBINAISON INCONNUE : BLANC
+          LDN    55B         UNKNOWN COMBINATION: BLANK
           LJM    HOLX
  HOL2A    LDD    CNT
           RAD    T5
  HOL3     LDM    HOLT,T5
           LJM    HOLX
-          TITLE  SOUS-PROGRAMMES.
+          TITLE  SUBROUTINES.
 *
-*         ABSA - ADRESSE ABSOLUE (A) = RA + (AH,AL).
+*         ABSA - ABSOLUTE ADDRESS (A) = RA + (AH,AL).
  ABSA     SUBR
           LDD    AH
           SHN    6
@@ -652,22 +652,22 @@ export const MTR = String.raw`          IDENT  MTR,100B
           ADD    AL
           UJN    ABSAX
 *
-*         RA1 - ADRESSE ABSOLUE DE RA+1.
+*         RA1 - ABSOLUTE ADDRESS OF RA+1.
  RA1      SUBR
           LDD    RAD
           SHN    6
           ADN    1
           UJN    RA1X
 *
-*         MSGC - COPIER LE MESSAGE (AH,AL) DANS LE JOURNAL.
+*         MSGC - COPY THE MESSAGE (AH,AL) TO THE DAYFILE.
  MSGC     SUBR
-          RJM    LIDX        ADRESSE DE LA LIGNE DU JOURNAL -> T5
+          RJM    LIDX        DAYFILE LINE ADDRESS -> T5
           LDN    0
           STD    CNT
-          STD    T4          FIN DU MESSAGE ATTEINTE
+          STD    T4          END OF MESSAGE REACHED
  MSGC1    LDD    T4
           ZJN    MSGC2
-          LDN    0           APRES LA FIN : MOTS NULS
+          LDN    0           AFTER THE END: ZERO WORDS
           STD    X
           STD    X+1
           STD    X+2
@@ -691,9 +691,9 @@ export const MTR = String.raw`          IDENT  MTR,100B
           NJN    MSGC1
           LJM    MSGCX
 *
-*         DAY - MESSAGE SYSTEME (A = ADRESSE PP DE 4 MOTS) AU JOURNAL.
+*         DAY - SYSTEM MESSAGE (A = PP ADDRESS, 4 WORDS) TO THE DAYFILE.
  DAY      SUBR
-          STD    T1          ADRESSE PP DU MESSAGE (20 MOTS PP)
+          STD    T1          PP ADDRESS OF THE MESSAGE (20 PP WORDS)
           RJM    LIDX
           LDN    0
           STD    CNT
@@ -718,7 +718,7 @@ export const MTR = String.raw`          IDENT  MTR,100B
           NJN    DAY1
           UJN    DAYX
 *
-*         LIDX - RESERVER UNE LIGNE DU JOURNAL : (T5) = ADRESSE.
+*         LIDX - RESERVE A DAYFILE LINE: (T5) = ADDRESS.
  LIDX     SUBR
           LDN    DAYP
           CRD    W
@@ -735,18 +735,18 @@ export const MTR = String.raw`          IDENT  MTR,100B
           CWD    W
           UJN    LIDXX
 *
-*         TIM - COMPTER LES MILLISECONDES (HORLOGE DU CANAL 14B).
+*         TIM - COUNT MILLISECONDS (CHANNEL 14B CLOCK).
  TIM      SUBR
           IAN    CLK
           STD    T1
           SBD    LCLK
           PJN    TIM1
-          ADC    10000B      L'HORLOGE A FAIT LE TOUR
+          ADC    10000B      THE CLOCK WRAPPED AROUND
  TIM1     RAD    USEC
           LDD    T1
           STD    LCLK
  TIM2     LDD    USEC
-          ADC    -1750B      1000 MICROSECONDES
+          ADC    -1750B      1000 MICROSECONDS
           MJN    TIMX
           STD    USEC
           LDN    MSEC
@@ -759,19 +759,19 @@ export const MTR = String.raw`          IDENT  MTR,100B
           CWD    X
           UJN    TIM2
 *
-*         MESSAGES SYSTEME (4 MOTS CHACUN, 10 CARACTERES PAR MOT).
- MSGEND   DIS    20, FIN NORMALE DU TRAVAIL.
- MSGABT   DIS    20, FIN ANORMALE DU TRAVAIL.
- MSGILL   DIS    20, DEMANDE RA+1 ILLEGALE.
- MSGDRP   DIS    20, TRAVAIL ABANDONNE PAR L'OPERATEUR.
- MSGEA    DIS    20, ERREUR CPU : ADRESSE HORS LIMITES.
- MSGEO    DIS    20, ERREUR CPU : OPERANDE INFINI.
- MSGEI    DIS    20, ERREUR CPU : OPERANDE INDEFINI.
+*         SYSTEM MESSAGES (4 WORDS EACH, 10 CHARACTERS PER WORD).
+ MSGEND   DIS    20, NORMAL END OF JOB.
+ MSGABT   DIS    20, ABNORMAL END OF JOB.
+ MSGILL   DIS    20, ILLEGAL RA+1 REQUEST.
+ MSGDRP   DIS    20, JOB DROPPED BY OPERATOR.
+ MSGEA    DIS    20, CPU ERROR: ADDRESS OUT OF RANGE.
+ MSGEO    DIS    20, CPU ERROR: INFINITE OPERAND.
+ MSGEI    DIS    20, CPU ERROR: INDEFINITE OPERAND.
 *
-*         TABLES DE CONVERSION.
+*         CONVERSION TABLES.
 ${table('EXT', EXT)}
 ${table('HOLT', HOL)}
- CARD     BSS    120B        IMAGE DE LA CARTE
- LINE     BSS    210B        LIGNE A IMPRIMER / LIGNE LUE
+ CARD     BSS    120B        CARD IMAGE
+ LINE     BSS    210B        LINE TO PRINT / LINE READ
           END    MTR
 `;

@@ -1,12 +1,12 @@
           IDENT  PPT,100B
           PERIPH
-*         PROGRAMME PP : AFFICHE UN TEXTE SUR LA CONSOLE.
- CH       EQU    10B         CANAL CONSOLE
+*         PP PROGRAM: DISPLAYS A TEXT ON THE CONSOLE.
+ CH       EQU    10B         CONSOLE CHANNEL
  T1       EQU    1
           ORG    100B
  START    LDN    0
           STD    T1
- LOOP     FNC    7000B,CH    ECRAN GAUCHE, PETITS CARACTERES
+ LOOP     FNC    7000B,CH    LEFT SCREEN, SMALL CHARACTERS
           ACN    CH
           LDN    MSGL
           OAM    MSG,CH
@@ -16,7 +16,7 @@
           NJN    LOOP
           LJM    START
  MSG      CON    6100B,7600B
-          DIS    ,*BONJOUR*
+          DIS    ,*HELLO*
  MSGL     EQU    *-MSG
           UJN    *
           SHN    6

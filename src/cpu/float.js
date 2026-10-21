@@ -1,15 +1,15 @@
-// Unité flottante du CDC 6600.
+// CDC 6600 floating-point unit.
 //
-// Format : bit 59 signe, bits 58-48 exposant biaisé (2000B), bits 47-0 coefficient
-// entier ; un nombre négatif est le complément à un du nombre positif.
-// Exposant (après repli du signe) : 3777B = infini (hors limites), 1777B = indéfini.
-// Un exposant biaisé 0000 correspond à un dépassement inférieur (traité comme zéro
-// en multiplication et division).
+// Format: bit 59 sign, bits 58-48 biased exponent (2000B), bits 47-0 integer
+// coefficient; a negative number is the ones' complement of the positive number.
+// Exponent (after sign folding): 3777B = infinite (out of range), 1777B = indefinite.
+// A biased exponent of 0000 denotes underflow (treated as zero in
+// multiplication and division).
 //
-// Les algorithmes reproduisent le chemin de données matériel : additionneur de
-// 98 bits en complément à un avec retenue circulaire, bits d'arrondi insérés
-// comme le fait le 6600, multiplication 48x48 -> 96 bits, division par
-// soustractions successives avec injection de 1/3 pour la division arrondie.
+// The algorithms follow the hardware data path: 98-bit ones' complement
+// adder with end-around carry, round bits inserted the way the 6600
+// does it, 48x48 -> 96-bit multiplication, division by successive
+// subtractions with 1/3 injection for rounded division.
 
 import { M60, M48, SIGN60 } from '../common/word.js';
 
@@ -24,17 +24,17 @@ export const NEG_INFINITE = 0o4000n << 48n;
 const signOf = (v) => ((v & SIGN60) !== 0n ? M60 : 0n);
 const inRange = (e) => (e & EXP_IND) !== EXP_IND;
 const overflow = (sign) => (sign ? NEG_INFINITE : POS_INFINITE);
-// Exposant biaisé (11 bits) -> entier signé.
+// Biased exponent (11 bits) -> signed integer.
 const unbias = (e) => (e >= 0o2000 ? e - 0o2000 : e - 0o1777);
-// Entier signé -> exposant biaisé (peut être négatif = dépassement inférieur).
+// Signed integer -> biased exponent (may be negative = underflow).
 const rebias = (e) => (e >= 0 ? e + 0o2000 : e + 0o1777);
 
-/** Options de modèle : `cyber175` active les variantes de l'unité flottante du 175. */
+/** Model options: `cyber175` enables the 175 floating-point unit variants. */
 export const floatOptions = { cyber175: false };
 
 /**
- * Addition flottante (FX, RX arrondie, DX double précision).
- * Pour la soustraction, appeler avec le complément du second opérande.
+ * Floating add (FX, RX rounded, DX double precision).
+ * For subtraction, call with the complement of the second operand.
  */
 export function floatAdd(a, b, round = false, double = false) {
   let s1 = signOf(a);
@@ -55,12 +55,12 @@ export function floatAdd(a, b, round = false, double = false) {
   e1 = unbias(e1);
   e2 = unbias(e2);
 
-  // Bit d'arrondi : présent si les deux opérandes sont normalisés ou de signes opposés.
+  // Round bit: present if both operands are normalized or of opposite signs.
   const roundBits = round ? ((a & b) | (s1 ^ s2)) : 0n;
-  const ext1 = s1 >> 10n; // extension de signe sur 50 bits
+  const ext1 = s1 >> 10n; // sign extension to 50 bits
   const ext2 = s2 >> 10n;
 
-  // Le plus grand exposant va dans le registre de 98 bits (50 hauts + 48 bas).
+  // The larger exponent goes into the 98-bit register (50 upper + 48 lower).
   let upper, lower, small, extSmall, shift, exp;
   if (e1 > e2) {
     upper = (a & M48) ^ ext1;
@@ -94,7 +94,7 @@ export function floatAdd(a, b, round = false, double = false) {
     lower += extSmall48;
   }
 
-  // Propagation de retenue bas -> haut, puis retenue circulaire (complément à un).
+  // Carry propagation lower -> upper, then end-around carry (ones' complement).
   upper += lower >> 48n;
   lower &= M48;
   lower += (upper + ((lower + 1n) >> 48n)) >> 50n;
@@ -125,9 +125,9 @@ export function floatAdd(a, b, round = false, double = false) {
 }
 
 /**
- * Multiplication flottante (FX, RX arrondie, DX double précision).
- * Si les deux exposants sont nuls et qu'un opérande n'est pas normalisé,
- * c'est une multiplication entière (IX Xj*Xk sur les machines qui l'acceptent).
+ * Floating multiply (FX, RX rounded, DX double precision).
+ * If both exponents are zero and one operand is not normalized, this is
+ * an integer multiply (IX Xj*Xk on machines that support it).
  */
 export function floatMultiply(a, b, round = false, double = false) {
   let s1 = signOf(a);
@@ -148,7 +148,7 @@ export function floatMultiply(a, b, round = false, double = false) {
   }
   a &= M48;
   b &= M48;
-  const norm = ((a & b) >> 47n) !== 0n; // les deux opérandes normalisés
+  const norm = ((a & b) >> 47n) !== 0n; // both operands normalized
 
   const product = a * b + (round ? 1n << 46n : 0n);
   let upper = product >> 48n;
@@ -190,8 +190,8 @@ export function floatMultiply(a, b, round = false, double = false) {
 }
 
 /**
- * Division flottante (FX, RX arrondie). Le diviseur doit être normalisé ;
- * un dividende >= 2 x diviseur donne l'indéfini.
+ * Floating divide (FX, RX rounded). The divisor must be normalized;
+ * a dividend >= 2 x divisor yields indefinite.
  */
 export function floatDivide(a, b, round = false) {
   const s1 = signOf(a);
@@ -248,8 +248,8 @@ export function floatDivide(a, b, round = false) {
 }
 
 /**
- * Normalisation (NX) ou normalisation arrondie (ZX).
- * Retourne { value, shift } : shift est le nombre de positions décalées.
+ * Normalize (NX) or round and normalize (ZX).
+ * Returns { value, shift }: shift is the number of positions shifted.
  */
 export function normalize(x, round = false) {
   x &= M60;
@@ -271,7 +271,7 @@ export function normalize(x, round = false) {
   return { value, shift: count };
 }
 
-/** Dépaquetage (UX) : retourne { coeff, exp } avec exp en 18 bits complément à un. */
+/** Unpack (UX): returns { coeff, exp } with exp as 18-bit ones' complement. */
 export function unpack(x) {
   const sign = signOf(x);
   x ^= sign;
@@ -279,7 +279,7 @@ export function unpack(x) {
   return { coeff: (x & M48) ^ sign, exp };
 }
 
-/** Paquetage (PX) : coefficient Xk et exposant Bj (18 bits) -> nombre flottant. */
+/** Pack (PX): coefficient Xk and exponent Bj (18 bits) -> floating-point number. */
 export function pack(coeff, exp) {
   const sign = signOf(coeff);
   coeff ^= sign;
@@ -287,7 +287,7 @@ export function pack(coeff, exp) {
   return ((BigInt(e) << 48n) | (coeff & M48)) ^ sign;
 }
 
-/** Classification d'un opérande : 'infinite', 'indefinite' ou null. */
+/** Operand classification: 'infinite', 'indefinite' or null. */
 export function classify(x) {
   const e = Number((x >> 48n) & 0o7777n);
   if (e === 0o3777 || e === 0o4000) return 'infinite';
@@ -296,16 +296,16 @@ export function classify(x) {
 }
 
 // ---------------------------------------------------------------------------
-// Conversions avec les flottants de l'hôte (pour l'IDE et l'assembleur).
+// Conversions with host floating-point numbers (for the IDE and the assembler).
 
-/** Nombre JS -> flottant CDC normalisé (simple précision). */
+/** JS number -> normalized CDC floating-point (single precision). */
 export function fromNumber(v) {
   if (Number.isNaN(v)) return INDEFINITE;
   if (!Number.isFinite(v)) return v < 0 ? NEG_INFINITE : POS_INFINITE;
   if (v === 0) return 0n;
   const neg = v < 0;
   let m = Math.abs(v);
-  // Exposant tel que coeff = m / 2^e soit dans [2^47, 2^48).
+  // Exponent such that coeff = m / 2^e lies in [2^47, 2^48).
   let e = Math.floor(Math.log2(m)) - 47;
   let c = m / 2 ** e;
   while (c >= 2 ** 48) { c /= 2; e++; }
@@ -317,7 +317,7 @@ export function fromNumber(v) {
   return neg ? ~w & M60 : w;
 }
 
-/** Flottant CDC -> nombre JS (approximation double précision IEEE). */
+/** CDC floating-point -> JS number (IEEE double precision approximation). */
 export function toNumber(x) {
   const cls = classify(x);
   if (cls === 'infinite') return x & SIGN60 ? -Infinity : Infinity;
@@ -330,7 +330,7 @@ export function toNumber(x) {
   return sign ? -v : v;
 }
 
-/** Double précision (paire haute/basse) -> nombre JS. */
+/** Double precision (upper/lower pair) -> JS number. */
 export function toNumberDouble(hi, lo) {
   return toNumber(hi) + toNumber(lo);
 }

@@ -1,10 +1,10 @@
-// Canal d'entrée/sortie 12 bits du CDC 6000.
+// CDC 6000 12-bit input/output channel.
 //
-// Un canal relie les PP aux contrôleurs. Il porte deux indicateurs : « actif »
-// (une connexion est établie) et « plein » (un mot de 12 bits est présent).
-// Une fonction (FAN/FNC) est offerte à chaque équipement du canal : celui qui
-// l'accepte devient l'équipement sélectionné. Si aucun ne l'accepte, le canal
-// reste actif et plein (canal « suspendu ») jusqu'à un DCN.
+// A channel connects the PPs to the controllers. It carries two flags: "active"
+// (a connection is established) and "full" (a 12-bit word is present).
+// A function (FAN/FNC) is offered to each piece of equipment on the channel: the
+// one that accepts it becomes the selected equipment. If none accepts it, the
+// channel stays active and full ("hung" channel) until a DCN.
 
 export const FC_ACCEPTED = 1;
 export const FC_DECLINED = 0;
@@ -18,7 +18,7 @@ export class Channel {
     this.data = 0;
     this.flag = false;
     this.devices = [];
-    this.ioDevice = null;  // équipement sélectionné
+    this.ioDevice = null;  // selected equipment
     this.hardwired = false;
     this.discAfterInput = false;
     this.delayDisconnect = 0;
@@ -65,7 +65,7 @@ export class Channel {
     }
   }
 
-  /** Laisse l'équipement sélectionné échanger un mot avec le canal. */
+  /** Lets the selected equipment exchange one word with the channel. */
   io() {
     if ((this.active || this.alwaysActive) && this.ioDevice && this.ioDevice.io) this.ioDevice.io();
   }
@@ -81,7 +81,7 @@ export class Channel {
   }
 }
 
-/** Classe de base des équipements. */
+/** Equipment base class. */
 export class Device {
   constructor(name) {
     this.name = name;
@@ -92,7 +92,7 @@ export class Device {
   activate() {}
   disconnect() {}
   io() {}
-  /** Appelé à chaque microseconde simulée (périphériques à délais). */
+  /** Called every simulated microsecond (devices with delays). */
   tick() {}
   reset() {}
 }

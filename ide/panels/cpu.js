@@ -1,4 +1,4 @@
-// Panneau CPU : registres, désassemblage autour de P, paquet d'échange.
+// CPU panel: registers, disassembly around P, exchange package.
 
 import { h, esc, o, o60, parseOctal } from '../dom.js';
 import { section, toolbar, tbtn, tinput, inlineEdit } from './common.js';
@@ -11,19 +11,19 @@ import { wordToDisplay } from '../../src/common/charset.js';
 
 const M18 = 0o777777;
 
-/** Interprétation d'un mot de 60 bits. */
+/** Interpretation of a 60-bit word. */
 export function interpret(w, mode) {
   w = BigInt.asUintN(60, w);
   if (mode === 'auto') {
-    // Exposant 0000 ou 7777 : entier (ou flottant non normalisé) ; sinon flottant.
+    // Exponent 0000 or 7777: integer (or unnormalized float); otherwise float.
     const e = Number(w >> 48n);
     mode = e === 0 || e === 0o7777 ? 'int' : 'float';
   }
   if (mode === 'int') return signed60(w).toString();
   if (mode === 'float') {
     const e = Number(w >> 48n);
-    if (e === 0o3777 || e === 0o4000) return w >> 59n ? '−∞ (infini)' : '+∞ (infini)';
-    if (e === 0o1777 || e === 0o6000) return 'indéfini';
+    if (e === 0o3777 || e === 0o4000) return w >> 59n ? '−∞ (infinite)' : '+∞ (infinite)';
+    if (e === 0o1777 || e === 0o6000) return 'indefinite';
     const v = toNumber(w);
     if (v === 0) return w === 0n ? '0.0' : '−0.0';
     const a = Math.abs(v);
@@ -33,7 +33,7 @@ export function interpret(w, mode) {
   return '';
 }
 
-/** Saisie d'un mot : octal, entier décimal suffixé D ou flottant (avec un point). */
+/** Word input: octal, decimal integer with a D suffix, or floating-point (with a point). */
 export function parseWord(text) {
   const t = text.trim();
   if (/^[-+]?\d+(\.\d*)?([eE][-+]?\d+)?$/.test(t) && t.includes('.')) return fromNumber(Number(t));
@@ -60,19 +60,19 @@ export class CpuPanel {
     this.xpAddr = 0;
 
     this.regs = h('div', { class: 'regs' });
-    this.interpSel = segmented([['auto', 'Auto', 'Entier si l’exposant est nul, sinon flottant'], ['int', 'Entier'], ['float', 'Flottant'], ['text', 'Display']], this.interp, (v) => { this.interp = v; this.update(true); });
-    this.secRegs = section('Registres', this.regs, { key: 'cpu-regs', actions: [this.interpSel] });
+    this.interpSel = segmented([['auto', 'Auto', 'Integer if the exponent is zero, otherwise float'], ['int', 'Integer'], ['float', 'Float'], ['text', 'Display']], this.interp, (v) => { this.interp = v; this.update(true); });
+    this.secRegs = section('Registers', this.regs, { key: 'cpu-regs', actions: [this.interpSel] });
 
     this.dis = h('div', { class: 'disasm mono' });
-    this.disGoto = tinput({ placeholder: 'adresse', width: 80, onenter: (v) => this.gotoAddr(v) });
-    this.followBtn = tbtn('Suivre P', () => { this.follow = !this.follow; this.followBtn.classList.toggle('on', this.follow); this.update(true); }, { cls: 'on', tip: 'Recentrer le désassemblage sur P' });
-    this.secDis = section('Désassemblage', this.dis, { key: 'cpu-dis', actions: [this.disGoto, this.followBtn] });
+    this.disGoto = tinput({ placeholder: 'address', width: 80, onenter: (v) => this.gotoAddr(v) });
+    this.followBtn = tbtn('Follow P', () => { this.follow = !this.follow; this.followBtn.classList.toggle('on', this.follow); this.update(true); }, { cls: 'on', tip: 'Recenter the disassembly on P' });
+    this.secDis = section('Disassembly', this.dis, { key: 'cpu-dis', actions: [this.disGoto, this.followBtn] });
     this.dis.addEventListener('click', (e) => {
       const r = e.target.closest('[data-abs]');
       if (!r) return;
       if (e.target.closest('.d-bp') || e.target.closest('.d-addr')) {
         const on = this.ctx.runner.toggleCpuAddressBreakpoint(Number(r.dataset.abs));
-        this.ctx.log(`Point d'arrêt CPU ${on ? 'posé' : 'retiré'} en ${o(Number(r.dataset.abs), 6)}B (absolu).`);
+        this.ctx.log(`CPU breakpoint ${on ? 'set' : 'removed'} at ${o(Number(r.dataset.abs), 6)}B (absolute).`);
         this.update(true);
       } else if (r.dataset.line) {
         this.ctx.revealSource(Number(r.dataset.line));
@@ -88,9 +88,9 @@ export class CpuPanel {
     }, { passive: false });
 
     this.xp = h('div', { class: 'xp mono' });
-    this.xpAddrInput = tinput({ placeholder: 'adresse', width: 80, onenter: (v) => { const a = parseOctal(v); if (a !== null) { this.xpSource = 'cm'; this.xpAddr = Number(a) & M18; this.xpSel.setValue('cm'); this.update(true); } } });
-    this.xpSel = segmented([['cpu', 'Registres', 'Paquet correspondant à l\'état courant du CPU'], ['cm', 'Mémoire', 'Paquet lu en mémoire centrale à l\'adresse donnée']], this.xpSource, (v) => { this.xpSource = v; this.update(true); });
-    this.secXp = section('Paquet d\'échange', this.xp, { key: 'cpu-xp', open: false, actions: [this.xpSel, this.xpAddrInput] });
+    this.xpAddrInput = tinput({ placeholder: 'address', width: 80, onenter: (v) => { const a = parseOctal(v); if (a !== null) { this.xpSource = 'cm'; this.xpAddr = Number(a) & M18; this.xpSel.setValue('cm'); this.update(true); } } });
+    this.xpSel = segmented([['cpu', 'Registers', 'Package matching the current CPU state'], ['cm', 'Memory', 'Package read from central memory at the given address']], this.xpSource, (v) => { this.xpSource = v; this.update(true); });
+    this.secXp = section('Exchange package', this.xp, { key: 'cpu-xp', open: false, actions: [this.xpSel, this.xpAddrInput] });
 
     this.el = h('div', { class: 'panel panel-cpu scroll' }, this.secRegs, this.secDis, this.secXp);
     this.regs.addEventListener('dblclick', (e) => this.editReg(e));
@@ -100,7 +100,7 @@ export class CpuPanel {
     this.update(true);
   }
 
-  /** Mémorise l'état des registres pour signaler les changements au prochain arrêt. */
+  /** Saves the register state to flag the changes at the next stop. */
   snapshot() {
     const c = this.ctx.machine.cpu;
     return { X: c.X.slice(), A: c.A.slice(), B: c.B.slice(), P: c.P };
@@ -114,28 +114,28 @@ export class CpuPanel {
     const prev = running ? null : this.prev;
     const chg = (kind, i) => prev && (kind === 'X' ? prev.X[i] !== cpu.X[i] : prev[kind][i] !== cpu[kind][i]);
 
-    // --- registres
+    // --- registers
     const parcel = cpu.wordValid ? cpu.parcel : 0;
-    const parcels = [0, 1, 2, 3].map((p) => `<span class="parcel ${p === parcel ? 'on' : ''}" data-tip="Parcelle ${p}">${p}</span>`).join('');
-    const ratio = cpu.stackHits + cpu.stackMisses ? (100 * cpu.stackHits / (cpu.stackHits + cpu.stackMisses)).toFixed(1) + ' %' : '—';
-    const stateTxt = cpu.stopped ? (cpu.lastError ? 'sortie d\'erreur' : 'arrêté') : 'en marche';
+    const parcels = [0, 1, 2, 3].map((p) => `<span class="parcel ${p === parcel ? 'on' : ''}" data-tip="Parcel ${p}">${p}</span>`).join('');
+    const ratio = cpu.stackHits + cpu.stackMisses ? (100 * cpu.stackHits / (cpu.stackHits + cpu.stackMisses)).toFixed(1) + '%' : '—';
+    const stateTxt = cpu.stopped ? (cpu.lastError ? 'error exit' : 'stopped') : 'running';
     const ec = cpu.exitCondition;
-    const ecTxt = ec ? [ec & 1 ? 'adresse' : '', ec & 2 ? 'opérande' : '', ec & 4 ? 'indéfini' : ''].filter(Boolean).join(', ') : 'aucune';
+    const ecTxt = ec ? [ec & 1 ? 'address' : '', ec & 2 ? 'operand' : '', ec & 4 ? 'indefinite' : ''].filter(Boolean).join(', ') : 'none';
     const em = cpu.EM;
     const emTxt = [em & 0o010000 ? 'A' : '', em & 0o020000 ? 'O' : '', em & 0o040000 ? 'I' : ''].filter(Boolean).join('') || '—';
     const cell = (name, val, edit, tip = null, cls = '') => `<div class="reg ${cls}" ${tip ? `data-tip="${esc(tip)}"` : ''}><span class="reg-n">${name}</span><span class="reg-v mono" ${edit ? `data-edit="${edit}"` : ''}>${val}</span></div>`;
     let html = '<div class="reg-top">';
     html += `<div class="reg reg-p ${prev && prev.P !== cpu.P ? 'chg' : ''}"><span class="reg-n">P</span><span class="reg-v mono" data-edit="P">${o(cpu.P, 6)}</span><span class="parcels">${parcels}</span></div>`;
-    html += cell('RA', o(cpu.RA, 8), 'RA', 'Adresse de référence (base) en mémoire centrale');
-    html += cell('FL', o(cpu.FL, 8), 'FL', 'Longueur du champ (limite) en mémoire centrale');
-    html += cell('EM', `${o(cpu.EM, 8)} <small>${emTxt}</small>`, 'EM', 'Mode de sortie : A = adresse, O = opérande, I = indéfini');
-    html += cell('RAE', o(cpu.RAE, 8), 'RAE', 'Adresse de référence en ECS');
-    html += cell('FLE', o(cpu.FLE, 8), 'FLE', 'Longueur du champ en ECS');
-    html += cell('MA', o(cpu.MA, 6), 'MA', 'Adresse du paquet d\'échange du moniteur');
+    html += cell('RA', o(cpu.RA, 8), 'RA', 'Reference address (base) in central memory');
+    html += cell('FL', o(cpu.FL, 8), 'FL', 'Field length (limit) in central memory');
+    html += cell('EM', `${o(cpu.EM, 8)} <small>${emTxt}</small>`, 'EM', 'Exit mode: A = address, O = operand, I = indefinite');
+    html += cell('RAE', o(cpu.RAE, 8), 'RAE', 'Reference address in ECS');
+    html += cell('FLE', o(cpu.FLE, 8), 'FLE', 'Field length in ECS');
+    html += cell('MA', o(cpu.MA, 6), 'MA', 'Monitor exchange package address');
     html += '</div><div class="reg-status">';
     html += `<span class="pill ${cpu.stopped ? (cpu.lastError ? 'pill-error' : 'pill-dim') : 'pill-ok'}">${stateTxt}</span>`;
-    html += `<span class="pill pill-dim">mode ${cpu.monitorMode ? 'moniteur' : 'programme'}</span>`;
-    html += `<span class="pill ${ec ? 'pill-warn' : 'pill-dim'}" data-tip="Condition de sortie">cond. : ${ecTxt}</span>`;
+    html += `<span class="pill pill-dim">${cpu.monitorMode ? 'monitor' : 'program'} mode</span>`;
+    html += `<span class="pill ${ec ? 'pill-warn' : 'pill-dim'}" data-tip="Exit condition">cond.: ${ecTxt}</span>`;
     html += `<span class="pill pill-dim">${esc(m.cpu.features ? this.ctx.modelName() : '')}</span>`;
     html += '</div>';
     if (cpu.lastError) html += `<div class="reg-error">${iconSvg('error', 14)} ${esc(cpu.lastError)}</div>`;
@@ -152,10 +152,10 @@ export class CpuPanel {
       html += `<div class="ab ${chg('B', i) ? 'chg' : ''}"><span class="reg-n">B${i}</span><span class="mono" ${i ? `data-edit="B${i}"` : ''}>${o(cpu.B[i], 6)}</span></div>`;
     }
     html += '</div><div class="reg-stats">';
-    html += `<div><span>Instructions</span><b class="mono">${cpu.instructions.toLocaleString('fr-FR')}</b></div>`;
-    html += `<div><span>Cycles mineurs</span><b class="mono">${Math.round(cpu.cycles).toLocaleString('fr-FR')}</b></div>`;
-    html += `<div data-tip="Taux de succès de la pile d'instructions (8 mots sur le 6600)"><span>Pile d'instructions</span><b class="mono">${ratio}</b></div>`;
-    html += `<div><span>Temps simulé</span><b class="mono">${fmtTime(m.time)}</b></div>`;
+    html += `<div><span>Instructions</span><b class="mono">${cpu.instructions.toLocaleString('en-US')}</b></div>`;
+    html += `<div><span>Minor cycles</span><b class="mono">${Math.round(cpu.cycles).toLocaleString('en-US')}</b></div>`;
+    html += `<div data-tip="Instruction stack hit rate (8 words on the 6600)"><span>Instruction stack</span><b class="mono">${ratio}</b></div>`;
+    html += `<div><span>Simulated time</span><b class="mono">${fmtTime(m.time)}</b></div>`;
     html += '</div>';
     this.regs.innerHTML = html;
 
@@ -163,7 +163,7 @@ export class CpuPanel {
     if (!this.secXp.classList.contains('closed')) this.renderXp();
   }
 
-  /** Mémorise l'état courant comme référence (avant marche ou pas). */
+  /** Saves the current state as the reference (before a run or a step). */
   mark() {
     this.prev = this.snapshot();
   }
@@ -180,17 +180,17 @@ export class CpuPanel {
     inlineEdit(t, initial, (v) => {
       if (key[0] === 'X') {
         const w = parseWord(v);
-        if (w === null) { toast('Valeur invalide : octal, entier suffixé D ou flottant.', 'warn'); return false; }
+        if (w === null) { toast('Invalid value: octal, integer with a D suffix, or floating-point.', 'warn'); return false; }
         cpu.X[Number(key[1])] = w;
       } else {
         const n = parseOctal(v);
-        if (n === null) { toast('Valeur octale invalide.', 'warn'); return false; }
+        if (n === null) { toast('Invalid octal value.', 'warn'); return false; }
         const num = Number(n);
         if (key.length === 2 && 'AB'.includes(key[0])) cpu[key[0]][Number(key[1])] = num & M18;
         else if (key === 'P') { cpu.P = num & M18; cpu.wordValid = false; cpu.parcel = 0; }
         else cpu[key] = num;
       }
-      this.ctx.log(`Registre ${key} modifié.`);
+      this.ctx.log(`Register ${key} modified.`);
       setTimeout(() => this.ctx.refresh(true));
       return true;
     });
@@ -210,7 +210,7 @@ export class CpuPanel {
     const cpu = m.cpu;
     const runner = this.ctx.runner;
     if (!runner.kind && !cpu.instructions) {
-      this.dis.innerHTML = '<div class="dim pad">Aucun programme chargé.</div>';
+      this.dis.innerHTML = '<div class="dim pad">No program loaded.</div>';
       return;
     }
     const P = cpu.P;
@@ -232,7 +232,7 @@ export class CpuPanel {
       if (w === 0n && rel !== P) {
         const bp0 = runner.hasCpuBreakpoint(abs);
         html += `<div class="d-row w0 zero ${oob ? 'oob' : ''}" data-abs="${abs}"><span class="d-bp ${bp0 ? 'on' : ''}"></span>`
-          + `<span class="d-addr">${o(rel, 6)}</span><span class="d-par"></span><span class="d-oct">00000 00000 …</span><span class="d-txt dim">mot nul</span><span class="d-src"></span></div>`;
+          + `<span class="d-addr">${o(rel, 6)}</span><span class="d-par"></span><span class="d-oct">00000 00000 …</span><span class="d-txt dim">zero word</span><span class="d-src"></span></div>`;
         continue;
       }
       const ins = disasmWord(w, { symbol, cmu: cpu.features.cmu });
@@ -262,14 +262,14 @@ export class CpuPanel {
     if (this.xpSource === 'cm') {
       words = [];
       for (let i = 0; i < 16; i++) words.push(m.cm[(this.xpAddr + i) % m.cmSize]);
-      title = `Paquet lu en ${o(this.xpAddr, 6)}B`;
+      title = `Package read at ${o(this.xpAddr, 6)}B`;
     } else {
       words = m.cpu.packageWords();
-      title = 'État courant du CPU';
+      title = 'Current CPU state';
     }
     const f = (w, s, bits) => Number((w >> BigInt(s)) & ((1n << BigInt(bits)) - 1n));
     const names0 = ['P', 'RA', 'FL', 'EM', 'RAE', 'FLE', 'MA', 'spare'];
-    let html = `<div class="xp-title">${title}</div><table class="grid-table xp-table"><thead><tr><th>Mot</th><th>Contenu</th><th>Champs</th></tr></thead><tbody>`;
+    let html = `<div class="xp-title">${title}</div><table class="grid-table xp-table"><thead><tr><th>Word</th><th>Contents</th><th>Fields</th></tr></thead><tbody>`;
     for (let i = 0; i < 16; i++) {
       const w = words[i];
       let fields;
@@ -287,7 +287,7 @@ export class CpuPanel {
 
 export function fmtTime(us) {
   if (us < 1000) return `${us} µs`;
-  if (us < 1e6) return `${(us / 1000).toFixed(3).replace('.', ',')} ms`;
-  return `${(us / 1e6).toFixed(4).replace('.', ',')} s`;
+  if (us < 1e6) return `${(us / 1000).toFixed(3)} ms`;
+  return `${(us / 1e6).toFixed(4)} s`;
 }
 

@@ -1,12 +1,12 @@
-// Assemblage des instructions CPU (entrées syntaxiques).
+// Assembly of CPU instructions (syntactic entries).
 
 import { Cursor, AsmError, parseExpression, Val } from './expr.js';
 import { CPU_SYNTAX, syntaxKey } from './cpuops.js';
 
 /**
- * Analyse le champ opération et les sous-champs d'une instruction CPU.
- * @param blankSep accepter des sous-champs séparés par des blancs (« UX1 B2 X3 »)
- * @returns { key, mnem, opReg, subs, varEnd } ou null si le champ opération n'est pas syntaxique
+ * Parses the operation field and the subfields of a CPU instruction.
+ * @param blankSep accept subfields separated by blanks ("UX1 B2 X3")
+ * @returns { key, mnem, opReg, subs, varEnd } or null if the operation field is not syntactic
  */
 export function prepareCpuStatement(asm, entry, blankSep = false) {
   const op = entry.op;
@@ -20,7 +20,7 @@ export function prepareCpuStatement(asm, entry, blankSep = false) {
       let n = 0;
       try {
         n = asm.evalText(entry, r.slice(1)).num();
-      } catch (e) { /* signalé au codage */ }
+      } catch (e) { /* reported when coding */ }
       if (n < 0 || n > 7) { asm.flag(entry, '7'); n &= 7; }
       opReg = { n, text: r.slice(1) };
     } else return null;
@@ -73,7 +73,7 @@ export function prepareCpuStatement(asm, entry, blankSep = false) {
   return { key, mnem, opReg, subs, varEnd, blank: blankSep };
 }
 
-/** Recherche dans la table syntaxique (définitions du programme d'abord). */
+/** Lookup in the syntactic table (program definitions first). */
 export function cpuSyntaxLookup(asm, key) {
   const list = asm.syntactic.get(key);
   if (list) for (let k = list.length - 1; k >= 0; k--) if (!list[k].purged) return list[k];
@@ -84,7 +84,7 @@ export function cpuSyntaxLookup(asm, key) {
   return { kind: 'cpu', ...b };
 }
 
-/** Texte de l'expression Q d'un sous-champ (registres retirés). */
+/** Text of the Q expression of a subfield (registers removed). */
 export function qText(sub) {
   if (!sub.regs.length) return sub.text;
   let t = sub.text;
@@ -94,7 +94,7 @@ export function qText(sub) {
   return t;
 }
 
-/** Source d'un champ de registre selon le chiffre CPOP. */
+/** Source of a register field according to the CPOP digit. */
 function regField(d, prep, val3) {
   const regs = [];
   for (const s of prep.subs) for (const r of s.regs) regs.push(r);
@@ -107,13 +107,13 @@ function regField(d, prep, val3) {
   }
 }
 
-/** Assemble une instruction CPU (passe 1 : place ; passe 2 : valeur). */
+/** Assembles a CPU instruction (pass 1: space; pass 2: value). */
 export function assembleCpuInstruction(asm, entry, def, pass) {
   const b = asm.cur;
   const loc = entry.f.loc;
   const len = def.len || 30;
   if (def.machine === '8' && asm.machineType && asm.machineType[0] !== '8') {
-    if (pass === 1) asm.flag(entry, 'O', 'instruction réservée aux modèles 8xx');
+    if (pass === 1) asm.flag(entry, 'O', 'instruction restricted to 8xx models');
   }
   asm.prepareCode(entry);
   if ((loc && loc !== '-') || (def.before && loc !== '-')) asm.forceUpper(b);
@@ -128,7 +128,7 @@ export function assembleCpuInstruction(asm, entry, def, pass) {
     prep = prepareCpuStatement(asm, entry, entry.prep && entry.prep.blank);
     if (!prep || prep.key !== entry.prep.key) prep = entry.prep;
   }
-  // erreurs d'analyse des sous-champs
+  // subfield parsing errors
   for (const s of prep.subs) if (s.val.error && pass === 2) asm.flag(entry, s.val.error.flag, s.val.error.message);
   const val = def.val;
   const iBits = val & 7;
@@ -155,7 +155,7 @@ export function assembleCpuInstruction(asm, entry, def, pass) {
       let n = 0;
       if (qsub && pass === 2) {
         const q = evalQ(asm, entry, qsub);
-        if (!q.isAbsolute()) throw new AsmError('A', 'compte absolu exigé');
+        if (!q.isAbsolute()) throw new AsmError('A', 'absolute count required');
         n = q.num();
       }
       if (def.jk) {
@@ -175,10 +175,10 @@ export function assembleCpuInstruction(asm, entry, def, pass) {
   if (def.kind === 'cpu' && (def.key === 'PS' || def.key === 'PSQ') && loc) asm.titles.subsub = loc;
 }
 
-/** Évalue la partie expression (Q) d'un sous-champ en passe 2. */
+/** Evaluates the expression part (Q) of a subfield in pass 2. */
 function evalQ(asm, entry, sub) {
   const ctx = asm.ctxFor(entry, { regs: true, fieldBits: 18 });
-  // réévaluation du texte du sous-champ, registres comptés pour zéro
+  // re-evaluate the subfield text, registers counted as zero
   const c2 = new Cursor(sub.text, 0);
   const v = parseExpression(c2, ctx);
   asm.checkReloc(v);

@@ -1,8 +1,8 @@
-// Machine CDC 6600 complète : mémoire centrale, ECS, CPU, PP, canaux, périphériques.
+// Complete CDC 6600 machine: central memory, ECS, CPU, PPs, channels, peripherals.
 //
-// Temps : l'horloge `time` compte les cycles majeurs (1 µs). À chaque cycle
-// majeur, chaque PP du barillet dispose d'un créneau, et le CPU exécute jusqu'à
-// dix cycles mineurs (100 ns).
+// Time: the `time` clock counts major cycles (1 µs). In each major cycle,
+// each PP in the barrel gets one slot, and the CPU executes up to
+// ten minor cycles (100 ns).
 
 import { Cpu, MODELS } from './cpu/cpu.js';
 import { Pp } from './pp/pp.js';
@@ -13,13 +13,13 @@ import {
 
 export const DEFAULT_CONFIG = {
   model: '6600',
-  cmWords: 0o400000,     // 131072 mots
-  ecsWords: 0o400000,    // ECS de 131072 mots
+  cmWords: 0o400000,     // 131072 words
+  ecsWords: 0o400000,    // ECS of 131072 words
   ppCount: 10,
   channels: 0o20,
   consoleChannel: 0o10,
-  unitRecordChannel: 0o12, // lecteur 405 + imprimante 1612
-  tapeChannel: 0o13,      // bandes 607 et disque 6603
+  unitRecordChannel: 0o12, // card reader 405 + line printer 1612
+  tapeChannel: 0o13,      // tape units 607 and disk 6603
   clockChannel: 0o14,
   tapeUnits: 4,
 };
@@ -40,13 +40,13 @@ export class Machine {
     this.ppRelocation = false;
     this.channelFlags = false;
     this.time = 0;
-    this.cpuBreakpoints = new Set();   // adresses absolues de mots
-    this.ppBreakpoints = new Map();    // pp -> Set(adresse)
-    this.watchpoints = new Set();      // adresses CM absolues surveillées en écriture
+    this.cpuBreakpoints = new Set();   // absolute word addresses
+    this.ppBreakpoints = new Map();    // pp -> Set(address)
+    this.watchpoints = new Set();      // absolute CM addresses watched for writes
     this.stopRequest = null;
     this.writeHook = null;
 
-    // Périphériques
+    // Peripherals
     this.console = new Console6612();
     this.console.machine = this;
     this.channels[c.consoleChannel].attach(this.console);
@@ -63,7 +63,7 @@ export class Machine {
     if (c.clockChannel < c.channels) this.clock.attachTo(this.channels[c.clockChannel]);
   }
 
-  // ---------------------------------------------------------------- mémoire
+  // ----------------------------------------------------------------- memory
 
   readCM(addr) {
     return this.cm[addr];
@@ -86,9 +86,9 @@ export class Machine {
   // -------------------------------------------------------------- deadstart
 
   /**
-   * Deadstart : tous les PP exécutent un IAM 10000B sur leur canal en P = 0 ;
-   * le panneau envoie ses mots sur le canal 0, chargés dans PP0 à partir de 1 ;
-   * PP0 démarre alors en 1. Les autres PP attendent d'être chargés par PP0.
+   * Deadstart: every PP executes an IAM 10000B on its channel at P = 0;
+   * the panel sends its words on channel 0, loaded into PP0 from location 1;
+   * PP0 then starts at 1. The other PPs wait to be loaded by PP0.
    */
   deadstart(panelWords) {
     this.cpu.reset();
@@ -126,27 +126,27 @@ export class Machine {
     this.console.reset();
   }
 
-  /** Charge directement un programme dans la mémoire d'un PP. */
+  /** Loads a program directly into a PP's memory. */
   loadPP(n, words, origin = 0) {
     const pp = this.pps[n];
     for (let i = 0; i < words.length; i++) pp.mem[(origin + i) & 0o7777] = words[i] & 0o7777;
   }
 
-  /** Démarre un PP à l'adresse donnée (hors séquence de deadstart). */
+  /** Starts a PP at the given address (outside the deadstart sequence). */
   startPP(n, address) {
     const pp = this.pps[n];
     pp.reset();
     pp.P = address & 0o7777;
   }
 
-  /** Arrête un PP (il n'exécute plus rien). */
+  /** Stops a PP (it no longer executes anything). */
   stopPP(n) {
     const pp = this.pps[n];
     pp.reset();
     pp.stopped = true;
   }
 
-  /** Met un PP en attente d'un chargement sur son canal (état de deadstart). */
+  /** Puts a PP in wait for a load on its channel (deadstart state). */
   idlePP(n) {
     const pp = this.pps[n];
     pp.reset();
@@ -159,8 +159,8 @@ export class Machine {
   }
 
   /**
-   * Prépare le CPU pour exécuter un programme : construit un paquet d'échange
-   * en `xpAddress` et le charge.
+   * Prepares the CPU to execute a program: builds an exchange package
+   * at `xpAddress` and loads it.
    */
   startCPU({ P = 0, RA = 0, FL = this.cmSize, EM = 0, RAE = 0, FLE = this.ecsSize, MA = 0, X = [], A = [], B = [], monitor = false } = {}) {
     const cpu = this.cpu;
@@ -175,10 +175,10 @@ export class Machine {
     cpu.stopped = false;
   }
 
-  // -------------------------------------------------------------- exécution
+  // -------------------------------------------------------------- execution
 
   /**
-   * Exécute `us` microsecondes simulées. Retourne null ou la raison d'arrêt :
+   * Executes `us` simulated microseconds. Returns null or the stop reason:
    * { reason: 'breakpoint'|'ppbreak'|'watch'|'cpustop'|'halt'|'user', ... }
    */
   run(us, { stopOnCpuStop = false, cpuOnly = false } = {}) {
@@ -234,14 +234,14 @@ export class Machine {
     return null;
   }
 
-  /** Exécute une seule instruction CPU (pas à pas). */
+  /** Executes a single CPU instruction (step). */
   stepCPU() {
     const r = this.cpu.step();
     this.time = Math.max(this.time, Math.ceil(this.cpu.cycles / 10));
     return r;
   }
 
-  /** Exécute une instruction d'un PP (pas à pas). */
+  /** Executes one instruction of a PP (step). */
   stepPP(n) {
     const pp = this.pps[n];
     let guard = 0;
@@ -252,7 +252,7 @@ export class Machine {
     this.time++;
   }
 
-  /** Vue d'ensemble pour l'IDE. */
+  /** Overview for the IDE. */
   status() {
     const cpu = this.cpu;
     return {

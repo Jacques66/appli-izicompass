@@ -1,4 +1,4 @@
-// Désassembleur PP en syntaxe COMPASS.
+// PP disassembler, COMPASS syntax.
 
 const MN = [
   'PSN', 'LJM', 'RJM', 'UJN', 'ZJN', 'NJN', 'PJN', 'MJN',
@@ -13,7 +13,7 @@ const MN = [
 
 export const PP_MNEMONICS = MN;
 
-/** Instructions PP sur deux mots. */
+/** Two-word PP instructions. */
 export function ppIsLong(f) {
   return f === 0o01 || f === 0o02 || (f >= 0o20 && f <= 0o23) || (f >= 0o50 && f <= 0o57)
     || f === 0o61 || f === 0o63 || (f >= 0o64 && f <= 0o67) || f === 0o71 || f === 0o73 || f === 0o77;
@@ -22,8 +22,8 @@ export function ppIsLong(f) {
 const o = (n) => n.toString(8);
 
 /**
- * Désassemble l'instruction en `addr` de la mémoire PP `mem`.
- * @returns { text, length (1 ou 2), mnemonic }
+ * Disassembles the instruction at `addr` of PP memory `mem`.
+ * @returns { text, length (1 or 2), mnemonic }
  */
 export function disasmPP(mem, addr, opts = {}) {
   const w = mem[addr & 0o7777];

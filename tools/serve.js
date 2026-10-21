@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Petit serveur HTTP statique pour l'IDE : sert la racine du dépôt.
-// Usage : node tools/serve.js [port]   (défaut 6600, ou variable PORT)
+// Small static HTTP server for the IDE: serves the repository root.
+// Usage: node tools/serve.js [port]   (default 6600, or the PORT variable)
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -42,7 +42,7 @@ const server = http.createServer((req, res) => {
   }
   const file = path.resolve(ROOT, '.' + rel);
   if (!file.startsWith(ROOT)) {
-    res.writeHead(403).end('Accès refusé');
+    res.writeHead(403).end('Access denied');
     return;
   }
   fs.stat(file, (err, st) => {
@@ -61,7 +61,7 @@ const server = http.createServer((req, res) => {
 function send(file, res) {
   fs.readFile(file, (err, data) => {
     if (err) {
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Introuvable');
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
       return;
     }
     res.writeHead(200, {
@@ -73,5 +73,5 @@ function send(file, res) {
 }
 
 server.listen(PORT, () => {
-  console.log(`Atelier COMPASS : ouvrir http://localhost:${PORT}/ide/`);
+  console.log(`COMPASS Workbench: open http://localhost:${PORT}/ide/`);
 });

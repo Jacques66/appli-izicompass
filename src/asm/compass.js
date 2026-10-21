@@ -1,4 +1,4 @@
-// Point d'entrée de l'assembleur COMPASS (voir docs/API.md).
+// Entry point of the COMPASS assembler (see docs/API.md).
 
 import { Assembler } from './assembler.js';
 import { SYSTEM_TEXTS } from '../os/systext.js';
@@ -6,9 +6,9 @@ import { SYSTEM_TEXTS } from '../os/systext.js';
 const systemCache = new Map();
 
 /**
- * Prépare les définitions d'un texte système (équivalent STEXT + paramètre S=).
- * Le texte système est un programme COMPASS dont les macros, opdefs, micros et
- * symboles absolus deviennent disponibles au début de chaque assemblage.
+ * Prepares the definitions of a system text (equivalent of STEXT + the S= parameter).
+ * The system text is a COMPASS program whose macros, opdefs, micros and
+ * absolute symbols become available at the start of each assembly.
  */
 export function systemDefinitions(name, text) {
   const key = name + '\u0000' + text;
@@ -23,13 +23,13 @@ export function systemDefinitions(name, text) {
 }
 
 /**
- * Assemble un source COMPASS.
- * @param source texte du programme
+ * Assembles a COMPASS source.
+ * @param source program text
  * @param options { fileName, texts, systemText, list, date, debug }
  */
 export function assemble(source, options = {}) {
   options = { ...options, texts: { ...SYSTEM_TEXTS, ...(options.texts || {}) } };
-  // texte système par défaut : SYSTEXT (comme le S=SYSTEXT de NOS) ; null pour aucun
+  // default system text: SYSTEXT (like S=SYSTEXT under NOS); null for none
   if (options.systemText === undefined) options.systemText = 'SYSTEXT';
   let systemDefs = null;
   if (options.systemText) {

@@ -1,52 +1,52 @@
-// Logique d'exécution de l'IDE, indépendante du DOM (utilisable dans Node).
+// IDE execution logic, independent of the DOM (usable in Node).
 //
-// Trois modes de lancement :
-//   - « cpu »       : CPU nu. Le programme absolu (ou relogeable) est chargé en RA
-//                     et le CPU démarre à son point d'entrée ; les PP restent au repos.
-//   - « pp »        : un programme PP (mots de 12 bits) est chargé dans le PP n et
-//                     démarré à son point d'entrée ; les autres PP restent au repos.
-//   - « deadstart » : séquence de deadstart avec les mots du panneau (16 au plus).
-//   - « system »    : travail sous le mini-système (src/os/system.js) : programme CPU
-//                     en RA=2000B, moniteur MTR dans PP0, console DSD dans PP1.
-//   - « systape »   : même travail, mais amorcé par un vrai deadstart : bande système
-//                     sur l'unité 0 (chargeur DSL, mémoire centrale, DSD, MTR).
-// Le mode « auto » choisit « pp » pour un programme PP, « system » pour un
-// programme CPU relogeable (travail à la NOS) et « cpu » pour un programme absolu.
+// Launch modes:
+//   - "cpu"       : bare CPU. The absolute (or relocatable) program is loaded at RA
+//                   and the CPU starts at its entry point; the PPs stay idle.
+//   - "pp"        : a PP program (12-bit words) is loaded into PP n and
+//                   started at its entry point; the other PPs stay idle.
+//   - "deadstart" : deadstart sequence with the panel words (16 at most).
+//   - "system"    : job under the mini-system (src/os/system.js): CPU program
+//                   at RA=2000B, MTR monitor in PP0, DSD console in PP1.
+//   - "systape"   : same job, but bootstrapped by a real deadstart: system tape
+//                   on unit 0 (DSL loader, central memory, DSD, MTR).
+// The "auto" mode picks "pp" for a PP program, "system" for a relocatable
+// CPU program (NOS-style job) and "cpu" for an absolute program.
 //
-// RunController enchaîne les tranches d'exécution (marche, pause, pas à pas,
-// vitesse) et traduit les raisons d'arrêt de la machine en messages.
+// RunController sequences the execution slices (run, pause, step,
+// speed) and translates the machine's stop reasons into messages.
 
 const M18 = 0o777777;
 const M12 = 0o7777;
 
 export const RUN_MODES = {
-  auto: 'Automatique',
-  system: 'Système',
-  systape: 'Système (deadstart sur bande)',
-  cpu: 'CPU nu',
+  auto: 'Automatic',
+  system: 'System',
+  systape: 'System (tape deadstart)',
+  cpu: 'Bare CPU',
   pp: 'PP',
   deadstart: 'Deadstart',
 };
 
 /**
- * Panneau de deadstart de démonstration (chargé dans PP0 à partir de 1) :
- * affiche « CDC 6600 » en caractères moyens au centre de l'écran gauche.
- *   1  DCN 10B            libère le canal de la console (actif au deadstart)
- *   2  FNC 7001B,10B      écran gauche, caractères moyens
+ * Demonstration deadstart panel (loaded into PP0 from location 1):
+ * displays "CDC 6600" in medium characters at the center of the left screen.
+ *   1  DCN 10B            releases the console channel (active at deadstart)
+ *   2  FNC 7001B,10B      left screen, medium characters
  *   4  ACN 10B
- *   5  LDN 6              6 mots à émettre
+ *   5  LDN 6              6 words to output
  *   6  OAM 12B,10B
  *  10  DCN 10B
- *  11  UJN 2             boucle de rafraîchissement
+ *  11  UJN 2             refresh loop
  *  12  6300 7400         X = 300B, Y = 400B
- *  14  0304 0355 4141 3333  « CDC 6600 »
+ *  14  0304 0355 4141 3333  "CDC 6600"
  */
 export const DEMO_DEADSTART = [
   0o7510, 0o7710, 0o7001, 0o7410, 0o1406, 0o7310, 0o0012, 0o7510,
   0o0370, 0o6300, 0o7400, 0o0304, 0o0355, 0o4141, 0o3333,
 ];
 
-/** Chargement facultatif du chargeur de binaires relogeables. */
+/** Optional loading of the relocatable binary loader. */
 let loaderPromise = null;
 export function loadOptionalLoader() {
   if (!loaderPromise) {
@@ -57,7 +57,7 @@ export function loadOptionalLoader() {
   return loaderPromise;
 }
 
-/** Chargement facultatif du mini-système. */
+/** Optional loading of the mini-system. */
 let systemPromise = null;
 export function loadOptionalSystem() {
   if (!systemPromise) {
@@ -70,50 +70,50 @@ export function loadOptionalSystem() {
 
 const oct = (n, w = 0) => (n >>> 0).toString(8).padStart(w, '0');
 
-/** Formate une raison d'arrêt de la machine en texte français. */
+/** Formats a machine stop reason as English text. */
 export function describeStop(stop, runner = null) {
   if (!stop) return '';
   switch (stop.reason) {
-    case 'breakpoint': return `Point d'arrêt CPU en P=${oct(stop.address, 6)}B`;
-    case 'ppbreak': return `Point d'arrêt PP${oct(stop.pp, 2)} en P=${oct(stop.address, 4)}B`;
-    case 'watch': return `Point de surveillance : écriture en ${oct(stop.address, 6)}B`;
+    case 'breakpoint': return `CPU breakpoint at P=${oct(stop.address, 6)}B`;
+    case 'ppbreak': return `PP${oct(stop.pp, 2)} breakpoint at P=${oct(stop.address, 4)}B`;
+    case 'watch': return `Watchpoint: write to ${oct(stop.address, 6)}B`;
     case 'cpustop':
       if (stop.error) {
-        const at = runner && runner.machine.cpu.lastInstr ? ` (instruction en ${oct(runner.machine.cpu.lastInstr.P, 6)}B)` : '';
-        return `Sortie d'erreur : ${stop.error}${at}`;
+        const at = runner && runner.machine.cpu.lastInstr ? ` (instruction at ${oct(runner.machine.cpu.lastInstr.P, 6)}B)` : '';
+        return `Error exit: ${stop.error}${at}`;
       }
-      return 'Arrêt du programme (PS)';
-    case 'halt': return 'Machine arrêtée';
-    case 'user': return 'Arrêt demandé';
-    case 'idle': return 'CPU arrêté : rien à exécuter';
-    case 'jobend': return stop.status === 'abort' ? 'Travail abandonné (voir le journal)' : 'Fin normale du travail';
-    case 'error': return `Erreur interne : ${stop.message}`;
+      return 'Program stop (PS)';
+    case 'halt': return 'Machine halted';
+    case 'user': return 'Stop requested';
+    case 'idle': return 'CPU stopped: nothing to execute';
+    case 'jobend': return stop.status === 'abort' ? 'Job aborted (see the dayfile)' : 'Normal end of job';
+    case 'error': return `Internal error: ${stop.message}`;
     default: return stop.message || String(stop.reason);
   }
 }
 
 export class Runner {
   /**
-   * @param machine instance de Machine
+   * @param machine Machine instance
    * @param options { mode, ra, fl, em, ppNumber, deadstart }
    */
   constructor(machine, options = {}) {
     this.machine = machine;
     this.options = { mode: 'auto', ra: 0, fl: 0, em: 0o070000, ppNumber: 0, deadstart: DEMO_DEADSTART, ...options };
-    this.result = null;       // résultat d'assemblage chargé
-    this.program = null;      // programme chargé
+    this.result = null;       // loaded assembly result
+    this.program = null;      // loaded program
     this.kind = null;         // 'cpu' | 'pp' | 'deadstart'
     this.fileName = null;
-    this.base = 0;            // décalage (relatif à RA) des adresses d'assemblage
+    this.base = 0;            // offset (relative to RA) of the assembly addresses
     this.ra = 0;
     this.fl = 0;
     this.ppNumber = 0;
     this.loaderMap = null;
-    this.lineToAddr = new Map();   // ligne source -> adresse d'assemblage
-    this.addrToLines = new Map();  // adresse d'assemblage -> [{ line, parcel }]
+    this.lineToAddr = new Map();   // source line -> assembly address
+    this.addrToLines = new Map();  // assembly address -> [{ line, parcel }]
     this.sourceBreakpoints = new Set();
-    this.addressBreakpoints = new Set();   // points d'arrêt CPU posés par adresse absolue
-    this.ppAddressBreakpoints = new Map(); // pp -> Set(adresse), posés depuis le désassemblage
+    this.addressBreakpoints = new Set();   // CPU breakpoints set by absolute address
+    this.ppAddressBreakpoints = new Map(); // pp -> Set(address), set from the disassembly
   }
 
   setMachine(machine) {
@@ -130,7 +130,7 @@ export class Runner {
     this.addrToLines.clear();
   }
 
-  /** Mode effectif pour un résultat d'assemblage. */
+  /** Effective mode for an assembly result. */
   resolveMode(result, mode = this.options.mode) {
     if (mode === 'deadstart' || mode === 'cpu' || mode === 'pp' || mode === 'system' || mode === 'systape') return mode;
     const progs = (result && result.programs) || [];
@@ -139,7 +139,7 @@ export class Runner {
     return 'cpu';
   }
 
-  /** Remise à zéro « douce » de la machine (mémoire, CPU, PP, canaux, console). */
+  /** "Soft" reset of the machine (memory, CPU, PPs, channels, console). */
   reset() {
     const m = this.machine;
     m.clearMemory();
@@ -162,8 +162,8 @@ export class Runner {
   }
 
   /**
-   * Met les PP inutilisés au repos : en attente d'un chargement sur leur canal
-   * (état de deadstart) si ce canal est libre, sinon arrêtés.
+   * Idles the unused PPs: waiting for a load on their channel
+   * (deadstart state) if that channel is free, otherwise stopped.
    */
   idleOtherPPs(except = -1) {
     const m = this.machine;
@@ -172,7 +172,7 @@ export class Runner {
       m.idlePP(n);
       const ch = m.channels[n];
       if (ch && !ch.devices.length && !ch.hardwired) {
-        ch.active = true;   // IAM en attente : le PP est « suspendu », comme après un deadstart
+        ch.active = true;   // IAM waiting: the PP is "hung", as after a deadstart
       } else {
         m.pps[n].stopped = true;
       }
@@ -180,13 +180,13 @@ export class Runner {
   }
 
   /**
-   * Charge un résultat d'assemblage dans la machine selon le mode choisi.
+   * Loads an assembly result into the machine according to the chosen mode.
    * @returns {Promise<{ ok, mode, message, entry? }>}
    */
   async load(result, opts = {}) {
     const o = { ...this.options, ...opts };
     let mode = this.resolveMode(result, o.mode);
-    // Mode imposé incompatible avec le programme (PP en mode CPU, ou l'inverse) : mode automatique.
+    // Forced mode incompatible with the program (PP in CPU mode, or the reverse): automatic mode.
     const progs0 = (result && result.programs) || [];
     if (mode !== 'deadstart' && progs0.length) {
       const hasPP = progs0.some((p) => p.type === 'pp');
@@ -197,31 +197,31 @@ export class Runner {
     this.fileName = opts.fileName || (result && result.fileName) || null;
     if (mode === 'deadstart') return this.loadDeadstart(o.deadstart);
     if (!result || !result.programs || !result.programs.length) {
-      return { ok: false, mode, message: 'Aucun programme assemblé à charger.' };
+      return { ok: false, mode, message: 'No assembled program to load.' };
     }
     this.reset();
     this.result = result;
     if (mode === 'pp') {
       const prog = result.programs.find((p) => p.type === 'pp');
-      if (!prog) return { ok: false, mode, message: 'Aucun programme PP (PERIPH) dans le résultat d\'assemblage.' };
+      if (!prog) return { ok: false, mode, message: 'No PP program (PERIPH) in the assembly result.' };
       return this.loadPPProgram(prog, o.ppNumber);
     }
     const progs = result.programs.filter((p) => p.type === 'abs' || p.type === 'reloc');
-    if (!progs.length) return { ok: false, mode, message: 'Aucun programme CPU (ABS ou relogeable) dans le résultat d\'assemblage.' };
+    if (!progs.length) return { ok: false, mode, message: 'No CPU program (ABS or relocatable) in the assembly result.' };
     if (mode === 'system' || mode === 'systape') return this.loadSystemJob(progs, o, mode === 'systape');
     return this.loadCPUPrograms(progs, o);
   }
 
-  /** Mode Système : le programme devient un travail du mini-système. */
+  /** System mode: the program becomes a mini-system job. */
   async loadSystemJob(progs, o, fromTape = false) {
     const mode = fromTape ? 'systape' : 'system';
     const sys = await loadOptionalSystem();
-    if (!sys || (fromTape && typeof sys.deadstartJob !== 'function')) return { ok: false, mode, message: 'Le mini-système (src/os/system.js) est indisponible.' };
+    if (!sys || (fromTape && typeof sys.deadstartJob !== 'function')) return { ok: false, mode, message: 'The mini-system (src/os/system.js) is unavailable.' };
     const m = this.machine;
     const main = progs[0];
     const opts = { name: main.name || 'JOB', em: o.em ?? 0o070000 };
     const st = fromTape ? sys.deadstartJob(m, progs, opts) : sys.startJob(m, progs, opts);
-    if (!st.ok) return { ok: false, mode, message: `Travail refusé : ${(st.errors || []).join(' ; ')}` };
+    if (!st.ok) return { ok: false, mode, message: `Job rejected: ${(st.errors || []).join('; ')}` };
     this.tape = st.tape || null;
     this.system = sys;
     this.kind = 'system';
@@ -235,25 +235,25 @@ export class Runner {
     this.buildLineMaps();
     this.applyBreakpoints();
     const where = fromTape
-      ? `bande système montée sur l'unité 0 (${st.tape ? st.tape.records.length : '?'} enregistrements), deadstart en cours`
-      : 'MTR dans PP00, DSD dans PP01';
+      ? `system tape mounted on unit 0 (${st.tape ? st.tape.records.length : '?'} records), deadstart in progress`
+      : 'MTR in PP00, DSD in PP01';
     return {
       ok: true, mode, entry: st.entry,
-      message: `Travail ${main.name || ''} soumis au mini-système : RA=${oct(st.ra, 6)}B, FL=${oct(st.fl, 6)}B, entrée P=${oct(st.entry, 6)}B ; ${where}.`,
+      message: `Job ${main.name || ''} submitted to the mini-system: RA=${oct(st.ra, 6)}B, FL=${oct(st.fl, 6)}B, entry P=${oct(st.entry, 6)}B; ${where}.`,
     };
   }
 
-  /** État du travail en mode Système : 'run' | 'end' | 'abort' | 'none' (null hors de ce mode). */
+  /** Job status in System mode: 'run' | 'end' | 'abort' | 'none' (null outside this mode). */
   jobStatus() {
     return this.kind === 'system' && this.system ? this.system.jobStatus(this.machine) : null;
   }
 
-  /** Journal (dayfile) du mini-système. */
+  /** Mini-system dayfile. */
   dayfile() {
     return this.kind === 'system' && this.system ? this.system.dayfile(this.machine) : [];
   }
 
-  /** Mode CPU nu : édition de liens et chargement par src/loader/loader.js s'il existe. */
+  /** Bare CPU mode: linking and loading by src/loader/loader.js if it exists. */
   async loadCPUPrograms(progs, o) {
     const m = this.machine;
     const ra = (o.ra >>> 0) % m.cmSize;
@@ -283,7 +283,7 @@ export class Runner {
         length: p.length ?? (p.image ? p.image.words.length : 0), origin: p.origin || 0,
       }));
     } else {
-      // Sans chargeur : les sous-programmes relogeables sont placés à la suite à partir de RA+100B.
+      // Without a loader: relocatable subprograms are placed one after another from RA+100B.
       let at = 0o100;
       this.loaderMap = [];
       for (const p of progs.filter((q) => q.type === 'reloc')) {
@@ -304,11 +304,11 @@ export class Runner {
     this.applyBreakpoints();
     return {
       ok: true, mode: 'cpu', entry, warnings,
-      message: `Programme ${main.name || ''} chargé en RA=${oct(ra, 6)}B, FL=${oct(fl, 6)}B, entrée P=${oct(entry, 6)}B.`,
+      message: `Program ${main.name || ''} loaded at RA=${oct(ra, 6)}B, FL=${oct(fl, 6)}B, entry P=${oct(entry, 6)}B.`,
     };
   }
 
-  /** Mode PP. */
+  /** PP mode. */
   loadPPProgram(prog, ppNumber = 0) {
     const m = this.machine;
     const n = Math.max(0, Math.min(m.pps.length - 1, ppNumber | 0));
@@ -326,11 +326,11 @@ export class Runner {
     this.applyBreakpoints();
     return {
       ok: true, mode: 'pp', entry,
-      message: `Programme PP ${prog.name || ''} chargé dans PP${oct(n, 2)} en ${oct(image.start || 0, 4)}B, entrée ${oct(entry, 4)}B.`,
+      message: `PP program ${prog.name || ''} loaded into PP${oct(n, 2)} at ${oct(image.start || 0, 4)}B, entry ${oct(entry, 4)}B.`,
     };
   }
 
-  /** Mode deadstart : les mots du panneau sont chargés dans PP0 à partir de 1. */
+  /** Deadstart mode: the panel words are loaded into PP0 from location 1. */
   loadDeadstart(words = this.options.deadstart) {
     const panel = (words && words.length ? words : DEMO_DEADSTART).slice(0, 16).map((w) => w & M12);
     this.reset();
@@ -338,14 +338,14 @@ export class Runner {
     this.kind = 'deadstart';
     this.program = null;
     this.ppNumber = 0;
-    this.loaderMap = [{ name: 'PANNEAU', type: 'deadstart', address: 1, length: panel.length, origin: 1, pp: 0 }];
+    this.loaderMap = [{ name: 'PANEL', type: 'deadstart', address: 1, length: panel.length, origin: 1, pp: 0 }];
     this.applyBreakpoints();
-    return { ok: true, mode: 'deadstart', entry: 1, message: `Deadstart : ${panel.length} mot(s) du panneau chargés dans PP00.` };
+    return { ok: true, mode: 'deadstart', entry: 1, message: `Deadstart: ${panel.length} panel word(s) loaded into PP00.` };
   }
 
-  // ------------------------------------------------------ correspondances
+  // -------------------------------------------------------------- mappings
 
-  /** Construit les tables ligne source <-> adresse à partir de result.lines. */
+  /** Builds the source line <-> address tables from result.lines. */
   buildLineMaps() {
     this.lineToAddr.clear();
     this.addrToLines.clear();
@@ -354,20 +354,20 @@ export class Runner {
       if (l.address === null || l.address === undefined || !l.line) continue;
       if (this.fileName && l.file && l.file !== this.fileName) continue;
       if (!this.lineToAddr.has(l.line)) this.lineToAddr.set(l.line, { address: l.address, parcel: l.parcel || 0 });
-      if (!l.octal || !l.octal.length) continue; // pas de code généré (BSS 0, étiquette seule…)
+      if (!l.octal || !l.octal.length) continue; // no generated code (BSS 0, label only...)
       let arr = this.addrToLines.get(l.address);
       if (!arr) this.addrToLines.set(l.address, (arr = []));
       arr.push({ line: l.line, parcel: l.parcel || 0 });
     }
   }
 
-  /** Adresse d'assemblage de la première parcelle d'une ligne source (ou null). */
+  /** Assembly address of the first parcel of a source line (or null). */
   addressOfLine(line) {
     const e = this.lineToAddr.get(line);
     return e ? e.address : null;
   }
 
-  /** Ligne source correspondant à une adresse d'assemblage (et parcelle CPU). */
+  /** Source line for an assembly address (and CPU parcel). */
   lineOfAddress(address, parcel = null) {
     const arr = this.addrToLines.get(address);
     if (!arr || !arr.length) return null;
@@ -379,7 +379,7 @@ export class Runner {
     return arr[0].line;
   }
 
-  /** Emplacement courant d'exécution : { kind, address, parcel, line }. */
+  /** Current execution location: { kind, address, parcel, line }. */
   currentLocation() {
     const m = this.machine;
     if (this.kind === 'cpu' || this.kind === 'system') {
@@ -396,14 +396,14 @@ export class Runner {
     return { kind: null, address: 0, parcel: 0, line: null };
   }
 
-  /** Emplacement de la dernière instruction CPU exécutée (utile après une sortie d'erreur). */
+  /** Location of the last CPU instruction executed (useful after an error exit). */
   lastCpuLocation() {
     const li = this.machine.cpu.lastInstr;
     if (!li || (this.kind !== 'cpu' && this.kind !== 'system')) return null;
     return { address: li.P, parcel: li.parcel, line: this.lineOfAddress((li.P - this.base) & M18, li.parcel) };
   }
 
-  /** Table valeur -> nom des symboles, pour les désassembleurs (adresses relatives à RA). */
+  /** Symbol value -> name table, for the disassemblers (addresses relative to RA). */
   symbolTable() {
     const map = new Map();
     const syms = (this.result && this.result.symbols) || [];
@@ -416,15 +416,15 @@ export class Runner {
     return map;
   }
 
-  // ------------------------------------------------------- points d'arrêt
+  // ----------------------------------------------------------- breakpoints
 
-  /** Définit les points d'arrêt à partir de numéros de lignes source. */
+  /** Sets the breakpoints from source line numbers. */
   setSourceBreakpoints(lines) {
     this.sourceBreakpoints = new Set(lines);
     return this.applyBreakpoints();
   }
 
-  /** Reporte les points d'arrêt source dans la machine. Retourne { set, unresolved }. */
+  /** Transfers the source breakpoints to the machine. Returns { set, unresolved }. */
   applyBreakpoints() {
     const m = this.machine;
     const set = [];
@@ -451,7 +451,7 @@ export class Runner {
     return { set, unresolved };
   }
 
-  /** Bascule un point d'arrêt CPU à une adresse absolue. Retourne l'état final. */
+  /** Toggles a CPU breakpoint at an absolute address. Returns the final state. */
   toggleCpuAddressBreakpoint(abs) {
     const on = !this.addressBreakpoints.has(abs);
     if (on) this.addressBreakpoints.add(abs); else this.addressBreakpoints.delete(abs);
@@ -459,7 +459,7 @@ export class Runner {
     return on;
   }
 
-  /** Bascule un point d'arrêt sur une adresse du PP n. */
+  /** Toggles a breakpoint at an address of PP n. */
   togglePpAddressBreakpoint(n, addr) {
     let set = this.ppAddressBreakpoints.get(n);
     if (!set) this.ppAddressBreakpoints.set(n, (set = new Set()));
@@ -469,7 +469,7 @@ export class Runner {
     return on;
   }
 
-  /** Le point d'arrêt (quelle que soit son origine) est-il posé ? */
+  /** Is the breakpoint set (whatever its origin)? */
   hasCpuBreakpoint(abs) {
     return this.machine.cpuBreakpoints.has(abs);
   }
@@ -480,7 +480,7 @@ export class Runner {
   }
 }
 
-/** Écrit une image { start, words } en CM à partir de RA. */
+/** Writes an image { start, words } into CM from RA. */
 function writeImage(m, ra, image) {
   if (!image || !image.words) return;
   const start = image.start || 0;
@@ -489,7 +489,7 @@ function writeImage(m, ra, image) {
   }
 }
 
-/** Point d'entrée relatif d'un programme relogeable (nom résolu par ses ENTRY). */
+/** Relative entry point of a relocatable program (name resolved through its ENTRY). */
 function resolveEntry(p) {
   if (typeof p.entry === 'number') return p.entry;
   if (typeof p.entry === 'string' && p.entries) {
@@ -499,7 +499,7 @@ function resolveEntry(p) {
   return 0;
 }
 
-/** Normalise la carte renvoyée par le chargeur en [{ name, type, address, length }]. */
+/** Normalizes the map returned by the loader into [{ name, type, address, length }]. */
 function normalizeMap(map, progs, ra) {
   const list = Array.isArray(map) ? map : map && typeof map === 'object' ? Object.entries(map).map(([name, v]) => ({ name, ...(typeof v === 'object' ? v : { address: v }) })) : [];
   return list.map((e) => {
@@ -511,11 +511,11 @@ function normalizeMap(map, progs, ra) {
   });
 }
 
-// ---------------------------------------------------------------- contrôleur
+// ---------------------------------------------------------------- controller
 
 /**
- * Contrôleur d'exécution : marche continue par tranches (une tranche par image
- * d'animation), pause, pas à pas, vitesse réglable.
+ * Execution controller: continuous run in slices (one slice per animation
+ * frame), pause, step, adjustable speed.
  */
 export class RunController {
   /**
@@ -530,10 +530,10 @@ export class RunController {
     this.onFrame = hooks.onFrame || (() => {});
     this.onStop = hooks.onStop || (() => {});
     this.onState = hooks.onState || (() => {});
-    this.usPerFrame = 2000;    // µs simulées par image
-    this.maxSpeed = false;     // « vitesse max » : autant que possible en ~12 ms
+    this.usPerFrame = 2000;    // simulated µs per frame
+    this.maxSpeed = false;     // "max speed": as much as possible in ~12 ms
     this.budgetMs = 12;
-    this.keepRunningAfterJob = !!hooks.keepRunningAfterJob; // mode Système : la machine continue après la fin du travail
+    this.keepRunningAfterJob = !!hooks.keepRunningAfterJob; // System mode: the machine keeps running after the end of the job
     this.jobNotified = false;
     this.state = 'idle';       // idle | ready | running | paused | stopped
     this.timer = null;
@@ -553,7 +553,7 @@ export class RunController {
     }
   }
 
-  /** À appeler après un chargement réussi. */
+  /** To be called after a successful load. */
   ready() {
     this.halt();
     this.lastStop = null;
@@ -571,7 +571,7 @@ export class RunController {
     return { stopOnCpuStop: cpu, cpuOnly: cpu };
   }
 
-  /** Démarre (ou reprend) l'exécution continue. */
+  /** Starts (or resumes) continuous execution. */
   run() {
     if (this.state === 'running') return;
     if (!this.runner.kind) return;
@@ -592,7 +592,7 @@ export class RunController {
     this.onFrame(this.info());
   }
 
-  /** Arrête la boucle sans changer l'état. */
+  /** Stops the loop without changing the state. */
   halt() {
     if (this.timer !== null) this.cancel(this.timer);
     this.timer = null;
@@ -611,7 +611,7 @@ export class RunController {
     if (this.state === 'running') this.timer = this.schedule(() => this.tick());
   }
 
-  /** Exécute une tranche ; retourne la raison d'arrêt ou null. */
+  /** Executes one slice; returns the stop reason or null. */
   frame() {
     const r = this.frameRun();
     if (r) return r;
@@ -620,7 +620,7 @@ export class RunController {
       this.jobNotified = true;
       const stop = { reason: 'jobend', status: js };
       if (!this.keepRunningAfterJob) return stop;
-      // La machine continue : la console DSD affiche l'état final du travail.
+      // The machine keeps running: the DSD console shows the final job status.
       this.lastStop = stop;
       this.onStop(stop, describeStop(stop, this.runner));
     }
@@ -633,7 +633,7 @@ export class RunController {
     try {
       const t0 = this.now();
       if (!this.maxSpeed) {
-        // Au plus usPerFrame µs simulées, sans dépasser le budget de temps réel de l'image.
+        // At most usPerFrame simulated µs, without exceeding the frame's real-time budget.
         let left = this.usPerFrame;
         while (left > 0) {
           const n = Math.min(left, 2000);
@@ -666,7 +666,7 @@ export class RunController {
     this.onFrame(this.info());
   }
 
-  /** Pas à pas : une instruction CPU. */
+  /** Step: one CPU instruction. */
   stepCPU() {
     if (this.state === 'running') this.pause();
     const m = this.machine;
@@ -689,7 +689,7 @@ export class RunController {
     return true;
   }
 
-  /** Pas à pas : une instruction du PP n. */
+  /** Step: one instruction of PP n. */
   stepPP(n = this.runner.ppNumber) {
     if (this.state === 'running') this.pause();
     const m = this.machine;
@@ -704,7 +704,7 @@ export class RunController {
     return true;
   }
 
-  /** Exécute un nombre donné de µs (tests, « avance rapide »). */
+  /** Executes a given number of µs (tests, "fast forward"). */
   advance(us) {
     const r = this.machine.run(us, this.runOptions());
     if (r) this.finish(r);

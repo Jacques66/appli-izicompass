@@ -1,0 +1,41 @@
+          IDENT  TEXT,100B,START
+          ABS
+          ORG    100B
+*         COUNTS THE LETTERS OF A MESSAGE AND COPIES IT TO A BUFFER.
+*
+*         THE TEXT IS IN DISPLAY CODE: 6 BITS PER CHARACTER, 10
+*         CHARACTERS PER WORD (A = 01B, Z = 32B, 0 = 33B, BLANK = 55B).
+*         EACH CHARACTER IS EXTRACTED BY ROTATION (LX) AND MASK (MX).
+*
+START     SB1    1           B1 = 1
+          SB3    B0          B3 = WORD INDEX
+          SX7    B0          X7 = NUMBER OF LETTERS
+          MX0    54          X0 = MASK OF THE UPPER 54 BITS
+WORD      SA1    B3+MESSAGE  X1 = NEXT WORD
+          ZR     X1,DONE     ZERO WORD: END OF MESSAGE
+          BX6    X1
+          SA6    B3+BUFFER   COPY THE WORD
+          SB4    10          10 CHARACTERS PER WORD
+CHR       LX1    6           NEXT CHARACTER TO THE BOTTOM
+          BX2    -X0*X1      X2 = LOWER 6 BITS OF X1
+          SX3    X2-1        LETTER IF 1 <= C <= 32B
+          NG     X3,NEXTCH
+          SX3    X2-1R0      C - 33B
+          PL     X3,NEXTCH
+          SX7    X7+1        ONE MORE LETTER
+NEXTCH    SB4    B4-B1
+          NZ     B4,CHR
+          SB3    B3+B1       NEXT WORD
+          EQ     WORD
+*
+DONE      SA7    LETTERS     NUMBER OF LETTERS
+          SX6    B3
+          SA6    WORDS       NUMBER OF WORDS
+          PS
+*
+MESSAGE   DIS    ,*HELLO FROM THE CDC 6600, THE FIRST SUPERCOMPUTER.*
+          CON    0           TERMINATING ZERO WORD
+LETTERS   BSS    1
+WORDS     BSS    1
+BUFFER    BSS    10
+          END

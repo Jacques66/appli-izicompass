@@ -1,17 +1,17 @@
-// Lecture des sources COMPASS : lignes, continuations, édition, découpage en champs.
+// Reading COMPASS sources: lines, continuations, editing, splitting into fields.
 //
-// Seules les colonnes 1-72 sont interprétées ; 73-90 forment le champ de séquence.
-// Une ligne avec « , » en colonne 1 continue l'instruction précédente (colonnes
-// 2-72, au plus 9 continuations). « * » en colonne 1 = commentaire.
+// Only columns 1-72 are interpreted; 73-90 form the sequence field.
+// A line with "," in column 1 continues the previous statement (columns
+// 2-72, at most 9 continuations). "*" in column 1 = comment.
 
 import { toDisplay } from '../common/charset.js';
 
-export const CONCAT = '_';   // marque de concaténation (65B, →)
-export const MICRO = '"';    // marque de micro (64B, ≠)
-export const MARK = '\u0001'; // marque de paramètre interne (;x de COMPASS)
+export const CONCAT = '_';   // concatenation mark (65B, →)
+export const MICRO = '"';    // micro mark (64B, ≠)
+export const MARK = '\u0001'; // internal parameter mark (;x in COMPASS)
 export const MAX_IMAGE = 72 + 9 * 71;
 
-/** Développe les tabulations (taquets 11, 18, 30 puis tous les 8). */
+/** Expands tabs (stops at 11, 18, 30, then every 8). */
 export function expandTabs(line) {
   if (!line.includes('\t')) return line;
   const stops = [10, 17, 29];
@@ -27,7 +27,7 @@ export function expandTabs(line) {
   return out;
 }
 
-/** Normalise une ligne source : majuscules, caractères hors jeu CDC -> blanc. */
+/** Normalizes a source line: uppercase, characters outside the CDC set -> blank. */
 export function normalize(line) {
   line = expandTabs(line.replace(/\r$/, ''));
   let out = '';
@@ -40,7 +40,7 @@ export function normalize(line) {
 }
 
 /**
- * Source principale (ou texte externe) : produit des instructions jointes.
+ * Main source (or external text): produces joined statements.
  */
 export class LineSource {
   constructor(name, text, { system = false, xtext = false } = {}) {
@@ -53,7 +53,7 @@ export class LineSource {
     this.kind = xtext ? 'xtext' : 'main';
   }
 
-  /** Instruction suivante, ou null en fin de source. */
+  /** Next statement, or null at end of source. */
   next() {
     if (this.idx >= this.raw.length) return null;
     const first = this.idx++;
@@ -62,7 +62,7 @@ export class LineSource {
     const lines = [{ no: first + 1, text: raw }];
     const seq = text.length > 72 ? text.slice(72, 90) : '';
     if (text[0] === '*' || (text[0] === ',')) {
-      // commentaire, ou continuation orpheline traitée comme commentaire
+      // comment, or orphan continuation treated as a comment
       return { img: text.slice(0, 72), seq, lines, file: this.name, line: first + 1, comment: true };
     }
     let img = text.slice(0, 72).padEnd(72, ' ');
@@ -80,10 +80,10 @@ export class LineSource {
 }
 
 /**
- * Édition d'une instruction : suppression des marques de concaténation et
- * substitution des micros « "NOM" ». Un seul balayage gauche-droite, sans
- * ré-examen du texte substitué.
- * @param lookupMicro (nom) -> chaîne ou undefined
+ * Statement editing: removal of concatenation marks and substitution of
+ * micros ("NAME"). A single left-to-right scan, without rescanning the
+ * substituted text.
+ * @param lookupMicro (name) -> string or undefined
  * @returns { img, warnings: ['9'...], changed }
  */
 export function editStatement(img, lookupMicro) {
@@ -119,10 +119,10 @@ export function editStatement(img, lookupMicro) {
 }
 
 /**
- * Découpe d'une instruction (déjà éditée) en champs.
- * @param cc colonne de commentaire (1-based, défaut 30)
+ * Splits a statement (already edited) into fields.
+ * @param cc comment column (1-based, default 30)
  * @returns { loc, locPos, op, opPos, opEnd, varPos, empty, comment }
- *   positions 0-based dans img ; varPos = -1 si champ variable vide.
+ *   0-based positions in img; varPos = -1 if the variable field is empty.
  */
 export function scanFields(img, cc = 30) {
   const ccIdx = cc - 1;
@@ -137,7 +137,7 @@ export function scanFields(img, cc = 30) {
   }
   while (img[i] === ' ') i++;
   if (i >= img.length || i >= ccIdx) {
-    // opération vide : le reste est du commentaire
+    // empty operation: the rest is comment
     return { loc, locPos, op: '', opPos: -1, opEnd: i, varPos: -1, blank: !loc };
   }
   const opPos = i;
@@ -150,7 +150,7 @@ export function scanFields(img, cc = 30) {
   return { loc, locPos, op, opPos, opEnd, varPos, blank: false };
 }
 
-/** Champ variable « brut » : jusqu'au premier blanc (pour les pseudos simples). */
+/** "Raw" variable field: up to the first blank (for simple pseudos). */
 export function simpleField(img, pos) {
   if (pos < 0) return '';
   let s = '';
@@ -158,7 +158,7 @@ export function simpleField(img, pos) {
   return s;
 }
 
-/** Découpe simple par virgules d'un champ (sans blancs). */
+/** Simple comma split of a field (no blanks). */
 export function splitCommas(s) {
   return s === '' ? [] : s.split(',');
 }

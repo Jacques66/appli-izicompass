@@ -1,0 +1,32 @@
+          IDENT  SORT,100B,START
+          ABS
+          ORG    100B
+*         INSERTION SORT OF A TABLE OF INTEGERS (ASCENDING ORDER).
+*
+*         B1 = 1, B2 = I (ELEMENT TO INSERT), B3 = J (POSITION).
+*         THE COMPARISON IS MADE BY INTEGER SUBTRACTION (IX) AND A
+*         SIGN TEST (NG/PL).
+*
+START     SB1    1
+          SB2    B1          I = 1
+          SB4    NEL         B4 = NUMBER OF ELEMENTS
+NEXT      GE     B2,B4,DONE  I >= NEL: TABLE SORTED
+          SA1    B2+TABLE    X1 = KEY = TABLE(I)
+          SB3    B2          J = I
+SHIFT     ZR     B3,PLACE    J = 0: START OF TABLE
+          SA2    B3+TABLE-1  X2 = TABLE(J-1)
+          IX3    X1-X2       KEY - TABLE(J-1)
+          PL     X3,PLACE    KEY >= TABLE(J-1): PLACE FOUND
+          BX6    X2
+          SA6    B3+TABLE    TABLE(J) = TABLE(J-1)
+          SB3    B3-B1       J = J - 1
+          EQ     SHIFT
+PLACE     BX6    X1
+          SA6    B3+TABLE    TABLE(J) = KEY
+          SB2    B2+B1       I = I + 1
+          EQ     NEXT
+DONE      PS
+*
+TABLE     CON    27,3,-14,1966,0,42,7,-1,600,64
+NEL       EQU    *-TABLE     NUMBER OF ELEMENTS
+          END

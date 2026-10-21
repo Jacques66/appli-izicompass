@@ -1,10 +1,10 @@
-// Chargeur et éditeur de liens pour les programmes produits par l'assembleur.
+// Loader and linker for programs produced by the assembler.
 //
-// Relogeable : les sous-programmes sont placés à la suite à partir de RA+100B
-// (les 100B premiers mots sont la zone de communication du travail), puis les
-// blocs communs nommés, puis le commun blanc. Les champs relogeables (+/-),
-// communs (C) et externes (X) sont corrigés en complément à un sur 18 bits.
-// Absolu : l'image est chargée à son origine (relative à RA).
+// Relocatable: subprograms are placed one after another from RA+100B
+// (the first 100B words are the job communication area), then the
+// labeled common blocks, then blank common. Relocatable (+/-), common (C)
+// and external (X) fields are fixed up in 18-bit ones' complement.
+// Absolute: the image is loaded at its origin (relative to RA).
 
 import { M60, add18, sub18 } from '../common/word.js';
 
@@ -23,9 +23,9 @@ function patchField(word, shift, bits, delta, sign) {
 }
 
 /**
- * Charge une liste de programmes dans la mémoire centrale.
+ * Loads a list of programs into central memory.
  * @param machine Machine (cm, cmSize)
- * @param programs résultats de l'assembleur (champ programs)
+ * @param programs assembler results (programs field)
  * @param options { ra = 0, base = 100B, fl }
  * @returns { entry, fl, map, errors, entries }
  */
@@ -36,14 +36,14 @@ export function linkAndLoad(machine, programs, { ra = 0, base = 0o100, fl } = {}
   const cm = machine.cm;
   const put = (addr, w) => {
     const a = ra + addr;
-    if (a < 0 || a >= machine.cmSize) { errors.push(`adresse hors mémoire : ${addr.toString(8)}B`); return; }
+    if (a < 0 || a >= machine.cmSize) { errors.push(`address outside memory: ${addr.toString(8)}B`); return; }
     machine.writeCM(a, w & M60);
   };
   const cpuProgs = programs.filter((p) => p.type !== 'pp');
   let entry = null;
   let high = base;
 
-  // 1. Programmes absolus
+  // 1. Absolute programs
   for (const p of cpuProgs.filter((p) => p.type === 'abs')) {
     for (const ov of p.overlays.slice(0, 1)) {
       ov.words.forEach((w, k) => put(ov.origin + k, w));
@@ -53,7 +53,7 @@ export function linkAndLoad(machine, programs, { ra = 0, base = 0o100, fl } = {}
     if (entry === null) entry = p.entry;
   }
 
-  // 2. Programmes relogeables : implantation
+  // 2. Relocatable programs: placement
   const rel = cpuProgs.filter((p) => p.type === 'reloc');
   let addr = Math.max(base, high);
   for (const p of rel) {
@@ -62,19 +62,19 @@ export function linkAndLoad(machine, programs, { ra = 0, base = 0o100, fl } = {}
     for (const e of p.entries) {
       if (e.common) continue;
       const v = e.rel === '+' ? addr + e.value : e.value;
-      if (entries.has(e.name) && !e.cond) errors.push(`point d'entrée en double : ${e.name}`);
+      if (entries.has(e.name) && !e.cond) errors.push(`duplicate entry point: ${e.name}`);
       if (!entries.has(e.name)) entries.set(e.name, v);
     }
     addr += p.length;
   }
-  // blocs communs : taille maximale déclarée
+  // common blocks: largest declared size
   const commons = new Map();
   for (const p of rel) {
     for (const c of p.commons || []) {
       if (c.name === '') continue;
       const o = commons.get(c.name);
       if (!o) commons.set(c.name, { name: c.name, length: c.length, owner: p });
-      else if (c.length > o.length && o.owner) errors.push(`bloc commun /${c.name}/ agrandi par ${p.name}`);
+      else if (c.length > o.length && o.owner) errors.push(`common block /${c.name}/ enlarged by ${p.name}`);
     }
   }
   for (const c of commons.values()) {
@@ -92,7 +92,7 @@ export function linkAndLoad(machine, programs, { ra = 0, base = 0o100, fl } = {}
     if (c && !entries.has(e.name)) entries.set(e.name, c.addr + e.value);
   }
 
-  // 3. Chargement du texte avec relocation
+  // 3. Text loading with relocation
   for (const p of rel) {
     const b = p._base;
     const commonAddr = (blk) => {
@@ -110,7 +110,7 @@ export function linkAndLoad(machine, programs, { ra = 0, base = 0o100, fl } = {}
           const ext = (p.externals || []).find((x) => x.name === r.ext);
           let a = entries.get(r.ext);
           if (a === undefined) {
-            if (!(ext && ext.weak)) errors.push(`externe non satisfait : ${r.ext} (${p.name})`);
+            if (!(ext && ext.weak)) errors.push(`unsatisfied external: ${r.ext} (${p.name})`);
             a = 0;
           }
           w = patchField(w, r.shift, bits, a, 1);
@@ -133,7 +133,7 @@ export function linkAndLoad(machine, programs, { ra = 0, base = 0o100, fl } = {}
     }
     if (p.entry) {
       const e = entries.get(p.entry);
-      if (e === undefined) errors.push(`adresse de transfert inconnue : ${p.entry}`);
+      if (e === undefined) errors.push(`unknown transfer address: ${p.entry}`);
       else entry = e;
     }
   }
@@ -143,7 +143,7 @@ export function linkAndLoad(machine, programs, { ra = 0, base = 0o100, fl } = {}
   return { entry, fl: flWords, map, errors, entries: Object.fromEntries(entries) };
 }
 
-/** Charge un programme PP dans la mémoire d'un PP. */
+/** Loads a PP program into a PP's memory. */
 export function loadPP(machine, prog, pp = 0) {
   const ov = prog.overlays[0];
   machine.loadPP(pp, ov.words, ov.origin);

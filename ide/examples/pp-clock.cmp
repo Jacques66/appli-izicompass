@@ -1,0 +1,91 @@
+          IDENT  RTCLOCK,100B
+          PERIPH
+          ORG    100B
+*         PP PROGRAM: REAL-TIME CLOCK AND EXTERNAL TEXT (XTEXT).
+*
+*         CHANNEL 14B IS CONNECTED TO THE CLOCK: IT IS ALWAYS ACTIVE
+*         AND FULL; IAN 14B RETURNS THE TIME IN MICROSECONDS.
+*         THE PP ACCUMULATES THE DIFFERENCES ON 24 BITS AND DISPLAYS
+*         THE RESULT IN OCTAL IN LARGE CHARACTERS.
+*         THE CONSOLE DEFINITIONS AND THE SHOW MACRO COME FROM THE
+*         DEFS6612 TEXT (FILE DEFS6612.TXT OF THE WORKSPACE).
+*
+          XTEXT  DEFS6612
+*
+CHH       EQU    14B         CLOCK CHANNEL
+PV        EQU    20B         LAST VALUE READ
+HI        EQU    21B         ACCUMULATED TIME, UPPER 12 BITS
+LO        EQU    22B         ACCUMULATED TIME, LOWER 12 BITS
+T1        EQU    23B
+T2        EQU    24B
+T3        EQU    25B
+*
+START     LDN    0
+          STD    HI
+          STD    LO
+          IAN    CHH
+          STD    PV
+*
+*         ACCUMULATES THE TIME ELAPSED SINCE THE PREVIOUS READING
+*
+LOOP      IAN    CHH         CURRENT TIME
+          STD    T1
+          SBD    PV          DIFFERENCE = T - PV
+          LPC    7777B       MODULO 4096
+          ADD    LO
+          STD    LO          LO = LO + DIFFERENCE (12 BITS)
+          SHN    -12D        CARRY
+          RAD    HI          HI = HI + CARRY
+          LDD    T1
+          STD    PV
+*
+*         FORMATTING: 8 OCTAL DIGITS IN THE DISPLAYED LINE
+*
+          LDD    HI
+          SHN    -6
+          RJM    OCT2
+          STM    VALUE
+          LDD    HI
+          LPN    77B
+          RJM    OCT2
+          STM    VALUE+1
+          LDD    LO
+          SHN    -6
+          RJM    OCT2
+          STM    VALUE+2
+          LDD    LO
+          LPN    77B
+          RJM    OCT2
+          STM    VALUE+3
+*
+          SHOW   LMED,BANNER,BANNERL
+          SHOW   LLARGE,LINE,LINEL
+          SHOW   RMED,NOTE,NOTEL
+          LJM    LOOP
+*
+*         OCT2: A = 6 BITS -> A = TWO OCTAL DIGITS IN DISPLAY CODE
+*
+OCT2X     LJM    *
+OCT2      EQU    *-1
+          STD    T2
+          LPN    7
+          STD    T3
+          LDD    T2
+          LPN    70B
+          SHN    3
+          ADD    T3
+          ADC    3333B
+          LJM    OCT2X
+*
+BANNER    CON    COORX+20B,COORY+700B
+          DIS    15,REAL-TIME CLOCK (CHANNEL 14B)
+BANNERL   EQU    *-BANNER
+LINE      CON    COORX+200B,COORY+440B
+VALUE     BSS    4           8 OCTAL DIGITS
+LINEL     EQU    *-LINE
+NOTE      CON    COORX+20B,COORY+500B
+          DIS    7,MICROSECONDS
+          CON    COORX+20B,COORY+440B
+          DIS    9,SIMULATED (OCTAL)
+NOTEL     EQU    *-NOTE
+          END

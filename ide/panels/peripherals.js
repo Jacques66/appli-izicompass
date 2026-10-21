@@ -1,4 +1,4 @@
-// Périphériques : imprimante 1612, lecteur de cartes 405, dérouleurs de bande 607.
+// Peripherals: 1612 line printer, 405 card reader, 607 tape units.
 
 import { h, esc, download, pickFiles } from '../dom.js';
 import { toolbar, tbtn, emptyState } from './common.js';
@@ -6,10 +6,10 @@ import { segmented, select, toggle, toast, confirmDialog } from '../ui.js';
 import { Tape } from '../../src/io/devices.js';
 import { columnToChar } from '../../src/common/charset.js';
 
-const SAMPLE_DECK = `CDC 6600 - LECTEUR DE CARTES 405
-CHAQUE LIGNE DE TEXTE DEVIENT UNE CARTE DE 80 COLONNES.
-LES LETTRES, LES CHIFFRES ET LES SIGNES + - * / ( ) = . , $
-SONT PERFORES EN CODE HOLLERITH 029.
+const SAMPLE_DECK = `CDC 6600 - 405 CARD READER
+EACH LINE OF TEXT BECOMES AN 80-COLUMN CARD.
+LETTERS, DIGITS AND THE SIGNS + - * / ( ) = . , $
+ARE PUNCHED IN HOLLERITH CODE 029.
 7/8/9
 6/7/8/9`;
 
@@ -21,7 +21,7 @@ export class PeripheralsPanel {
     this.tapes = new TapesView(ctx);
     this.views = { printer: this.printer, cards: this.cards, tapes: this.tapes };
     this.current = 'printer';
-    this.switcher = segmented([['printer', 'Imprimante 1612'], ['cards', 'Lecteur de cartes 405'], ['tapes', 'Bandes 607']], this.current, (v) => this.show(v));
+    this.switcher = segmented([['printer', '1612 line printer'], ['cards', '405 card reader'], ['tapes', '607 tapes']], this.current, (v) => this.show(v));
     this.host = h('div', { class: 'periph-host' }, this.printer.el, this.cards.el, this.tapes.el);
     this.el = h('div', { class: 'panel panel-periph' }, h('div', { class: 'ptool ptool-tabs' }, this.switcher), this.host);
     this.show(this.current);
@@ -44,7 +44,7 @@ export class PeripheralsPanel {
   }
 }
 
-// -------------------------------------------------------------- imprimante
+// ------------------------------------------------------------ line printer
 
 class PrinterView {
   constructor(ctx) {
@@ -57,8 +57,8 @@ class PrinterView {
     this.stats = h('span', { class: 'ptool-dim' });
     this.el = h('div', { class: 'periph-view printer' },
       toolbar(this.stats, h('div', { class: 'grow' }),
-        tbtn('Télécharger .txt', () => this.save(), { icon: 'download' }),
-        tbtn('Effacer', () => this.clearOut(), { icon: 'trash' })),
+        tbtn('Download .txt', () => this.save(), { icon: 'download' }),
+        tbtn('Clear', () => this.clearOut(), { icon: 'trash' })),
       this.wrap);
     this.wrap.addEventListener('scroll', () => {
       this.follow = this.wrap.scrollTop + this.wrap.clientHeight >= this.wrap.scrollHeight - 30;
@@ -94,13 +94,13 @@ class PrinterView {
       if (this.follow) this.wrap.scrollTop = this.wrap.scrollHeight;
     }
     if (!out.length && !this.paper.querySelector('.pl')) {
-      if (!this.paper.querySelector('.empty')) this.page.append(emptyState('printer', 'Aucune ligne imprimée', 'Lancez l\'exemple « Imprimante 1612 » : le PP envoie les lignes sur le canal 12B.'));
+      if (!this.paper.querySelector('.empty')) this.page.append(emptyState('printer', 'No lines printed', 'Run the "1612 line printer" example: the PP sends the lines on channel 12B.'));
     } else {
       const e = this.paper.querySelector('.empty');
       if (e) e.remove();
     }
     const lines = out.filter((l) => l !== '\f').length;
-    this.stats.textContent = `${lines} ligne${lines > 1 ? 's' : ''} · ${pr.pages} page${pr.pages > 1 ? 's' : ''} · 136 colonnes`;
+    this.stats.textContent = `${lines} line${lines !== 1 ? 's' : ''} · ${pr.pages} page${pr.pages !== 1 ? 's' : ''} · 136 columns`;
   }
 
   newPage() {
@@ -114,7 +114,7 @@ class PrinterView {
 
   save() {
     const text = this.printerDev().output.join('\n').replace(/\n?\f\n?/g, '\n\f\n');
-    download('imprimante-1612.txt', text);
+    download('printer-1612.txt', text);
   }
 
   clearOut() {
@@ -125,7 +125,7 @@ class PrinterView {
   }
 }
 
-// ------------------------------------------------------ lecteur de cartes
+// ------------------------------------------------------------ card reader
 
 class CardsView {
   constructor(ctx) {
@@ -137,12 +137,12 @@ class CardsView {
     this.stats = h('div', { class: 'card-stats' });
     this.cardView = h('div', { class: 'card-view' });
     this.el = h('div', { class: 'periph-view cards' },
-      toolbar(tbtn('Charger dans le lecteur', () => this.load(), { icon: 'upload', cls: 'primary' }),
-        tbtn('Vider le magasin', () => this.empty(), { icon: 'trash' }),
-        tbtn('Importer…', () => this.importDeck(), { icon: 'folder' }),
+      toolbar(tbtn('Load into the reader', () => this.load(), { icon: 'upload', cls: 'primary' }),
+        tbtn('Empty the hopper', () => this.empty(), { icon: 'trash' }),
+        tbtn('Import…', () => this.importDeck(), { icon: 'folder' }),
         h('div', { class: 'grow' }), this.code),
       h('div', { class: 'cards-body' },
-        h('div', { class: 'deck-col' }, h('div', { class: 'deck-head' }, 'Paquet à charger (une ligne = une carte ; « 7/8/9 » = fin d\'enregistrement, « 6/7/8/9 » = fin de fichier)'), this.deck),
+        h('div', { class: 'deck-col' }, h('div', { class: 'deck-head' }, 'Deck to load (one line = one card; "7/8/9" = end of record, "6/7/8/9" = end of file)'), this.deck),
         h('div', { class: 'reader-col' }, this.stats, this.cardView)));
   }
 
@@ -151,8 +151,8 @@ class CardsView {
     const before = r.hopper.length;
     r.loadDeck(this.deck.value, this.code.value);
     const n = r.hopper.length - before;
-    this.ctx.log(`${n} carte(s) chargée(s) dans le lecteur 405.`);
-    toast(`${n} carte${n > 1 ? 's' : ''} dans le magasin`, 'ok');
+    this.ctx.log(`${n} card(s) loaded into the 405 reader.`);
+    toast(`${n} card${n !== 1 ? 's' : ''} in the hopper`, 'ok');
     this.update(true);
   }
 
@@ -174,19 +174,19 @@ class CardsView {
   update() {
     const r = this.ctx.machine.cardReader;
     const remaining = r.hopper.length + (r.card ? 1 : 0);
-    this.stats.innerHTML = `<div class="stat"><b>${remaining}</b><span>carte${remaining > 1 ? 's' : ''} dans le magasin</span></div>`
-      + `<div class="stat"><b>${r.cardsRead}</b><span>carte${r.cardsRead > 1 ? 's' : ''} lue${r.cardsRead > 1 ? 's' : ''}</span></div>`
-      + `<div class="stat"><b>${r.card ? r.col : '—'}</b><span>colonne en cours</span></div>`;
+    this.stats.innerHTML = `<div class="stat"><b>${remaining}</b><span>card${remaining !== 1 ? 's' : ''} in the hopper</span></div>`
+      + `<div class="stat"><b>${r.cardsRead}</b><span>card${r.cardsRead !== 1 ? 's' : ''} read</span></div>`
+      + `<div class="stat"><b>${r.card ? r.col : '—'}</b><span>current column</span></div>`;
     const next = r.card || r.hopper[0] || null;
     const key = next ? `${r.hopper.length}|${r.card ? r.col : -1}` : 'none';
     if (key !== this.lastKey) {
       this.lastKey = key;
-      this.cardView.innerHTML = next ? cardSvg(next, r.card ? r.col : 0, this.code.value) : '<div class="card-empty">Magasin vide</div>';
+      this.cardView.innerHTML = next ? cardSvg(next, r.card ? r.col : 0, this.code.value) : '<div class="card-empty">Hopper empty</div>';
     }
   }
 }
 
-/** Carte perforée de 80 colonnes en SVG (lignes 12, 11, 0 à 9). */
+/** 80-column punched card as SVG (rows 12, 11, 0 to 9). */
 function cardSvg(cols, readCol, code) {
   const W = 80 * 7 + 24, H = 12 * 14 + 40;
   const rows = [0o4000, 0o2000, 0o1000, 0o400, 0o200, 0o100, 0o40, 0o20, 0o10, 4, 2, 1];
@@ -209,14 +209,14 @@ function cardSvg(cols, readCol, code) {
   return s;
 }
 
-// ------------------------------------------------------------------ bandes
+// ------------------------------------------------------------------- tapes
 
 class TapesView {
   constructor(ctx) {
     this.ctx = ctx;
     this.list = h('div', { class: 'tapes' });
     this.el = h('div', { class: 'periph-view tapes-view' },
-      h('div', { class: 'note' }, 'Dérouleurs 607 sur le canal 13B. Une bande est une suite d\'enregistrements de mots de 12 bits et de marques de fichier ; le format .tap (SIMH) est accepté.'),
+      h('div', { class: 'note' }, '607 tape units on channel 13B. A tape is a sequence of records of 12-bit words and file marks; the .tap format (SIMH) is accepted.'),
       this.list);
   }
 
@@ -231,31 +231,31 @@ class TapesView {
       const recs = t ? t.records.filter((r) => r !== null).length : 0;
       const marks = t ? t.records.filter((r) => r === null).length : 0;
       const words = t ? t.records.reduce((s, r) => s + (r ? r.length : 0), 0) : 0;
-      const info = t ? `${recs} enregistrement${recs > 1 ? 's' : ''} · ${marks} marque${marks > 1 ? 's' : ''} · ${words} mots · position ${t.pos}/${t.records.length}` : 'aucune bande montée';
+      const info = t ? `${recs} record${recs !== 1 ? 's' : ''} · ${marks} mark${marks !== 1 ? 's' : ''} · ${words} words · position ${t.pos}/${t.records.length}` : 'no tape mounted';
       L.append(h('div', { class: `tape ${selected ? 'selected' : ''} ${t ? '' : 'empty'}` },
         h('div', { class: 'reels' }, reel(), reel()),
         h('div', { class: 'tape-main' },
-          h('div', { class: 'tape-title' }, `Unité ${u}`, selected ? h('span', { class: 'pill pill-dim' }, 'sélectionnée') : null, t && t.pos === 0 ? h('span', { class: 'pill pill-dim' }, 'point de chargement') : null),
+          h('div', { class: 'tape-title' }, `Unit ${u}`, selected ? h('span', { class: 'pill pill-dim' }, 'selected') : null, t && t.pos === 0 ? h('span', { class: 'pill pill-dim' }, 'load point') : null),
           h('div', { class: 'tape-info mono' }, info),
           h('div', { class: 'tape-actions' },
-            tbtn('Nouvelle', () => this.mount(u), { icon: 'plus', tip: 'Monter une bande vierge' }),
-            tbtn('Importer .tap', () => this.importTap(u), { icon: 'upload' }),
-            t ? tbtn('Exporter .tap', () => this.exportTap(u), { icon: 'download' }) : null,
-            t ? tbtn('Rembobiner', () => { t.pos = 0; this.update(); }, { icon: 'reset' }) : null,
-            t ? tbtn('Démonter', () => this.unmount(u), { icon: 'close' }) : null,
-            t ? toggle(t.writeLock, (v) => { t.writeLock = v; this.update(); }, 'Protégée') : null))));
+            tbtn('New', () => this.mount(u), { icon: 'plus', tip: 'Mount a blank tape' }),
+            tbtn('Import .tap', () => this.importTap(u), { icon: 'upload' }),
+            t ? tbtn('Export .tap', () => this.exportTap(u), { icon: 'download' }) : null,
+            t ? tbtn('Rewind', () => { t.pos = 0; this.update(); }, { icon: 'reset' }) : null,
+            t ? tbtn('Unmount', () => this.unmount(u), { icon: 'close' }) : null,
+            t ? toggle(t.writeLock, (v) => { t.writeLock = v; this.update(); }, 'Write lock') : null))));
     }
   }
 
   mount(u) {
     this.ctx.machine.tapes.mount(u, new Tape());
-    this.ctx.log(`Bande vierge montée sur l'unité ${u}.`);
+    this.ctx.log(`Blank tape mounted on unit ${u}.`);
     this.update();
   }
 
   async unmount(u) {
     const t = this.ctx.machine.tapes.units[u];
-    if (t && t.records.length && !(await confirmDialog('Démonter la bande', `La bande de l'unité ${u} contient ${t.records.length} enregistrement(s). Les exporter d'abord si nécessaire.`, { okLabel: 'Démonter', danger: true }))) return;
+    if (t && t.records.length && !(await confirmDialog('Unmount the tape', `The tape on unit ${u} contains ${t.records.length} record(s). Export them first if needed.`, { okLabel: 'Unmount', danger: true }))) return;
     this.ctx.machine.tapes.units[u] = null;
     this.update();
   }
@@ -266,10 +266,10 @@ class TapesView {
     try {
       const tape = Tape.fromTap(files[0].bytes);
       this.ctx.machine.tapes.mount(u, tape);
-      this.ctx.log(`Bande ${files[0].name} montée sur l'unité ${u} (${tape.records.length} enregistrements).`);
-      toast(`${files[0].name} montée sur l'unité ${u}`, 'ok');
+      this.ctx.log(`Tape ${files[0].name} mounted on unit ${u} (${tape.records.length} records).`);
+      toast(`${files[0].name} mounted on unit ${u}`, 'ok');
     } catch (e) {
-      toast(`Image .tap illisible : ${e.message}`, 'error');
+      toast(`Unreadable .tap image: ${e.message}`, 'error');
     }
     this.update();
   }
@@ -277,7 +277,7 @@ class TapesView {
   exportTap(u) {
     const t = this.ctx.machine.tapes.units[u];
     if (!t) return;
-    download(`bande-${u}.tap`, t.toTap(), 'application/octet-stream');
+    download(`tape-${u}.tap`, t.toTap(), 'application/octet-stream');
   }
 }
 

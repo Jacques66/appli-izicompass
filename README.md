@@ -1,68 +1,71 @@
-# CDC 6600 — émulateur, assembleur COMPASS 3 et atelier intégré
+# CDC 6600 — emulator, COMPASS 3 assembler and integrated workbench
 
-Reconstitution logicielle du CDC 6600 (1964) et de son assembleur COMPASS :
+Software reconstruction of the CDC 6600 (1964) and of its COMPASS assembler:
 
-- **Émulateur** : unité centrale 60 bits (X/A/B, P, RA/FL, mode de sortie,
-  exchange jump, ECS, CMU des Cyber 70, pile d'instructions de 8 mots,
-  modèle temporel du *scoreboard*), dix processeurs périphériques 12 bits
-  en barillet, canaux d'E/S, deadstart, console 6612 à deux écrans, lecteur
-  de cartes 405, imprimante 1612, dérouleurs de bande 607, horloge temps réel.
-- **Assembleur COMPASS 3** fidèle au manuel CDC 60492600 révision M :
-  instructions CPU et PP, toutes les pseudo-instructions (IDENT, ABS,
+- **Emulator**: 60-bit central processor (X/A/B, P, RA/FL, exit mode,
+  exchange jump, ECS, Cyber 70 CMU, 8-word instruction stack, *scoreboard*
+  timing model), ten 12-bit peripheral processors in a barrel, I/O
+  channels, deadstart, two-screen 6612 console, 405 card reader, 1612 line
+  printer, 607 tape units, real-time clock.
+- **COMPASS 3 assembler** faithful to CDC manual 60492600 revision M:
+  CPU and PP instructions, all pseudo instructions (IDENT, ABS,
   PERIPH, USE, ORG, LOC, POS, BSS, BSSZ, DATA, DIS, CON, VFD, LIT, R=, REP,
   EQU, SET, MAX, MIN, MICCNT, QUAL, BASE, CODE, CHAR, COL, IF/IFxx/IFC,
   ELSE, ENDIF, SKIP, ERR/ERRxx, LIST, TITLE, TTL, EJECT, SPACE, MACRO,
   MACROE, OPDEF, LOCAL, IRP, DUP, ECHO, STOPDUP, RMT, HERE, XTEXT, MICRO,
-  DECMIC, OCTMIC, CPOP, PPOP, OPSYN, CPSYN, NIL, PURGMAC, PURGDEF…),
-  littéraux, symboles par défaut (=S, =X, =Y), blocs locaux et communs,
-  programmes relogeables, absolus et PP, overlays, listing au format CDC
-  avec table des références, binaire en tables du chargeur.
-- **Chargeur** relogeable avec édition de liens (points d'entrée, externes,
-  blocs communs, réplication).
-- **Mini-système d'exploitation** écrit en COMPASS : moniteur MTR (PP0)
-  servant les demandes RA+1 à la manière de NOS (MSG, END, ABT, RCL, TIM,
-  CLK, DAT, MEM, CIO sur les fichiers INPUT et OUTPUT), affichage console
-  DSD (PP1), texte système de macros (SYSTEM, MESSAGE, ENDRUN, FILEC, READ,
-  WRITE, WRITER, READC, WRITEC, CDD…) et decks communs.
-- **Atelier (IDE) web** : éditeur COMPASS, assemblage, listing, symboles,
-  débogueur CPU et PP, mémoire, canaux, console 6612, imprimante, cartes,
-  bandes, documentation intégrée.
+  DECMIC, OCTMIC, CPOP, PPOP, OPSYN, CPSYN, NIL, PURGMAC, PURGDEF...),
+  literals, default symbols (=S, =X, =Y), local and common blocks,
+  relocatable, absolute and PP programs, overlays, CDC-format listing
+  with cross-reference table, binary in loader tables.
+- **Relocating loader** with linking (entry points, externals,
+  common blocks, replication).
+- **Mini operating system** written in COMPASS: MTR monitor (PP0)
+  serving RA+1 requests in the manner of NOS (MSG, END, ABT, RCL, TIM,
+  CLK, DAT, MEM, CIO on the INPUT and OUTPUT files), DSD console display
+  (PP1), macro system text (SYSTEM, MESSAGE, ENDRUN, FILEC, READ,
+  WRITE, WRITER, READC, WRITEC, CDD...) and common decks.
+- **COMPASS Workbench (web IDE)**: COMPASS editor, assembly, listing,
+  symbols, CPU and PP debugger, memory, channels, 6612 console, line
+  printer, cards, tapes. An integrated, searchable COMPASS reference
+  (Documentation tab) covers the language, the pseudo instructions, the
+  CPU and PP instructions and the system text macros: F1 opens the page for the word under the cursor, Shift+F1 lists the
+  keyboard shortcuts.
 
-Aucune dépendance externe : JavaScript (modules ES) pour Node 18+ et les
-navigateurs récents.
+No external dependencies: JavaScript (ES modules) for Node 18+ and
+current browsers.
 
-## Démarrage
+## Getting started
 
 ```bash
 node tools/serve.js
 ```
 
-Ouvrir ensuite http://localhost:6600/ide/ . La version autonome en un seul
-fichier se construit par :
+Then open http://localhost:6600/ide/ . The standalone single-file
+version is built with:
 
 ```bash
 node tools/build.js
 ```
 
-et s'ouvre directement depuis le disque : `dist/cdc6600-ide.html`.
+and opens directly from disk: `dist/cdc6600-ide.html`.
 
-## Ligne de commande
+## Command line
 
-Assembler un programme (listing sur la sortie standard, erreurs sur la
-sortie d'erreur) :
+Assemble a program (listing on standard output, errors on standard
+error):
 
 ```bash
-node cli/compass.js programme.cmp -l programme.lst -b programme.bin
+node cli/compass.js program.cmp -l program.lst -b program.bin
 ```
 
-Assembler et exécuter sous le mini-système, avec un paquet de cartes :
+Assemble and run under the mini system, with a card deck:
 
 ```bash
 node cli/cdc6600.js test/fixtures/copy.cmp --cards test/fixtures/copy.cards --console
 ```
 
-Modes : `--mode systeme` (défaut pour un programme CPU), `--mode cpu`
-(machine nue, arrêt sur PS), `--mode pp` (programme PP chargé dans PP0).
+Modes: `--mode system` (default for a CPU program), `--mode cpu`
+(bare machine, stops on PS), `--mode pp` (PP program loaded into PP0).
 
 ## Tests
 
@@ -70,22 +73,24 @@ Modes : `--mode systeme` (défaut pour un programme CPU), `--mode cpu`
 npm test
 ```
 
-Les tests reprennent les exemples codés du manuel COMPASS (plus de cent
-instructions CPU et PP, données, codes de caractères), des assemblages de
-bout en bout exécutés par l'émulateur, le mini-système et l'IDE. Le dossier
-`tools/` contient aussi `corpus.mjs`, qui assemble de vrais programmes NOS.
+The tests cover the coded examples of the COMPASS manual (more than one
+hundred CPU and PP instructions, data, character codes), end-to-end
+assemblies run by the emulator, the mini system and the IDE. The
+`tools/` directory also contains `corpus.mjs`, which assembles real NOS
+programs.
 
 ## Documentation
 
-- [docs/GUIDE-COMPASS.md](docs/GUIDE-COMPASS.md) — écrire en COMPASS avec cet assembleur.
-- [docs/MATERIEL.md](docs/MATERIEL.md) — machine émulée : CPU, PP, canaux, périphériques.
-- [docs/SYSTEME.md](docs/SYSTEME.md) — mini-système : demandes RA+1, fichiers, console.
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — organisation du code.
-- [docs/spec/](docs/spec/) — spécifications détaillées extraites du manuel COMPASS 3.
+- [docs/COMPASS-GUIDE.md](docs/COMPASS-GUIDE.md) — writing COMPASS with this assembler.
+- [docs/HARDWARE.md](docs/HARDWARE.md) — emulated machine: CPU, PP, channels, peripherals.
+- [docs/SYSTEM.md](docs/SYSTEM.md) — mini system: RA+1 requests, files, console.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — code organization.
+- [docs/API.md](docs/API.md) — internal API contract (assembler, loader, machine).
+- [docs/spec/](docs/spec/) — detailed specifications drawn from the COMPASS 3 manual.
 
 ## Sources
 
-- *COMPASS Version 3 Reference Manual*, Control Data, 60492600 révision M (1986).
+- *COMPASS Version 3 Reference Manual*, Control Data, 60492600 revision M (1986).
 - *6000 Series Computer Systems Hardware Reference Manual*, Control Data, 60100000.
-- Comportement fin du matériel (arithmétique flottante, échanges, canaux)
-  recoupé avec l'émulateur DtCyber, consulté en lecture seule.
+- Fine hardware behavior (floating-point arithmetic, exchanges, channels)
+  cross-checked against the DtCyber emulator, consulted read-only.

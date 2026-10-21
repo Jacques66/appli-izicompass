@@ -1,11 +1,11 @@
-// Processeur périphérique (PP) du CDC 6000 : mémoire de 4096 mots de 12 bits,
-// accumulateur A de 18 bits, compteur P de 12 bits.
-// Format : F (6 bits) d (6 bits) [m (12 bits)] ; les instructions de bloc
-// (CRM, CWM, IAM, OAM) sauvegardent P dans l'emplacement 0 pendant le transfert.
+// CDC 6000 peripheral processor (PP): memory of 4096 12-bit words,
+// 18-bit accumulator A, 12-bit program counter P.
+// Format: F (6 bits) d (6 bits) [m (12 bits)]; the block instructions
+// (CRM, CWM, IAM, OAM) save P in location 0 during the transfer.
 
 import { M18, SIGN18, M12, add18, sub18 } from '../common/word.js';
 
-/** Durées approximatives des instructions PP du 6600, en cycles majeurs (µs). */
+/** Approximate 6600 PP instruction times, in major cycles (µs). */
 export const PP_TIMES = new Uint8Array(64).fill(1);
 for (const [op, t] of [
   [0o01, 2], [0o02, 3], [0o20, 2], [0o21, 2], [0o22, 2], [0o23, 2], [0o26, 2],
@@ -32,23 +32,23 @@ export class Pp {
     this.R = 0;
     this.F = 0;
     this.d = 0;
-    this.busy = false;     // instruction en cours (transfert, attente canal)
+    this.busy = false;     // instruction in progress (transfer, channel wait)
     this.stopped = false;
     this.exchanging = false;
     this.instructions = 0;
     this.waitUntil = 0;
     this.lastP = 0;
-    this.hungOn = null;    // description de l'attente en cours
+    this.hungOn = null;    // description of the current wait
   }
 
-  /** Nom du PP en octal (PP00-PP11). */
+  /** PP name in octal (PP00-PP11). */
   get name() {
     return `PP${this.id.toString(8).padStart(2, '0')}`;
   }
 
   incP() { this.P = (this.P + 1) & M12; }
 
-  /** Adresse m(d) avec indexation 12 bits en complément à un. */
+  /** Address m(d) with 12-bit ones' complement indexing. */
   indexed() {
     let loc = this.mem[this.P];
     if (this.d !== 0) loc += this.mem[this.d];
@@ -58,7 +58,7 @@ export class Pp {
     return loc;
   }
 
-  /** Branchement relatif : P <- P - 1 + d (d 6 bits complément à un). */
+  /** Relative jump: P <- P - 1 + d (d is 6-bit ones' complement). */
   relJump() {
     let to = (this.P - 1) & M12;
     to += this.d < 0o40 ? this.d : this.d - 0o77;
@@ -75,16 +75,16 @@ export class Pp {
     return this.m.channels[n & 0o37] || null;
   }
 
-  /** Exécute un « créneau » du barillet. Retourne la durée consommée (µs). */
+  /** Executes one barrel "slot". Returns the time consumed (µs). */
   step() {
     if (this.stopped) return 1;
     if (this.exchanging) {
-      // attente de la fin de l'échange demandé au CPU
+      // waiting for the exchange requested from the CPU to complete
       if (this.m.cpu.pendingExchange && this.m.cpu.pendingExchange.pp === this) return 1;
       this.exchanging = false;
     }
     if (this.busy && this.F === 0o71) {
-      // attente d'entrée sur un canal actif, vide et sans équipement : rien à faire
+      // waiting for input on an active, empty channel with no equipment: nothing to do
       const ch = this.m.channels[this.d & 0o37];
       if (ch && ch.active && !ch.full && !ch.ioDevice && !ch.alwaysActive && this.A !== 0) return 1;
     }
@@ -137,10 +137,10 @@ export class Pp {
       case 0o21: this.A = add18(this.A, (d << 12) | mem[this.P]); this.incP(); return; // ADC
       case 0o22: this.A &= (d << 12) | mem[this.P]; this.incP(); return;  // LPC
       case 0o23: this.A = (this.A ^ ((d << 12) | mem[this.P])) & M18; this.incP(); return; // LMC
-      case 0o24:                                                          // PSN (LRD sur 800)
+      case 0o24:                                                          // PSN (LRD on 800)
         if (d && this.m.ppRelocation) this.R = ((mem[d] & 0o17) << 18) | ((mem[(d + 1) & M12] & M12) << 6);
         return;
-      case 0o25:                                                          // PSN (SRD sur 800)
+      case 0o25:                                                          // PSN (SRD on 800)
         if (d && this.m.ppRelocation) {
           mem[d] = (this.R >> 18) & 0o17;
           mem[(d + 1) & M12] = (this.R >> 6) & M12;
@@ -248,28 +248,28 @@ export class Pp {
       case 0o74:                                                          // ACN c
         ch = this.channel(d);
         if (!ch) return;
-        if (ch.active) { if (!(d & 0o40)) this.hang(`ACN ${oct(d)} (canal déjà actif)`); return; }
+        if (ch.active) { if (!(d & 0o40)) this.hang(`ACN ${oct(d)} (channel already active)`); return; }
         ch.activate();
         this.unhang();
         return;
       case 0o75:                                                          // DCN c
         ch = this.channel(d);
         if (!ch || ch.alwaysActive) return;
-        if (!ch.active) { if (!(d & 0o40)) this.hang(`DCN ${oct(d)} (canal inactif)`); return; }
+        if (!ch.active) { if (!(d & 0o40)) this.hang(`DCN ${oct(d)} (channel inactive)`); return; }
         ch.disconnect();
         this.unhang();
         return;
       case 0o76:                                                          // FAN c
         ch = this.channel(d);
         if (!ch) return;
-        if (ch.active) { if (!(d & 0o40)) this.hang(`FAN ${oct(d)} (canal actif)`); return; }
+        if (ch.active) { if (!(d & 0o40)) this.hang(`FAN ${oct(d)} (channel active)`); return; }
         ch.function(this.A & M12);
         this.unhang();
         return;
       case 0o77:                                                          // FNC m,c
         ch = this.channel(d);
         if (!ch) { this.incP(); return; }
-        if (ch.active) { if (!(d & 0o40)) this.hang(`FNC ${oct(mem[this.P])},${oct(d)} (canal actif)`); return; }
+        if (ch.active) { if (!(d & 0o40)) this.hang(`FNC ${oct(mem[this.P])},${oct(d)} (channel active)`); return; }
         ch.function(mem[this.P]);
         this.incP();
         this.unhang();
@@ -392,7 +392,7 @@ export class Pp {
   exchangeJump() {
     const cpu = this.m.cpu;
     const d = this.d;
-    if (cpu.pendingExchange) { this.P = (this.P - 1) & M12; return; } // réessai
+    if (cpu.pendingExchange) { this.P = (this.P - 1) & M12; return; } // retry
     let address;
     let changeMode = false;
     const sel = d & 0o70;
@@ -403,13 +403,13 @@ export class Pp {
     } else if (sel === 0o20) {
       address = cpu.MA; changeMode = true;                  // MAN
     } else {
-      return;                                               // passe
+      return;                                               // pass
     }
     cpu.requestExchange(address, changeMode, this);
     this.exchanging = true;
   }
 
-  /** État résumé pour l'IDE. */
+  /** Summary state for the IDE. */
   snapshot() {
     return { id: this.id, A: this.A, P: this.P, Q: this.Q, K: this.K, busy: this.busy, hungOn: this.hungOn, stopped: this.stopped };
   }
