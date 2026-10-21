@@ -1,13 +1,23 @@
-          IDENT  SORT,100B,START
-          ABS
-          ORG    100B
+          IDENT  CPUSORT
+          ENTRY  START
 *         INSERTION SORT OF A TABLE OF INTEGERS (ASCENDING ORDER).
 *
 *         B1 = 1, B2 = I (ELEMENT TO INSERT), B3 = J (POSITION).
 *         THE COMPARISON IS MADE BY INTEGER SUBTRACTION (IX) AND A
 *         SIGN TEST (NG/PL).
 *
-START     SB1    1
+*         JOB UNDER THE MINI-SYSTEM (SYSTEM MODE): THE TABLE IS
+*         PRINTED BEFORE AND AFTER THE SORT (WRITEC ON THE LINE
+*         PRINTER); THE SMALLEST AND LARGEST VALUES GO TO THE DAYFILE
+*         AND THE CONSOLE (MESSAGE).
+*
+START     RJ     FILL        TABLE BEFORE THE SORT
+          SA1    HBEFORE
+          BX6    X1
+          SA6    LINE
+          WRITEC OUTPUT,LINE
+*
+          SB1    1
           SB2    B1          I = 1
           SB4    NEL         B4 = NUMBER OF ELEMENTS
 NEXT      GE     B2,B4,DONE  I >= NEL: TABLE SORTED
@@ -25,8 +35,72 @@ PLACE     BX6    X1
           SA6    B3+TABLE    TABLE(J) = KEY
           SB2    B2+B1       I = I + 1
           EQ     NEXT
-DONE      PS
+*
+DONE      RJ     FILL        TABLE AFTER THE SORT
+          SA1    HAFTER
+          BX6    X1
+          SA6    LINE
+          WRITEC OUTPUT,LINE
+          SA1    TABLE       SMALLEST VALUE
+          RJ     NUMW
+          SA6    MINMAX+1
+          SA1    TABLE+NEL-1 LARGEST VALUE
+          RJ     NUMW
+          SA6    MINMAX+3
+          WRITEC OUTPUT,MINMAX
+          MESSAGE MINMAX     DAYFILE AND CONSOLE
+          WRITER OUTPUT      WRITE THE BUFFER TO THE PRINTER
+          ENDRUN
+*
+*         FILL - CONVERTS THE NEL ELEMENTS OF TABLE TO DECIMAL, ONE
+*         10-CHARACTER WORD PER ELEMENT, INTO THE PRINTED LINE.
+*
+FILL      EQ     *+1S17      ENTRY AND EXIT WORD (SET BY RJ)
+          SB1    1
+          SB3    B0          ELEMENT INDEX
+          SB4    NEL
+FILL1     SA1    B3+TABLE
+          RJ     NUMW
+          SA6    B3+NUMBERS
+          SB3    B3+B1
+          LT     B3,B4,FILL1
+          EQ     FILL        RETURN
+*
+*         NUMW - CONVERTS THE SIGNED INTEGER X1 TO 10 DISPLAY CODE
+*         CHARACTERS, RIGHT-JUSTIFIED, RETURNED IN X6. CDD CONVERTS
+*         THE ABSOLUTE VALUE; FOR A NEGATIVE NUMBER, THE BLANK JUST
+*         LEFT OF THE DIGITS (B2 = 6 * NUMBER OF DIGITS) BECOMES -.
+*
+NUMW      EQ     *+1S17      ENTRY AND EXIT WORD (SET BY RJ)
+          SX6    B0          SIGN FLAG = 0
+          PL     X1,NUMW1
+          BX1    -X1         ABSOLUTE VALUE
+          SX6    1
+NUMW1     SA6    NEG
+          CDD                X6 = DIGITS, B2 = 6 * DIGIT COUNT
+          SA1    NEG
+          ZR     X1,NUMW     POSITIVE: RETURN
+          SX2    1R -1R-     BLANK - MINUS (55B - 46B)
+          LX2    B2,X2       ON THE CHARACTER LEFT OF THE DIGITS
+          IX6    X6-X2       THE BLANK BECOMES A MINUS SIGN
+          EQ     NUMW        RETURN
 *
 TABLE     CON    27,3,-14,1966,0,42,7,-1,600,64
 NEL       EQU    *-TABLE     NUMBER OF ELEMENTS
-          END
+NEG       BSS    1
+*
+HBEFORE   DIS    1, BEFORE:
+HAFTER    DIS    1, AFTER:
+LINE      BSS    1           HEADER OF THE PRINTED LINE
+NUMBERS   BSS    NEL         ONE WORD PER ELEMENT
+          CON    0           END OF LINE
+MINMAX    DIS    1, SMALLEST
+          BSS    1
+          DIS    1, LARGEST
+          BSS    1
+          CON    0
+*
+OUTPUT    FILEC  BUF,BUFL    FILE OUTPUT = LINE PRINTER
+BUFL      EQU    101B
+BUF       BSS    BUFL
+          END    START

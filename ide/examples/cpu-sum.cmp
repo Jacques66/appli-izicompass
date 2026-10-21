@@ -1,11 +1,14 @@
-          IDENT  SUM,100B,START
-          ABS
-          ORG    100B
+          IDENT  CPUSUM
+          ENTRY  START
 *         SUM, SUM OF SQUARES AND FACTORIAL OF THE INTEGERS 1 TO N.
 *
-*         ABSOLUTE CPU PROGRAM: LOADED AT RA+100B, IT STARTS AT START
-*         AND STOPS ON THE PS INSTRUCTION. THE RESULTS ARE STORED IN
-*         SUM, SQUARES AND FACT (SEE THE MEMORY TAB).
+*         JOB UNDER THE MINI-SYSTEM (SYSTEM MODE). THE RESULTS ARE
+*         PRINTED ON THE 1612 LINE PRINTER (WRITEC ON FILE OUTPUT)
+*         AND SENT TO THE DAYFILE AND THE 6612 CONSOLE (MESSAGE).
+*         CDD CONVERTS AN INTEGER TO DECIMAL DISPLAY CODE.
+*
+*         AFTER THE RUN: CONSOLE AND DAYFILE TABS, AND
+*         PERIPHERALS > LINE PRINTER.
 *
 N         EQU    10D         NUMBER OF TERMS
 *
@@ -26,9 +29,47 @@ LOOP      SX1    B2          X1 = I
           SA7    SQUARES
           BX6    X5
           SA6    FACT
-          PS                 PROGRAM STOP
 *
-SUM       BSS    1           55 (67B)
-SQUARES   BSS    1           385 (601B)
-FACT      BSS    1           3628800 (15657000B)
-          END
+*         PRINT THE RESULTS. EACH LINE IS A TEXT, A NUMBER CONVERTED
+*         BY CDD, AND A ZERO WORD THAT ENDS THE LINE. THE FIRST
+*         CHARACTER OF A PRINTED LINE IS THE CARRIAGE CONTROL
+*         (BLANK = SINGLE SPACE).
+*
+          WRITEC OUTPUT,TITLE
+          SA1    SUM
+          CDD                X6 = DECIMAL DIGITS
+          SA6    LINE1+2
+          WRITEC OUTPUT,LINE1
+          MESSAGE LINE1      DAYFILE AND CONSOLE
+          SA1    SQUARES
+          CDD
+          SA6    LINE2+2
+          WRITEC OUTPUT,LINE2
+          MESSAGE LINE2
+          SA1    FACT
+          CDD
+          SA6    LINE3+2
+          WRITEC OUTPUT,LINE3
+          MESSAGE LINE3
+          WRITER OUTPUT      WRITE THE BUFFER TO THE PRINTER
+          ENDRUN
+*
+TITLE     DIS    ,* SUM, SQUARES AND FACTORIAL OF 1 TO 10*
+LINE1     DIS    2, SUM OF 1 TO 10    =
+          BSSZ   1           NUMBER
+          CON    0           END OF LINE
+LINE2     DIS    2, SUM OF SQUARES    =
+          BSSZ   1
+          CON    0
+LINE3     DIS    2, FACTORIAL OF 10   =
+          BSSZ   1
+          CON    0
+*
+SUM       BSS    1           55
+SQUARES   BSS    1           385
+FACT      BSS    1           3628800
+*
+OUTPUT    FILEC  BUF,BUFL    FILE OUTPUT = LINE PRINTER
+BUFL      EQU    101B
+BUF       BSS    BUFL
+          END    START

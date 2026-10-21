@@ -257,51 +257,71 @@ function screenText(m, screen) {
   return [...byY.entries()].sort((a, b) => b[0] - a[0]).map(([, xs]) => [...xs.entries()].sort((a, b) => a[0] - b[0]).map((x) => x[1]).join('').trimEnd());
 }
 
-test('cpu-sum example: sum, squares and factorial', async () => {
-  const { m, stop, sym } = await runExample('cpu-sum.cmp');
-  assert.equal(stop.reason, 'cpustop');
-  assert.equal(stop.error, null);
-  assert.equal(m.cm[sym('SUM')], 55n);
-  assert.equal(m.cm[sym('SQUARES')], 385n);
-  assert.equal(m.cm[sym('FACT')], 3628800n);
+/** Runs an example as a job of the mini-system; returns the dayfile and the printer text. */
+async function runJob(file) {
+  const name = file.replace(/\..*/, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const r = assemble(exText(file), { fileName: name });
+  assert.equal(r.errors.length, 0, `${file} : ${r.errors.map((e) => `${e.line} ${e.message}`).join(' ; ')}`);
+  const m = new Machine({ ecsWords: 0 });
+  const runner = new Runner(m, { mode: 'auto' });
+  assert.equal(runner.resolveMode(r), 'system');
+  const res = await runner.load(r, { fileName: name });
+  assert.equal(res.ok, true, res.message);
+  const s = manualScheduler();
+  let stop = null;
+  const c = new RunController(runner, { ...s.hooks, onStop: (x) => { stop = x; } });
+  c.setSpeed(1, true);
+  c.ready();
+  c.run();
+  s.pump(20000);
+  assert.equal(stop && stop.reason, 'jobend');
+  return { dayfile: runner.dayfile(), printer: m.printer.text().split('\n') };
+}
+
+test('cpu-sum example: sum, squares and factorial printed and shown', async () => {
+  const { dayfile, printer } = await runJob('cpu-sum.cmp');
+  const lines = ['SUM OF 1 TO 10    =        55', 'SUM OF SQUARES    =       385', 'FACTORIAL OF 10   =   3628800'];
+  assert.deepEqual(printer, ['SUM, SQUARES AND FACTORIAL OF 1 TO 10', ...lines]);
+  assert.deepEqual(dayfile, [...lines.map((l) => ' ' + l), ' NORMAL END OF JOB.']);
 });
 
-test('cpu-float example: square root of 2 and partial zeta(2)', async () => {
-  const { m, stop, sym } = await runExample('cpu-float.cmp');
-  assert.equal(stop.error, null);
-  assert.ok(Math.abs(toNumber(m.cm[sym('ROOT')]) - Math.SQRT2) < 1e-12);
+test('cpu-float example: square root of 2 and partial zeta(2) in decimal', async () => {
+  const { dayfile, printer } = await runJob('cpu-float.cmp');
   let z = 0;
   for (let k = 100; k >= 1; k--) z += 1 / (k * k);
-  assert.ok(Math.abs(toNumber(m.cm[sym('ZETA2')]) - z) < 1e-10);
+  const lines = [`SQUARE ROOT OF 2 = ${Math.SQRT2.toFixed(8)}`, `SUM OF 1/K**2    = ${z.toFixed(8)}`];
+  assert.deepEqual(printer, ['SQUARE ROOT OF 2 AND SUM OF 1/K**2', ...lines]);
+  assert.deepEqual(dayfile, [...lines.map((l) => ' ' + l), ' NORMAL END OF JOB.']);
 });
 
-test('cpu-text example: letters counted and message copied', async () => {
-  const { m, stop, sym } = await runExample('cpu-text.cmp');
-  assert.equal(stop.error, null);
+test('cpu-text example: copy of the message and letter count', async () => {
+  const { dayfile, printer } = await runJob('cpu-text.cmp');
   const msg = 'HELLO FROM THE CDC 6600, THE FIRST SUPERCOMPUTER.';
-  assert.equal(m.cm[sym('LETTERS')], BigInt(msg.replace(/[^A-Z]/g, '').length));
-  assert.equal(m.cm[sym('BUFFER')], m.cm[sym('MESSAGE')]);
+  const letters = String(msg.replace(/[^A-Z]/g, '').length).padStart(10);
+  assert.deepEqual(printer, [msg, `LETTERS IN TEXT   =${letters}`, 'WORDS OF 10 CHARS =         5']);
+  assert.equal(dayfile.length, 3);
 });
 
-test('cpu-sort example: sorted table', async () => {
-  const { m, stop, sym } = await runExample('cpu-sort.cmp');
-  assert.equal(stop.error, null);
-  const t = [];
-  for (let i = 0; i < 10; i++) {
-    const w = m.cm[sym('TABLE') + i];
-    t.push(w >> 59n ? -Number(~w & ((1n << 60n) - 1n)) : Number(w));
-  }
-  assert.deepEqual(t, [-14, -1, 0, 3, 7, 27, 42, 64, 600, 1966]);
+test('cpu-sort example: table printed before and after the sort', async () => {
+  const { dayfile, printer } = await runJob('cpu-sort.cmp');
+  const row = (head, v) => head + v.map((x) => String(x).padStart(10)).join('');
+  assert.deepEqual(printer, [
+    row('BEFORE:  ', [27, 3, -14, 1966, 0, 42, 7, -1, 600, 64]),
+    row('AFTER:   ', [-14, -1, 0, 3, 7, 27, 42, 64, 600, 1966]),
+    'SMALLEST        -14 LARGEST        1966',
+  ]);
+  assert.deepEqual(dayfile, [' SMALLEST        -14 LARGEST        1966', ' NORMAL END OF JOB.']);
 });
 
-test('macros example: macros, DUP, ECHO, IF', async () => {
-  const { m, stop, sym } = await runExample('macros.cmp');
-  assert.equal(stop.error, null);
-  assert.equal(m.cm[sym('FIVE')], 5n);
-  assert.equal(m.cm[sym('DOUBLE')], 16n);
-  assert.equal(m.cm[sym('BIG')], 1n);
-  for (let i = 0; i < 8; i++) assert.equal(m.cm[sym('COPY1') + i], BigInt((i + 1) * (i + 1)));
-  assert.equal(m.cm[sym('COPY2') + 1], m.cm[sym('NAMES') + 1]);
+test('macros example: macros, DUP, ECHO, IF and the printing macro', async () => {
+  const { dayfile, printer } = await runJob('macros.cmp');
+  assert.deepEqual(printer, [
+    'COMPASS DEMONSTRATION V1.2',
+    'FIVE =            5', 'DOUBLE =         16', 'BIG =             1',
+    'SQUARES: ' + [1, 4, 9, 16, 25, 36, 49, 64].map((x) => String(x).padStart(10)).join(''),
+    'NAMES:   ALPHA     BETA      GAMMA',
+  ]);
+  assert.deepEqual(dayfile, [' FIVE =            5', ' DOUBLE =         16', ' BIG =             1', ' NORMAL END OF JOB.']);
 });
 
 test('pp-console example: screens and keyboard', async () => {

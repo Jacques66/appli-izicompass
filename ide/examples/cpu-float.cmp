@@ -1,6 +1,5 @@
-          IDENT  FLOAT,100B,START
-          ABS
-          ORG    100B
+          IDENT  CPUFLOAT
+          ENTRY  START
 *         FLOATING-POINT ARITHMETIC ON THE CDC 6600.
 *
 *         1. SQUARE ROOT OF 2 BY NEWTON METHOD:
@@ -10,6 +9,11 @@
 *
 *         A 6600 FLOATING-POINT NUMBER: SIGN, 11-BIT EXPONENT AND
 *         48-BIT INTEGER COEFFICIENT (ONES COMPLEMENT).
+*
+*         JOB UNDER THE MINI-SYSTEM (SYSTEM MODE): THE RESULTS ARE
+*         CONVERTED TO DECIMAL BY THE FMT SUBROUTINE, PRINTED ON THE
+*         LINE PRINTER (WRITEC) AND SENT TO THE DAYFILE AND THE
+*         CONSOLE (MESSAGE).
 *
 START     SA1    VALUE       X1 = A
           SA2    ONE         X2 = X0 = 1.0
@@ -40,11 +44,79 @@ SERIES    SX1    B2          X1 = K (INTEGER)
           SB2    B2-B1
           NZ     B2,SERIES
           SA6    ZETA2       ZETA2 = 1.63498...
-          PS
+*
+*         PRINT THE RESULTS.
+*
+          WRITEC OUTPUT,TITLE
+          SA1    ROOT
+          RJ     FMT         X6 = D.DDDDDDDD
+          SA6    LINE1+2
+          WRITEC OUTPUT,LINE1
+          MESSAGE LINE1      DAYFILE AND CONSOLE
+          SA1    ZETA2
+          RJ     FMT
+          SA6    LINE2+2
+          WRITEC OUTPUT,LINE2
+          MESSAGE LINE2
+          WRITER OUTPUT      WRITE THE BUFFER TO THE PRINTER
+          ENDRUN
+*
+*         FMT - CONVERTS THE POSITIVE NUMBER X1 (LESS THAN 10.0) TO
+*         10 DISPLAY CODE CHARACTERS D.DDDDDDDD, RETURNED IN X6.
+*         THE INTEGER PART IS OBTAINED BY UNPACKING (UX) AND
+*         SHIFTING BY THE EXPONENT (LX); THE FRACTION IS SCALED BY
+*         10**8, ROUNDED, AND CONVERTED BY CDD. 10**8 IS ADDED FIRST
+*         SO THAT CDD KEEPS THE LEADING ZEROS OF THE FRACTION.
+*
+FMT       EQ     *+1S17      ENTRY AND EXIT WORD (SET BY RJ)
+          BX5    X1          X5 = VALUE
+          UX1    B7,X5       X1 = COEFFICIENT, B7 = EXPONENT
+          LX1    B7,X1       X1 = INTEGER PART (TRUNCATED)
+          BX7    X1
+          SA7    IPART
+          PX2    X1          INTEGER PART AS A FLOATING NUMBER
+          NX2    X2
+          FX3    X5-X2       FRACTIONAL PART
+          NX3    X3
+          SA4    E8          10**8
+          RX3    X3*X4       FRACTION * 10**8
+          SA4    HALF
+          RX3    X3+X4       + 0.5 TO ROUND
+          NX3    X3
+          UX1    B7,X3
+          LX1    B7,X1       X1 = 8 FRACTION DIGITS (INTEGER)
+          SA4    E8I
+          IX1    X1+X4       1DDDDDDDD
+          CDD                X6 = BLANK, 1, 8 DIGITS
+          MX0    12
+          BX6    -X0*X6      KEEP THE 8 DIGITS
+          SA1    IPART
+          SX1    X1+1R0      INTEGER PART AS A DISPLAY DIGIT
+          LX1    54
+          BX6    X6+X1
+          SX1    1R.         DECIMAL POINT
+          LX1    48
+          BX6    X6+X1       X6 = D.DDDDDDDD
+          EQ     FMT         RETURN
+*
+TITLE     DIS    ,$ SQUARE ROOT OF 2 AND SUM OF 1/K**2$
+LINE1     DIS    2, SQUARE ROOT OF 2 =
+          BSSZ   1           NUMBER
+          CON    0           END OF LINE
+LINE2     DIS    2, SUM OF 1/K**2    =
+          BSSZ   1
+          CON    0
 *
 VALUE     DATA   2.0
 ONE       DATA   1.0
 HALF      DATA   0.5
+E8        DATA   1.0E8
+E8I       CON    100000000
+IPART     BSS    1
 ROOT      BSS    1
 ZETA2     BSS    1
-          END
+*
+OUTPUT    FILEC  BUF,BUFL    FILE OUTPUT = LINE PRINTER
+BUFL      EQU    101B
+BUF       BSS    BUFL
+          END    START

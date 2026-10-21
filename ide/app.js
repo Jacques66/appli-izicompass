@@ -37,7 +37,8 @@ const RENAMED_EXAMPLES = {
 // workspace recorded the original text): a copy with one of these hashes
 // was never edited.
 const LEGACY_EXAMPLE_HASHES = new Set(['95lvzc', 'gflkat', '1wzvcde', 'rre12p', '13o5fte', 'bat707', '51eo9l', '1rmgg5g',
-  'omx21v', '1uwosl', 'aj3h3n', '1ktmx1k', 'pphvre', '1ew7t9n']);
+  'omx21v', '1uwosl', 'aj3h3n', '1ktmx1k', 'pphvre', '1ew7t9n',
+  'pi3bcb', 'ye2069', '1mvm3c7', 'shlm89', '1nzzdnr', '1ld3b6p', '1netuie', '3e26s', 'wfgrsk', 'tbw4po', 'f00bsa', '1cjzt8e']);
 const normalizeText = (s) => s.replace(/\r/g, '').replace(/\t/g, '        ').replace(/\s+$/, '');
 const textHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
 

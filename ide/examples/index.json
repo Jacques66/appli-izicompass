@@ -18,36 +18,36 @@
     "file": "cpu-sum.cmp",
     "title": "Sum and factorial",
     "kind": "program",
-    "mode": "CPU",
-    "description": "Loop on a B register, 60-bit integer arithmetic, storing the results."
+    "mode": "SYS",
+    "description": "Loop on a B register, 60-bit integer arithmetic; results printed (WRITEC, CDD) and sent to the dayfile and console (MESSAGE)."
   },
   {
     "file": "cpu-float.cmp",
     "title": "Floating-point arithmetic",
     "kind": "program",
-    "mode": "CPU",
-    "description": "Square root of 2 by Newton method and the 1/k² series: FX, RX, NX, PX instructions."
+    "mode": "SYS",
+    "description": "Square root of 2 by Newton method and the 1/k² series (FX, RX, NX, PX); decimal conversion, printer and console output."
   },
   {
     "file": "cpu-text.cmp",
     "title": "Display code text",
     "kind": "program",
-    "mode": "CPU",
-    "description": "DIS, LX rotations and MX masks to count the letters of a message."
+    "mode": "SYS",
+    "description": "DIS, LX rotations and MX masks to count the letters of a message; the copy and the counts are printed and shown."
   },
   {
     "file": "cpu-sort.cmp",
     "title": "Insertion sort",
     "kind": "program",
-    "mode": "CPU",
-    "description": "CON table, B indexing, comparisons by integer subtraction."
+    "mode": "SYS",
+    "description": "Insertion sort with B indexing; the table is printed before and after the sort, signed decimal conversion."
   },
   {
     "file": "macros.cmp",
     "title": "Macros, micros, IF, DUP, ECHO",
     "kind": "program",
-    "mode": "CPU",
-    "description": "Macro assembler demonstration: MACRO/LOCAL, MICRO, IFGE/ELSE, DUP, ECHO."
+    "mode": "SYS",
+    "description": "MACRO/LOCAL, MICRO, IFGE/ELSE, DUP, ECHO; results printed by a macro built on WRITEC, CDD and MESSAGE."
   },
   {
     "file": "pp-console.cmp",

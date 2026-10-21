@@ -21,12 +21,11 @@ test('self-contained bundle: the IDE evaluates outside a browser and runs an exa
   const r = assemble(ex.files['cpu-sum.cmp'], { fileName: 'CPUSUM' });
   assert.equal(r.errors.length, 0);
   const m = new Machine({ ecsWords: 0 });
-  const run = new Runner(m, { em: 0 });
+  const run = new Runner(m, { mode: 'auto' });
   const res = await run.load(r);
   assert.equal(res.ok, true);
-  const stop = m.run(10000, { stopOnCpuStop: true });
-  assert.equal(stop.reason, 'cpustop');
-  const sum = r.symbols.find((s) => s.name === 'SUM').value;
-  assert.equal(m.cm[sum], 55n);
+  assert.equal(run.kind, 'system');
+  for (let t = 0; t < 200000 && !m.printer.text().includes('FACTORIAL'); t += 10000) m.run(10000);
+  assert.ok(m.printer.text().includes('SUM OF 1 TO 10    =        55'), m.printer.text());
   assert.equal(typeof mods['ide/app.js'].start, 'function');
 });
