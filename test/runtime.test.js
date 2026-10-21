@@ -257,6 +257,18 @@ function screenText(m, screen) {
   return [...byY.entries()].sort((a, b) => b[0] - a[0]).map(([, xs]) => [...xs.entries()].sort((a, b) => a[0] - b[0]).map((x) => x[1]).join('').trimEnd());
 }
 
+test('cpu-count example: octal counting readable in memory (bare CPU)', async () => {
+  const { m, stop, runner } = await runExample('cpu-count.cmp');
+  assert.equal(runner.kind, 'cpu');
+  assert.equal(stop.reason, 'cpustop');
+  assert.equal(stop.error, null);
+  for (let n = 0; n < 0o100; n++) assert.equal(m.cm[0o1000 + n], BigInt(n));
+  for (let k = 0; k < 20; k++) assert.equal(m.cm[0o1100 + k], 1n << BigInt(3 * k));
+  for (let w = 0; w < 4; w++) assert.equal(m.cm[0o1124 + w].toString(8).padStart(20, '0'), '01234567012345670123');
+  const text = [...Array(10)].map((_, i) => DISPLAY64[Number((m.cm[0o1130] >> BigInt(54 - 6 * i)) & 63n)]).join('');
+  assert.equal(text, 'COUNT DONE');
+});
+
 /** Runs an example as a job of the mini-system; returns the dayfile and the printer text. */
 async function runJob(file) {
   const name = file.replace(/\..*/, '').toUpperCase().replace(/[^A-Z0-9]/g, '');

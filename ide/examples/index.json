@@ -50,6 +50,13 @@
     "description": "MACRO/LOCAL, MICRO, IFGE/ELSE, DUP, ECHO; results printed by a macro built on WRITEC, CDD and MESSAGE."
   },
   {
+    "file": "cpu-count.cmp",
+    "title": "Octal counting (pure CPU)",
+    "kind": "program",
+    "mode": "CPU",
+    "description": "Absolute program, bare CPU mode: counts 0-77B into 1000B, powers of 8 into 1100B, then PS. Read the results in the Memory tab at address 1000."
+  },
+  {
     "file": "pp-console.cmp",
     "title": "6612 console and keyboard",
     "kind": "program",

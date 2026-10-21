@@ -1,0 +1,80 @@
+          IDENT  COUNT,100B,START
+          ABS
+          ORG    100B
+*         PURE CPU PROGRAM: OCTAL COUNTING IN CENTRAL MEMORY.
+*
+*         ABSOLUTE PROGRAM, RUN IN BARE CPU MODE: NO SYSTEM, NO
+*         PRINTER, NO CONSOLE. THE CPU FILLS THREE TABLES AT FIXED
+*         ADDRESSES, THEN STOPS ON PS. THE RESULTS ARE READ IN THE
+*         MEMORY TAB: TYPE 1000 IN THE ADDRESS FIELD (OCTAL).
+*
+*         1000B-1077B  COUNT    WORD N HOLDS N: 0, 1, 2, ... 77B.
+*                               THE ADDRESS AND THE VALUE END WITH
+*                               THE SAME OCTAL DIGITS.
+*         1100B-1123B  POWERS   POWERS OF 8: 1, 10B, 100B, ...
+*                               EACH WORD SHIFTS THE 1 BY 3 BITS
+*                               (ONE OCTAL DIGIT) TO THE LEFT.
+*         1124B-1127B  DIGITS   01234567 REPEATED: EACH WORD IS
+*                               THE PREVIOUS ONE SHIFTED BY ONE
+*                               OCTAL DIGIT AND ADDED TO A DIGIT.
+*         1130B        DONE     DISPLAY CODE TEXT *COUNT DONE*,
+*                               READABLE WITH THE DISPLAY FORMAT.
+*
+START     SB1    1           B1 = 1
+*
+*         1. OCTAL COUNT: COUNT(N) = N FOR N = 0 TO 77B.
+*
+          SB2    B0          B2 = N
+          SB3    100B        B3 = NUMBER OF WORDS
+CLOOP     SX6    B2          X6 = N
+          SA6    B2+COUNT    COUNT(N) = N
+          SB2    B2+B1       N = N + 1
+          LT     B2,B3,CLOOP
+*
+*         2. POWERS OF 8: POWERS(K) = 8**K FOR K = 0 TO 19, THE
+*         LAST ONE IS 1 FOLLOWED BY 19 OCTAL ZEROS.
+*
+          SX6    B1          X6 = 1
+          SB2    B0          B2 = K
+          SB3    20D         20 POWERS
+PLOOP     SA6    B2+POWERS   POWERS(K) = X6
+          LX6    3           X6 = X6 * 8 (ONE OCTAL DIGIT)
+          SB2    B2+B1
+          LT     B2,B3,PLOOP
+*
+*         3. DIGITS 0 TO 7 ENTERED ONE BY ONE FROM THE RIGHT: AFTER
+*         20 DIGITS A WORD READS 01234567012345670123.
+*
+          SX6    B0          X6 = 0
+          SB2    B0          B2 = DIGIT COUNT
+          SB3    20D         20 OCTAL DIGITS PER WORD
+          SB4    B0          B4 = WORD INDEX
+          MX0    57          X0 = MASK OF ALL BITS BUT THE LOW 3
+DLOOP     LX6    3           MAKE ROOM FOR ONE DIGIT
+          SX1    B2          X1 = DIGIT COUNT
+          BX1    -X0*X1      X1 = COUNT MODULO 8
+          BX6    X6+X1       APPEND THE DIGIT
+          SB2    B2+B1
+          LT     B2,B3,DLOOP
+          SA6    B4+DIGITS   ONE FULL WORD
+          SB4    B4+B1       NEXT WORD, SAME 20 DIGITS
+          SB2    B0
+          SX6    B0
+          SB5    4           4 WORDS
+          LT     B4,B5,DLOOP
+*
+*         4. END MARKER, THEN STOP.
+*
+          SA1    TEXT
+          BX6    X1
+          SA6    DONE
+          PS                 PROGRAM STOP
+*
+TEXT      DIS    1,COUNT DONE
+*
+          ORG    1000B
+COUNT     BSS    100B        1000B-1077B
+POWERS    BSS    20D         1100B-1123B
+DIGITS    BSS    4           1124B-1127B
+DONE      BSS    1           1130B
+          END
