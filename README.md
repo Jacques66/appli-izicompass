@@ -1,5 +1,7 @@
 # CDC 6600 — emulator, COMPASS 3 assembler and integrated workbench
 
+Online: https://jacques66.github.io/appli-izicompass/
+
 Software reconstruction of the CDC 6600 (1964) and of its COMPASS assembler:
 
 - **Emulator**: 60-bit central processor (X/A/B, P, RA/FL, exit mode,
